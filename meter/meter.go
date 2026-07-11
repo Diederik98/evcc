@@ -33,6 +33,8 @@ func NewConfigurableFromConfig(ctx context.Context, other map[string]any) (api.M
 		Soc                *plugin.Config // optional
 		LimitSoc           *plugin.Config // optional
 		BatteryMode        *plugin.Config // optional
+		ChargeLimit        *plugin.Config // optional
+		DischargeLimit     *plugin.Config // optional
 	}{
 		batterySocLimits: batterySocLimits{
 			MinSoc: 20,
@@ -72,6 +74,38 @@ func NewConfigurableFromConfig(ctx context.Context, other map[string]any) (api.M
 		implement.May(m, implement.BatteryCapacity(cc.batteryCapacity.Decorator()))
 		implement.May(m, implement.BatterySocLimiter(cc.batterySocLimits.Decorator()))
 		implement.May(m, implement.BatteryPowerLimiter(cc.batteryPowerLimits.Decorator()))
+
+		var chargeLimitS, dischargeLimitS func(int64) error
+		if cc.ChargeLimit != nil {
+			var err error
+			chargeLimitS, err = cc.ChargeLimit.IntSetter(ctx, "chargeLimit")
+			if err != nil {
+				return nil, fmt.Errorf("battery charge limit: %w", err)
+			}
+		}
+		if cc.DischargeLimit != nil {
+			var err error
+			dischargeLimitS, err = cc.DischargeLimit.IntSetter(ctx, "dischargeLimit")
+			if err != nil {
+				return nil, fmt.Errorf("battery discharge limit: %w", err)
+			}
+		}
+
+		if chargeLimitS != nil || dischargeLimitS != nil {
+			cLimit := func(charge int) error { return nil }
+			if chargeLimitS != nil {
+				cLimit = func(charge int) error {
+					return chargeLimitS(int64(charge))
+				}
+			}
+			dLimit := func(discharge int) error { return nil }
+			if dischargeLimitS != nil {
+				dLimit = func(discharge int) error {
+					return dischargeLimitS(int64(discharge))
+				}
+			}
+			implement.Has(m, implement.BatteryLimitController(cLimit, dLimit))
+		}
 
 		switch {
 		case cc.Soc != nil && cc.LimitSoc != nil:

@@ -83,8 +83,11 @@
 					@change="changeDischargeControl"
 				/>
 				<label class="form-check-label" for="batteryExpDischarge">
-					{{ $t("battery.config.discharge") }}
+					{{ dischargeControlLabel }}
 				</label>
+				<small v-if="peakShaveEnabled" class="d-block text-muted">
+					{{ $t("batterySettings.dischargePeakShaveHelp") }}
+				</small>
 			</div>
 		</template>
 	</Card>
@@ -113,6 +116,7 @@ export default defineComponent({
 		prioritySoc: { type: Number, default: 0 },
 		bufferStartSoc: { type: Number, default: 0 },
 		batteryDischargeControl: Boolean,
+		peakShaveEnabled: Boolean,
 		battery: { type: Object as PropType<Battery> },
 	},
 	data() {
@@ -131,6 +135,11 @@ export default defineComponent({
 		},
 		controllable(): boolean {
 			return (this.battery?.devices ?? []).some(({ controllable }) => controllable);
+		},
+		dischargeControlLabel(): string {
+			return this.peakShaveEnabled
+				? this.$t("battery.config.dischargePeakShave")
+				: this.$t("battery.config.discharge");
 		},
 		priorityOptions() {
 			const options = [];

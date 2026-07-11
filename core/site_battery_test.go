@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/evcc-io/evcc/api"
+	"github.com/evcc-io/evcc/core/types"
 	"github.com/evcc-io/evcc/util"
 	"github.com/evcc-io/evcc/util/config"
 	"github.com/stretchr/testify/assert"
@@ -253,3 +254,286 @@ func TestForcedBatteryChargeLimits(t *testing.T) {
 		ctrl.Finish()
 	}
 }
+
+func newLimitBat(ctrl *gomock.Controller, limitCtrl api.BatteryLimitController) api.Meter {
+	meter := api.NewMockMeter(ctrl)
+	meter.EXPECT().CurrentPower().Return(0.0, nil).AnyTimes()
+	type fullBat struct {
+		api.Meter
+		api.BatteryLimitController
+	}
+	return &fullBat{Meter: meter, BatteryLimitController: limitCtrl}
+}
+
+func TestManageGridLimitsIdle(t *testing.T) {
+	ctrl := gomock.NewController(t)
+
+	limitCtrl := api.NewMockBatteryLimitController(ctrl)
+	bat := newLimitBat(ctrl, limitCtrl)
+
+	site := &Site{
+		log:                             util.NewLogger("ps"),
+		batteryMeters:                   []config.Device[api.Meter]{config.NewStaticDevice(config.Named{}, bat)},
+		GridThreshold:                   10.0,
+		PeakShaveReserveSoc:             40.0,
+		PeakShaveMinSoc:                 20.0,
+		PeakShaveMaintainSocChargePower: 1000.0,
+		gridPower:                       5000.0,
+		battery:                         types.BatteryState{Soc: 60.0},
+	}
+
+	site.ManageGridLimits(false)
+	assert.Equal(t, PeakShaveIdle, site.peakShaveState)
+	ctrl.Finish()
+}
+
+func TestManageGridLimitsShaving(t *testing.T) {
+	ctrl := gomock.NewController(t)
+
+	limitCtrl := api.NewMockBatteryLimitController(ctrl)
+	limitCtrl.EXPECT().SetChargeLimit(0).Return(nil).Times(1)
+	limitCtrl.EXPECT().SetDischargeLimit(5000).Return(nil).Times(1)
+	bat := newLimitBat(ctrl, limitCtrl)
+
+	site := &Site{
+		log:                             util.NewLogger("ps"),
+		batteryMeters:                   []config.Device[api.Meter]{config.NewStaticDevice(config.Named{}, bat)},
+		GridThreshold:                   10.0,
+		PeakShaveReserveSoc:             40.0,
+		PeakShaveMinSoc:                 20.0,
+		PeakShaveMaintainSocChargePower: 1000.0,
+		PeakShaveLoadShedDelay:          30.0,
+		gridPower:                       15000.0,
+		battery:                         types.BatteryState{Soc: 80.0},
+	}
+
+	site.ManageGridLimits(false)
+	assert.Equal(t, PeakShaveActive, site.peakShaveState)
+	ctrl.Finish()
+}
+
+func TestManageGridLimitsSheddingAfterDelay(t *testing.T) {
+	ctrl := gomock.NewController(t)
+
+	limitCtrl := api.NewMockBatteryLimitController(ctrl)
+	limitCtrl.EXPECT().SetChargeLimit(0).Return(nil).Times(1)
+	limitCtrl.EXPECT().SetDischargeLimit(5000).Return(nil).Times(1)
+	bat := newLimitBat(ctrl, limitCtrl)
+
+	site := &Site{
+		log:                             util.NewLogger("ps"),
+		batteryMeters:                   []config.Device[api.Meter]{config.NewStaticDevice(config.Named{}, bat)},
+		GridThreshold:                   10.0,
+		PeakShaveReserveSoc:             40.0,
+		PeakShaveMinSoc:                 20.0,
+		PeakShaveMaintainSocChargePower: 1000.0,
+		PeakShaveLoadShedDelay:          30.0,
+		peakShaveOverloadSince:          time.Now().Add(-31 * time.Second),
+		gridPower:                       15000.0,
+		battery:                         types.BatteryState{Soc: 80.0},
+	}
+
+	site.ManageGridLimits(false)
+	assert.Equal(t, PeakShaveShedding, site.peakShaveState)
+	ctrl.Finish()
+}
+
+func TestManageGridLimitsImmediateShedding(t *testing.T) {
+	ctrl := gomock.NewController(t)
+
+	limitCtrl := api.NewMockBatteryLimitController(ctrl)
+	limitCtrl.EXPECT().SetChargeLimit(0).Return(nil).Times(1)
+	limitCtrl.EXPECT().SetDischargeLimit(5000).Return(nil).Times(1)
+	bat := newLimitBat(ctrl, limitCtrl)
+
+	site := &Site{
+		log:                             util.NewLogger("ps"),
+		batteryMeters:                   []config.Device[api.Meter]{config.NewStaticDevice(config.Named{}, bat)},
+		GridThreshold:                   10.0,
+		PeakShaveReserveSoc:             40.0,
+		PeakShaveMinSoc:                 20.0,
+		PeakShaveMaintainSocChargePower: 1000.0,
+		PeakShaveLoadShedDelay:          0,
+		gridPower:                       15000.0,
+		battery:                         types.BatteryState{Soc: 80.0},
+	}
+
+	site.ManageGridLimits(false)
+	assert.Equal(t, PeakShaveShedding, site.peakShaveState)
+	ctrl.Finish()
+}
+
+func TestManageGridLimitsCritical(t *testing.T) {
+	ctrl := gomock.NewController(t)
+
+	limitCtrl := api.NewMockBatteryLimitController(ctrl)
+	limitCtrl.EXPECT().SetChargeLimit(0).Return(nil).Times(1)
+	limitCtrl.EXPECT().SetDischargeLimit(5000).Return(nil).Times(1)
+	bat := newLimitBat(ctrl, limitCtrl)
+
+	site := &Site{
+		log:                             util.NewLogger("ps"),
+		batteryMeters:                   []config.Device[api.Meter]{config.NewStaticDevice(config.Named{}, bat)},
+		GridThreshold:                   10.0,
+		PeakShaveReserveSoc:             40.0,
+		PeakShaveMinSoc:                 20.0,
+		PeakShaveMaintainSocChargePower: 1000.0,
+		PeakShaveLoadShedDelay:          30.0,
+		gridPower:                       15000.0,
+		battery:                         types.BatteryState{Soc: 30.0},
+	}
+
+	site.ManageGridLimits(false)
+	assert.Equal(t, PeakShaveCritical, site.peakShaveState)
+	ctrl.Finish()
+}
+
+func TestManageGridLimitsHardLockout(t *testing.T) {
+	ctrl := gomock.NewController(t)
+
+	limitCtrl := api.NewMockBatteryLimitController(ctrl)
+	limitCtrl.EXPECT().SetDischargeLimit(0).Return(nil).Times(1)
+	limitCtrl.EXPECT().SetChargeLimit(0).Return(nil).Times(1)
+	bat := newLimitBat(ctrl, limitCtrl)
+
+	site := &Site{
+		log:                             util.NewLogger("ps"),
+		batteryMeters:                   []config.Device[api.Meter]{config.NewStaticDevice(config.Named{}, bat)},
+		GridThreshold:                   10.0,
+		PeakShaveReserveSoc:             40.0,
+		PeakShaveMinSoc:                 20.0,
+		PeakShaveMaintainSocChargePower: 1000.0,
+		gridPower:                       15000.0,
+		battery:                         types.BatteryState{Soc: 15.0},
+	}
+
+	site.ManageGridLimits(false)
+	assert.Equal(t, PeakShaveLockout, site.peakShaveState)
+	ctrl.Finish()
+}
+
+func TestManageGridLimitsRecovery(t *testing.T) {
+	ctrl := gomock.NewController(t)
+
+	limitCtrl := api.NewMockBatteryLimitController(ctrl)
+	limitCtrl.EXPECT().SetChargeLimit(1000).Return(nil).Times(1)
+	bat := newLimitBat(ctrl, limitCtrl)
+
+	site := &Site{
+		log:                             util.NewLogger("ps"),
+		batteryMeters:                   []config.Device[api.Meter]{config.NewStaticDevice(config.Named{}, bat)},
+		GridThreshold:                   10.0,
+		PeakShaveReserveSoc:             40.0,
+		PeakShaveMinSoc:                 20.0,
+		PeakShaveMaintainSocChargePower: 1000.0,
+		gridPower:                       3000.0,
+		battery:                         types.BatteryState{Soc: 25.0},
+	}
+
+	site.ManageGridLimits(false)
+	assert.Equal(t, PeakShaveRecovery, site.peakShaveState)
+	ctrl.Finish()
+}
+
+func TestManageGridLimitsRecoveryHeadroomCap(t *testing.T) {
+	ctrl := gomock.NewController(t)
+
+	limitCtrl := api.NewMockBatteryLimitController(ctrl)
+	limitCtrl.EXPECT().SetChargeLimit(500).Return(nil).Times(1)
+	bat := newLimitBat(ctrl, limitCtrl)
+
+	site := &Site{
+		log:                             util.NewLogger("ps"),
+		batteryMeters:                   []config.Device[api.Meter]{config.NewStaticDevice(config.Named{}, bat)},
+		GridThreshold:                   10.0,
+		PeakShaveReserveSoc:             40.0,
+		PeakShaveMinSoc:                 20.0,
+		PeakShaveMaintainSocChargePower: 1000.0,
+		gridPower:                       9500.0,
+		battery:                         types.BatteryState{Soc: 25.0},
+	}
+
+	site.ManageGridLimits(false)
+	assert.Equal(t, PeakShaveRecovery, site.peakShaveState)
+	ctrl.Finish()
+}
+
+func TestManageGridLimitsGridChargeHeadroom(t *testing.T) {
+	ctrl := gomock.NewController(t)
+
+	limitCtrl := api.NewMockBatteryLimitController(ctrl)
+	limitCtrl.EXPECT().SetChargeLimit(2000).Return(nil).Times(1)
+	bat := newLimitBat(ctrl, limitCtrl)
+
+	site := &Site{
+		log:                             util.NewLogger("ps"),
+		batteryMeters:                   []config.Device[api.Meter]{config.NewStaticDevice(config.Named{}, bat)},
+		GridThreshold:                   10.0,
+		PeakShaveReserveSoc:             40.0,
+		PeakShaveMinSoc:                 20.0,
+		PeakShaveMaintainSocChargePower: 1000.0,
+		gridPower:                       8000.0,
+		battery:                         types.BatteryState{Soc: 60.0},
+	}
+
+	site.ManageGridLimits(true)
+	assert.Equal(t, PeakShaveIdle, site.peakShaveState)
+	assert.True(t, site.peakShaveBatteryLimited)
+	ctrl.Finish()
+}
+
+func TestManageGridLimitsDisabled(t *testing.T) {
+	ctrl := gomock.NewController(t)
+
+	limitCtrl := api.NewMockBatteryLimitController(ctrl)
+	limitCtrl.EXPECT().SetChargeLimit(0).Return(nil).Times(1)
+	limitCtrl.EXPECT().SetDischargeLimit(0).Return(nil).Times(1)
+	bat := newLimitBat(ctrl, limitCtrl)
+
+	site := &Site{
+		log:                             util.NewLogger("ps"),
+		batteryMeters:                   []config.Device[api.Meter]{config.NewStaticDevice(config.Named{}, bat)},
+		GridThreshold:                   0,
+		PeakShaveReserveSoc:             40.0,
+		PeakShaveMinSoc:                 20.0,
+		PeakShaveMaintainSocChargePower: 1000.0,
+		peakShaveBatteryLimited:         true,
+		gridPower:                       15000.0,
+		battery:                         types.BatteryState{Soc: 80.0},
+	}
+
+	site.ManageGridLimits(false)
+	assert.Equal(t, PeakShaveIdle, site.peakShaveState)
+	ctrl.Finish()
+}
+
+func TestManageGridLimitsNoBatteries(t *testing.T) {
+	site := &Site{
+		log:           util.NewLogger("ps"),
+		GridThreshold: 10.0,
+		gridPower:     20000.0,
+	}
+	site.ManageGridLimits(false)
+	assert.Equal(t, PeakShaveIdle, site.peakShaveState)
+}
+
+func TestDischargeControlBypassDuringPeakShave(t *testing.T) {
+	site := &Site{
+		log:                     util.NewLogger("ps"),
+		batteryDischargeControl: true,
+		peakShaveState:          PeakShaveActive,
+	}
+
+	assert.False(t, site.dischargeControlActive(api.Rate{}))
+}
+
+func TestApplyBatteryModeBypassDuringLockout(t *testing.T) {
+	site := &Site{
+		log:            util.NewLogger("ps"),
+		peakShaveState: PeakShaveLockout,
+	}
+
+	err := site.applyBatteryMode(api.BatteryNormal)
+	assert.NoError(t, err)
+}
+

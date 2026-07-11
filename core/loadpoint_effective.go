@@ -201,6 +201,10 @@ func (lp *Loadpoint) effectiveMaxCurrent() float64 {
 		}
 	}
 
+	if lp.peakShaveMaxCurrent != nil {
+		maxCurrent = min(maxCurrent, *lp.peakShaveMaxCurrent)
+	}
+
 	return maxCurrent
 }
 

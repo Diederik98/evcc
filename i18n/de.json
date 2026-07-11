@@ -39,6 +39,7 @@
       },
       "bufferTitle": "Batterie als Ladepuffer",
       "discharge": "Entladung der Hausbatterie im Schnell-Modus und bei geplantem Laden verhindern.",
+      "dischargePeakShave": "Entladung der Hausbatterie im Schnell-Modus und bei geplantem Laden verhindern. Lastspitzenkappung greift bei Bedarf automatisch.",
       "priority": "Hausspeicher hat Vorrang, solange er unter {soc} liegt. Dann erhalten die Ladepunkte den Überschuss.",
       "priorityNone": "Sonnenüberschuss geht direkt an die Ladepunkte. Setze einen Wert über {soc}, um den Hausspeicher zu bevorzugen.",
       "priorityTitle": "Wohin geht der Überschuss zuerst?"
@@ -68,6 +69,8 @@
     "capacity": "{energy} von {total}",
     "control": "Batteriesteuerung",
     "discharge": "Verhindere Entladung im Schnell-Modus und bei geplantem Laden.",
+    "dischargePeakShave": "Verhindere Entladung im Schnell-Modus und bei geplantem Laden. Lastspitzenkappung greift bei Bedarf automatisch.",
+    "dischargePeakShaveHelp": "Bei Netzbezug über dem Schwellwert kann die Lastspitzenkappung die Batterie entladen, unabhängig von dieser Einstellung.",
     "disclaimerHint": "Hinweis:",
     "disclaimerText": "Nur relevant im PV-Modus. Das Ladeverhalten wird entsprechend angepasst.",
     "gridChargeTab": "Netzladen",
@@ -83,11 +86,41 @@
     "legendTopSublineDisabledState": "deaktiviert",
     "modalTitle": "Hausbatterie",
     "noBattery": "Keine Batterien konfiguriert.",
+    "peakShaveTab": "Lastspitzenkappung",
     "usageTab": "Batterienutzung"
   },
   "colors": {
     "auto": "Auto",
     "hex": "Hex-Farbe"
+  },
+  "peakShave": {
+    "gridThreshold": "Netzleistungsgrenze",
+    "gridThresholdHelp": "Maximal erlaubter Netzbezug in kW. Auf 0 setzen, um die Lastspitzenkappung zu deaktivieren.",
+    "gridPowerLive": "Aktueller Netzbezug: {power} kW",
+    "loadShedDelay": "Lastabwurf-Verzögerung",
+    "loadShedDelayHelp": "Wartezeit in Sekunden, bevor das EV-Laden gedrosselt wird, wenn der Netzbezug über der Grenze bleibt. 0 für sofortigen Lastabwurf.",
+    "noLimitController": "Die Lastspitzenkappung erfordert eine Batterie mit Lade- und Entladeleistungsgrenzen. Konfiguriere chargelimit und dischargelimit am Batteriezähler.",
+    "socInvalid": "Der Reserve-SoC darf nicht unter dem Mindest-SoC der Batterie liegen.",
+    "reserveSoc": "Reserve-SoC",
+    "reserveSocHelp": "Ziel-Ladestand der Batterie als Puffer. Wiederaufladung beginnt, wenn der SoC darunter fällt. Muss mindestens dem Mindest-SoC der Batterie in der Gerätekonfiguration entsprechen.",
+    "reserveSocLabel": "Reserve",
+    "minSocFromBattery": "Min. (Batterie): {soc} %",
+    "minSocTooltip": "Mindest-SoC: {soc} %. In der Batteriegerätekonfiguration festgelegt.",
+    "reserveSocTooltip": "Reserve-SoC: {soc} %. Ziehen zum Anpassen.",
+    "minSoc": "Mindest-SoC",
+    "minSocHelp": "Untere Grenze für die Batterieentladung. Wird in der Batteriegerätekonfiguration festgelegt.",
+    "minSocLabel": "Mindest",
+    "maintainSocChargePower": "Wiederherstellungsladeleistung",
+    "maintainSocChargePowerHelp": "Ladeleistungsgrenze zum Wiederherstellen des Reserve-SoC nach der Lastspitzenkappung.",
+    "batteryTabTitle": "Batterieschutz",
+    "state": {
+      "idle": "Inaktiv",
+      "shaving": "Lastspitzenkappung aktiv",
+      "critical": "Kritisch: Batterie in Reserveband",
+      "shedding": "Lastabwurf: EV-Laden wird gedrosselt",
+      "recovery": "Wiederherstellung: Batterie wird auf Reserve geladen",
+      "lockout": "Sperre: Batterie leer, Lastabwurf aktiv"
+    }
   },
   "config": {
     "adminPassword": {

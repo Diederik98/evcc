@@ -1,29 +1,50 @@
 <template>
-	<div v-if="batteryAvailable" data-testid="battery-experimental">
-		<BatteryStatusCards class="mb-4" :battery="state.battery" />
-
-		<BatteryHistoryCard
-			class="mb-4"
-			:batteries="chartBatteries"
-			:now="now"
-			:kwh-available="kWhAvailable"
-			@range-start="onRangeStart"
-		/>
-
-		<BatteryConfigCard
-			class="mb-4"
-			:buffer-soc="state.bufferSoc"
-			:priority-soc="state.prioritySoc"
-			:buffer-start-soc="state.bufferStartSoc"
-			:battery-discharge-control="state.batteryDischargeControl"
-			:battery="state.battery"
-		/>
-
-		<Card v-if="gridChargeVisible" :title="$t('batterySettings.gridChargeTab')">
-			<SmartCostLimit v-bind="smartCostLimitProps" />
+	<div data-testid="battery-experimental">
+		<Card class="mb-4" :title="$t('batterySettings.peakShaveTab')">
+			<SiteGridSettings
+				:grid-threshold="state.gridThreshold"
+				:grid-power="state.grid?.power"
+			/>
 		</Card>
+
+		<template v-if="batteryAvailable">
+			<BatteryStatusCards class="mb-4" :battery="state.battery" />
+
+			<BatteryHistoryCard
+				class="mb-4"
+				:batteries="chartBatteries"
+				:now="now"
+				:kwh-available="kWhAvailable"
+				@range-start="onRangeStart"
+			/>
+
+			<BatteryConfigCard
+				class="mb-4"
+				:buffer-soc="state.bufferSoc"
+				:priority-soc="state.prioritySoc"
+				:buffer-start-soc="state.bufferStartSoc"
+				:battery-discharge-control="state.batteryDischargeControl"
+				:peak-shave-enabled="peakShaveEnabled"
+				:battery="state.battery"
+			/>
+
+			<Card v-if="gridChargeVisible" class="mb-4" :title="$t('batterySettings.gridChargeTab')">
+				<SmartCostLimit v-bind="smartCostLimitProps" />
+			</Card>
+
+			<Card class="mb-4" :title="$t('peakShave.batteryTabTitle')">
+				<BatteryPeakShaveSettings
+					:peak-shave-reserve-soc="state.peakShaveReserveSoc"
+					:peak-shave-min-soc="state.peakShaveMinSoc"
+					:peak-shave-maintain-soc-charge-power="state.peakShaveMaintainSocChargePower"
+					:peak-shave-load-shed-delay="state.peakShaveLoadShedDelay"
+					:peak-shave-state="state.peakShaveState ?? 'idle'"
+					:limit-controller-available="peakShaveLimitControllerAvailable"
+				/>
+			</Card>
+		</template>
+		<p v-else class="my-4 text-muted">{{ $t("batterySettings.noBattery") }}</p>
 	</div>
-	<p v-else class="my-4 text-muted">{{ $t("batterySettings.noBattery") }}</p>
 </template>
 
 <script lang="ts">
@@ -37,6 +58,8 @@ import SmartCostLimit from "../Tariff/SmartCostLimit.vue";
 import BatteryStatusCards from "./BatteryStatusCards.vue";
 import BatteryConfigCard from "./BatteryConfigCard.vue";
 import BatteryHistoryCard from "./BatteryHistoryCard.vue";
+import SiteGridSettings from "./SiteGridSettings.vue";
+import BatteryPeakShaveSettings from "./BatteryPeakShaveSettings.vue";
 import { historyToSeries, forecastToSeries, buildChartBatteries } from "./history";
 import type { BatteryHistorySeries, BatterySeries } from "./types";
 
@@ -50,6 +73,8 @@ export default defineComponent({
 		BatteryStatusCards,
 		BatteryConfigCard,
 		BatteryHistoryCard,
+		SiteGridSettings,
+		BatteryPeakShaveSettings,
 	},
 	data() {
 		const now = new Date();
@@ -74,6 +99,12 @@ export default defineComponent({
 		},
 		batteryAvailable(): boolean {
 			return this.devices.length > 0;
+		},
+		peakShaveLimitControllerAvailable(): boolean {
+			return this.devices.some(({ controllable }) => controllable);
+		},
+		peakShaveEnabled(): boolean {
+			return (this.state.gridThreshold ?? 0) > 0;
 		},
 		evopt() {
 			return this.state.evopt;

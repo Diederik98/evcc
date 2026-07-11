@@ -782,6 +782,20 @@ func (lp *Loadpoint) SetMaxCurrent(current float64) error {
 	return nil
 }
 
+// SetPeakShaveMaxCurrent sets a transient max current cap during peak shave load shedding
+func (lp *Loadpoint) SetPeakShaveMaxCurrent(current *float64) {
+	lp.Lock()
+	defer lp.Unlock()
+	lp.peakShaveMaxCurrent = current
+}
+
+// GetPeakShaveMaxCurrent returns the transient peak shave max current cap
+func (lp *Loadpoint) GetPeakShaveMaxCurrent() *float64 {
+	lp.RLock()
+	defer lp.RUnlock()
+	return lp.peakShaveMaxCurrent
+}
+
 // IsFastChargingActive indicates if fast charging with maximum power is active
 func (lp *Loadpoint) IsFastChargingActive() bool {
 	lp.RLock()

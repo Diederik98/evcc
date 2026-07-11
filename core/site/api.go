@@ -91,4 +91,31 @@ type API interface {
 	GetBatteryModeExternal() api.BatteryMode
 	// SetBatteryModeExternal sets the external battery mode
 	SetBatteryModeExternal(api.BatteryMode) error
+
+	//
+	// peak shaving
+	//
+
+	// GetGridThreshold returns the grid threshold in kW
+	GetGridThreshold() float64
+	// SetGridThreshold sets the grid threshold in kW
+	SetGridThreshold(float64) error
+	// GetPeakShaveReserveSoc returns the peak shave reserve SoC in %
+	GetPeakShaveReserveSoc() float64
+	// SetPeakShaveReserveSoc sets the peak shave reserve SoC in %
+	SetPeakShaveReserveSoc(float64) error
+	// GetPeakShaveMinSoc returns the peak shave min SoC in %
+	GetPeakShaveMinSoc() float64
+	// SetPeakShaveMinSoc sets the peak shave min SoC in %
+	SetPeakShaveMinSoc(float64) error
+	// GetPeakShaveMaintainSocChargePower returns the charging power limit for recovery in W
+	GetPeakShaveMaintainSocChargePower() float64
+	// SetPeakShaveMaintainSocChargePower sets the charging power limit for recovery in W
+	SetPeakShaveMaintainSocChargePower(float64) error
+	// GetPeakShaveLoadShedDelay returns the load shed grace period in seconds
+	GetPeakShaveLoadShedDelay() float64
+	// SetPeakShaveLoadShedDelay sets the load shed grace period in seconds
+	SetPeakShaveLoadShedDelay(float64) error
+	// GetPeakShaveState returns the current peak shaving state string
+	GetPeakShaveState() string
 }

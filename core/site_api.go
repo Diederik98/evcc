@@ -21,6 +21,7 @@ var _ site.API = (*Site)(nil)
 
 var (
 	ErrBatteryNotConfigured       = errors.New("battery not configured")
+	ErrPeakShaveSocInvalid        = errors.New("peak shave min soc must not exceed reserve soc")
 	ErrBatteryControlNotAvailable = errors.New("battery control not available")
 )
 
@@ -304,6 +305,167 @@ func (site *Site) SetBufferStartSoc(soc float64) error {
 	}
 
 	return nil
+}
+
+// GetGridThreshold returns the GridThreshold
+func (site *Site) GetGridThreshold() float64 {
+	site.RLock()
+	defer site.RUnlock()
+	return site.GridThreshold
+}
+
+// SetGridThreshold sets the GridThreshold
+func (site *Site) SetGridThreshold(threshold float64) error {
+	site.Lock()
+	defer site.Unlock()
+
+	site.log.DEBUG.Println("set grid threshold:", threshold)
+
+	if site.GridThreshold != threshold {
+		site.GridThreshold = threshold
+		settings.SetFloat(keys.GridThreshold, site.GridThreshold)
+		site.publish(keys.GridThreshold, site.GridThreshold)
+	}
+
+	return nil
+}
+
+// GetPeakShaveReserveSoc returns the PeakShaveReserveSoc
+func (site *Site) GetPeakShaveReserveSoc() float64 {
+	site.RLock()
+	defer site.RUnlock()
+	return site.PeakShaveReserveSoc
+}
+
+// SetPeakShaveReserveSoc sets the PeakShaveReserveSoc
+func (site *Site) SetPeakShaveReserveSoc(soc float64) error {
+	site.Lock()
+	defer site.Unlock()
+
+	if len(site.batteryMeters) == 0 {
+		return ErrBatteryNotConfigured
+	}
+
+	site.log.DEBUG.Println("set peak shave reserve soc:", soc)
+
+	if err := site.validatePeakShaveSoc(site.peakShaveEffectiveMinSoc(), soc); err != nil {
+		return ErrPeakShaveSocInvalid
+	}
+
+	if site.PeakShaveReserveSoc != soc {
+		site.PeakShaveReserveSoc = soc
+		settings.SetFloat(keys.PeakShaveReserveSoc, site.PeakShaveReserveSoc)
+		site.publish(keys.PeakShaveReserveSoc, site.PeakShaveReserveSoc)
+	}
+
+	return nil
+}
+
+// GetPeakShaveMinSoc returns the effective minimum SoC for peak shaving
+func (site *Site) GetPeakShaveMinSoc() float64 {
+	site.RLock()
+	defer site.RUnlock()
+	return site.peakShaveEffectiveMinSoc()
+}
+
+// SetPeakShaveMinSoc sets the fallback minimum SoC when no battery SoC limits are configured
+func (site *Site) SetPeakShaveMinSoc(soc float64) error {
+	site.Lock()
+	defer site.Unlock()
+
+	if len(site.batteryMeters) == 0 {
+		return ErrBatteryNotConfigured
+	}
+
+	for _, dev := range site.batteryMeters {
+		if limiter, ok := api.Cap[api.BatterySocLimiter](dev.Instance()); ok {
+			if min, _ := limiter.GetSocLimits(); min > 0 {
+				return errors.New("peak shave min soc is defined by the battery configuration")
+			}
+		}
+	}
+
+	site.log.DEBUG.Println("set peak shave min soc:", soc)
+
+	if err := site.validatePeakShaveSoc(soc, site.PeakShaveReserveSoc); err != nil {
+		return ErrPeakShaveSocInvalid
+	}
+
+	if site.PeakShaveMinSoc != soc {
+		site.PeakShaveMinSoc = soc
+		settings.SetFloat(keys.PeakShaveMinSoc, site.PeakShaveMinSoc)
+		site.publish(keys.PeakShaveMinSoc, site.peakShaveEffectiveMinSoc())
+	}
+
+	return nil
+}
+
+// GetPeakShaveMaintainSocChargePower returns the PeakShaveMaintainSocChargePower
+func (site *Site) GetPeakShaveMaintainSocChargePower() float64 {
+	site.RLock()
+	defer site.RUnlock()
+	return site.PeakShaveMaintainSocChargePower
+}
+
+// SetPeakShaveMaintainSocChargePower sets the PeakShaveMaintainSocChargePower
+func (site *Site) SetPeakShaveMaintainSocChargePower(power float64) error {
+	site.Lock()
+	defer site.Unlock()
+
+	if len(site.batteryMeters) == 0 {
+		return ErrBatteryNotConfigured
+	}
+
+	site.log.DEBUG.Println("set peak shave maintain soc charge power:", power)
+
+	if site.PeakShaveMaintainSocChargePower != power {
+		site.PeakShaveMaintainSocChargePower = power
+		settings.SetFloat(keys.PeakShaveMaintainSocChargePower, site.PeakShaveMaintainSocChargePower)
+		site.publish(keys.PeakShaveMaintainSocChargePower, site.PeakShaveMaintainSocChargePower)
+	}
+
+	return nil
+}
+
+// GetPeakShaveLoadShedDelay returns the PeakShaveLoadShedDelay in seconds
+func (site *Site) GetPeakShaveLoadShedDelay() float64 {
+	site.RLock()
+	defer site.RUnlock()
+	return site.PeakShaveLoadShedDelay
+}
+
+// SetPeakShaveLoadShedDelay sets the PeakShaveLoadShedDelay in seconds
+func (site *Site) SetPeakShaveLoadShedDelay(delay float64) error {
+	site.Lock()
+	defer site.Unlock()
+
+	if len(site.batteryMeters) == 0 {
+		return ErrBatteryNotConfigured
+	}
+
+	if delay < 0 {
+		return errors.New("load shed delay must not be negative")
+	}
+
+	site.log.DEBUG.Println("set peak shave load shed delay:", delay)
+
+	if site.PeakShaveLoadShedDelay != delay {
+		site.PeakShaveLoadShedDelay = delay
+		settings.SetFloat(keys.PeakShaveLoadShedDelay, site.PeakShaveLoadShedDelay)
+		site.publish(keys.PeakShaveLoadShedDelay, site.PeakShaveLoadShedDelay)
+	}
+
+	return nil
+}
+
+// GetPeakShaveState returns the PeakShaveState
+func (site *Site) GetPeakShaveState() string {
+	site.RLock()
+	defer site.RUnlock()
+	if site.peakShaveState == "" {
+		return "idle"
+	}
+	return site.peakShaveState
 }
 
 // GetGridPower returns the most recent grid power reading in W (positive = import)

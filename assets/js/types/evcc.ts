@@ -132,7 +132,21 @@ export interface State {
   optimizerChargingStrategy?: string;
   optimizerChargingStrategies?: string[];
   mcp?: boolean;
+  gridThreshold?: number;
+  peakShaveReserveSoc?: number;
+  peakShaveMinSoc?: number;
+  peakShaveMaintainSocChargePower?: number;
+  peakShaveLoadShedDelay?: number;
+  peakShaveState?: PeakShaveState;
 }
+
+export type PeakShaveState =
+  | "idle"
+  | "shaving"
+  | "critical"
+  | "shedding"
+  | "recovery"
+  | "lockout";
 
 export interface ConfigStatus<C, S> {
   config?: C;

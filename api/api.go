@@ -9,7 +9,7 @@ import (
 	"golang.org/x/oauth2"
 )
 
-//go:generate go tool mockgen -package api -destination mock.go github.com/evcc-io/evcc/api Charger,ChargeState,CurrentLimiter,PowerLimiter,CurrentGetter,PhaseSwitcher,PhaseGetter,FeatureDescriber,Identifier,Meter,MeterEnergy,MeterReturnEnergy,PhaseCurrents,Vehicle,ConnectionTimer,ChargeRater,Battery,BatteryController,BatterySocLimiter,Circuit,Dimmer,HEMS,Tariff
+//go:generate go tool mockgen -package api -destination mock.go github.com/evcc-io/evcc/api Charger,ChargeState,CurrentLimiter,PowerLimiter,CurrentGetter,PhaseSwitcher,PhaseGetter,FeatureDescriber,Identifier,Meter,MeterEnergy,MeterReturnEnergy,PhaseCurrents,Vehicle,ConnectionTimer,ChargeRater,Battery,BatteryController,BatterySocLimiter,Circuit,Dimmer,HEMS,Tariff,BatteryLimitController
 
 // Meter provides total active power in W
 type Meter interface {
@@ -59,6 +59,12 @@ type BatteryPowerLimiter interface {
 // BatterySocLimiter provides min/max battery soc in %
 type BatterySocLimiter interface {
 	GetSocLimits() (min, max float64)
+}
+
+// BatteryLimitController optionally allows setting power limits on home battery
+type BatteryLimitController interface {
+	SetChargeLimit(power int) error
+	SetDischargeLimit(power int) error
 }
 
 // MaxACPowerGetter provides max AC power in W

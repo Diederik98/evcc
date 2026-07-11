@@ -193,8 +193,11 @@
 				/>
 				<div class="form-check-label">
 					<label for="batteryDischargeControl">
-						{{ $t("batterySettings.discharge") }}
+						{{ dischargeControlLabel }}
 					</label>
+					<small v-if="peakShaveEnabled" class="d-block text-muted">
+						{{ $t("batterySettings.dischargePeakShaveHelp") }}
+					</small>
 				</div>
 			</div>
 		</div>
@@ -220,6 +223,7 @@ export default defineComponent({
 		prioritySoc: { type: Number, default: 0 },
 		bufferStartSoc: { type: Number, default: 0 },
 		batteryDischargeControl: Boolean,
+		peakShaveEnabled: Boolean,
 		battery: { type: Object as PropType<Battery> },
 	},
 	data() {
@@ -248,6 +252,11 @@ export default defineComponent({
 		},
 		controllable() {
 			return this.batteryDevices.some(({ controllable }) => controllable);
+		},
+		dischargeControlLabel(): string {
+			return this.peakShaveEnabled
+				? this.$t("batterySettings.dischargePeakShave")
+				: this.$t("batterySettings.discharge");
 		},
 		bufferOptions() {
 			const options = [];

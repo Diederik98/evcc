@@ -39,6 +39,7 @@
       },
       "bufferTitle": "Battery as charging buffer",
       "discharge": "Prevent home battery discharge in fast mode and during planned charging.",
+      "dischargePeakShave": "Prevent home battery discharge in fast mode and during planned charging. Peak shaving acts automatically when required.",
       "priority": "Home battery has priority while it is below {soc}. Then the charging points receive the surplus.",
       "priorityNone": "Solar surplus goes straight to the charging points. Set a value above {soc} to prioritize the home battery.",
       "priorityTitle": "Where does the surplus go first?"
@@ -68,6 +69,8 @@
     "capacity": "{energy} of {total}",
     "control": "Battery control",
     "discharge": "Prevent discharge in fast mode and planned charging.",
+    "dischargePeakShave": "Prevent discharge in fast mode and planned charging. Peak shaving acts automatically when required.",
+    "dischargePeakShaveHelp": "When grid import exceeds the threshold, peak shaving may discharge the battery regardless of this setting.",
     "disclaimerHint": "Note:",
     "disclaimerText": "These settings only affect solar mode. Charging behaviour is adjusted accordingly.",
     "gridChargeTab": "Grid charging",
@@ -83,11 +86,41 @@
     "legendTopSublineDisabledState": "disabled",
     "modalTitle": "Home Battery",
     "noBattery": "No batteries configured.",
+    "peakShaveTab": "Peak shaving",
     "usageTab": "Battery usage"
   },
   "colors": {
     "auto": "Auto",
     "hex": "Hex color"
+  },
+  "peakShave": {
+    "gridThreshold": "Grid threshold",
+    "gridThresholdHelp": "Maximum allowed grid import in kW. Set to 0 to disable peak shaving.",
+    "gridPowerLive": "Current grid import: {power} kW",
+    "loadShedDelay": "Load shed delay",
+    "loadShedDelayHelp": "Grace period in seconds before EV charging is throttled when grid import stays above the threshold. Set to 0 for immediate load shedding.",
+    "noLimitController": "Peak shaving requires a battery that supports charge and discharge power limits. Configure chargelimit and dischargelimit on your battery meter.",
+    "socInvalid": "Reserve SoC must not be below the battery minimum SoC.",
+    "reserveSoc": "Reserve SoC",
+    "reserveSocHelp": "Target battery level to maintain as a buffer. Recovery charging starts when SoC drops below this. Must be at or above the battery minimum SoC from device configuration.",
+    "reserveSocLabel": "Reserve",
+    "minSocFromBattery": "Min (battery): {soc}%",
+    "minSocTooltip": "Minimum SoC: {soc}%. Set in battery device configuration.",
+    "reserveSocTooltip": "Reserve SoC: {soc}%. Drag to adjust.",
+    "minSoc": "Minimum SoC",
+    "minSocHelp": "Hard floor for battery discharge. Configured on the battery device.",
+    "minSocLabel": "Min",
+    "maintainSocChargePower": "Recovery charge power",
+    "maintainSocChargePowerHelp": "Power limit used to restore the battery to the reserve SoC level after peak shaving.",
+    "batteryTabTitle": "Battery protection",
+    "state": {
+      "idle": "Idle",
+      "shaving": "Peak shaving active",
+      "critical": "Critical: battery in reserve band",
+      "shedding": "Load shedding: throttling EV charging",
+      "recovery": "Recovery: charging battery to reserve",
+      "lockout": "Lockout: battery empty, load shedding"
+    }
   },
   "config": {
     "adminPassword": {

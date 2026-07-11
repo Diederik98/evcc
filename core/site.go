@@ -63,8 +63,11 @@ type Site struct {
 	Voltage       float64      `mapstructure:"voltage"`       // Operating voltage. 230V for Germany.
 	ResidualPower float64      `mapstructure:"residualPower"` // PV meter only: household usage. Grid meter: household safety margin
 	Meters        MetersConfig `mapstructure:"meters"`        // Meter references
-
-	// meters
+	GridThreshold                   float64      `mapstructure:"gridThreshold"`                   // Peak shaving grid threshold in kW
+	PeakShaveReserveSoc             float64      `mapstructure:"peakShaveReserveSoc"`             // Peak shaving battery reserve SoC in %
+	PeakShaveMinSoc                 float64      `mapstructure:"peakShaveMinSoc"`                 // Peak shaving battery min SoC in %
+	PeakShaveMaintainSocChargePower float64      `mapstructure:"peakShaveMaintainSocChargePower"` // Power limit for restoring reserve SoC in W
+	PeakShaveLoadShedDelay          float64      `mapstructure:"peakShaveLoadShedDelay"`          // Grace period before EV load shedding in s
 	circuit        api.Circuit                // Circuit
 	hems           api.HEMS                   // HEMS (set by configureHEMS at boot)
 	gridMeter      api.Meter                  // Grid usage meter
@@ -94,6 +97,7 @@ type Site struct {
 
 	// cached state
 	gridPower                float64            // Grid power
+	gridPowerValid           bool               // Grid meter last read succeeded
 	pvPower                  float64            // PV power
 	excessDCPower            float64            // PV excess DC charge power (hybrid only)
 	auxPower                 float64            // Aux power
@@ -101,6 +105,9 @@ type Site struct {
 	batteryMode              api.BatteryMode    // Battery mode (runtime only, not persisted)
 	batteryModeExternal      api.BatteryMode    // Battery mode (external, runtime only, not persisted)
 	batteryModeExternalTimer time.Time          // Battery mode timer for external control
+	peakShaveState           string             // Peak shaving state machine state
+	peakShaveOverloadSince   time.Time          // Overload start time for load shed delay
+	peakShaveBatteryLimited  bool               // Battery limit controller writes active
 }
 
 // MetersConfig contains the site's meter configuration
@@ -302,9 +309,13 @@ func (site *Site) Boot(log *util.Logger, loadpoints []*Loadpoint, tariffs *tarif
 // NewSite creates a Site with sane defaults
 func NewSite() *Site {
 	site := &Site{
-		log:        util.NewLogger("site"),
-		Voltage:    230, // V
-		collectors: make(map[string]*metrics.Collector),
+		log:                             util.NewLogger("site"),
+		Voltage:                         230, // V
+		collectors:                      make(map[string]*metrics.Collector),
+		PeakShaveReserveSoc:             40,
+		PeakShaveMinSoc:                 20,
+		PeakShaveMaintainSocChargePower: 1000,
+		PeakShaveLoadShedDelay:          30,
 	}
 
 	return site
@@ -380,6 +391,22 @@ func (site *Site) restoreSettings() error {
 	}
 	site.publish(keys.OptimizerChargingStrategy, site.GetOptimizerChargingStrategy())
 	site.publish(keys.OptimizerChargingStrategies, optimizerChargingStrategies)
+
+	if v, err := settings.Float(keys.GridThreshold); err == nil {
+		_ = site.SetGridThreshold(v)
+	}
+	if v, err := settings.Float(keys.PeakShaveReserveSoc); err == nil {
+		_ = site.SetPeakShaveReserveSoc(v)
+	}
+	if v, err := settings.Float(keys.PeakShaveMinSoc); err == nil {
+		_ = site.SetPeakShaveMinSoc(v)
+	}
+	if v, err := settings.Float(keys.PeakShaveMaintainSocChargePower); err == nil {
+		_ = site.SetPeakShaveMaintainSocChargePower(v)
+	}
+	if v, err := settings.Float(keys.PeakShaveLoadShedDelay); err == nil {
+		_ = site.SetPeakShaveLoadShedDelay(v)
+	}
 
 	// drop legacy accumulator-based forecast settings (now stored via metrics collector)
 	settings.Delete("solarAccForecast")
@@ -710,6 +737,8 @@ func (site *Site) updateBatteryMeters() {
 
 	site.battery.Devices = mm
 
+	site.publish(keys.PeakShaveMinSoc, site.peakShaveEffectiveMinSoc())
+
 	// accumulate per-battery energy (charging = import, discharging = export — from battery POV toward grid root)
 	for i, dev := range site.batteryMeters {
 		ref := dev.Config().Name
@@ -819,8 +848,10 @@ func (site *Site) updateGridMeter() error {
 	if res, err := backoff.RetryWithData(site.gridMeter.CurrentPower, modbus.Backoff()); err == nil {
 		mm.Power = res
 		site.gridPower = res
+		site.gridPowerValid = true
 		site.log.DEBUG.Printf("grid power: %.0fW", res)
 	} else if !errors.Is(err, api.ErrNotAvailable) {
+		site.gridPowerValid = false
 		return fmt.Errorf("grid power: %v", err)
 	}
 
@@ -1094,6 +1125,7 @@ func (site *Site) update(lp updater) {
 	// update battery after reading meters to ensure that (modbus) connection is open
 	batteryGridChargeActive := site.batteryGridChargeActive(rate)
 	site.publish(keys.BatteryGridChargeActive, batteryGridChargeActive)
+	site.ManageGridLimits(batteryGridChargeActive)
 	site.updateBatteryMode(batteryGridChargeActive, rate)
 
 	site.stats.Update(site)
@@ -1118,6 +1150,12 @@ func (site *Site) prepare() {
 	site.publish(keys.BufferStartSoc, site.bufferStartSoc)
 	site.publish(keys.BatteryMode, site.batteryMode)
 	site.publish(keys.BatteryDischargeControl, site.batteryDischargeControl)
+	site.publish(keys.GridThreshold, site.GetGridThreshold())
+	site.publish(keys.PeakShaveReserveSoc, site.GetPeakShaveReserveSoc())
+	site.publish(keys.PeakShaveMinSoc, site.GetPeakShaveMinSoc())
+	site.publish(keys.PeakShaveMaintainSocChargePower, site.GetPeakShaveMaintainSocChargePower())
+	site.publish(keys.PeakShaveLoadShedDelay, site.GetPeakShaveLoadShedDelay())
+	site.publish(keys.PeakShaveState, site.GetPeakShaveState())
 	site.publish(keys.ResidualPower, site.GetResidualPower())
 	site.publish(keys.SmartCostAvailable, site.isDynamicTariff(api.TariffUsagePlanner))
 	site.publish(keys.SmartFeedInPriorityAvailable, site.isDynamicTariff(api.TariffUsageFeedIn))

@@ -228,6 +228,11 @@ func (m *MQTT) listenSiteSetters(topic string, site site.API) error {
 			}
 		}))},
 		{"batteryGridChargeLimit", floatPtrSetter(site.SetBatteryGridChargeLimit)},
+		{"gridThreshold", floatSetter(site.SetGridThreshold)},
+		{"peakShaveReserveSoc", floatSetter(site.SetPeakShaveReserveSoc)},
+		{"peakShaveMinSoc", floatSetter(site.SetPeakShaveMinSoc)},
+		{"peakShaveMaintainSocChargePower", floatSetter(site.SetPeakShaveMaintainSocChargePower)},
+		{"peakShaveLoadShedDelay", floatSetter(site.SetPeakShaveLoadShedDelay)},
 		{"batteryMode", ptrSetter(api.BatteryModeString, func(m *api.BatteryMode) error {
 			if m == nil {
 				m = new(api.BatteryUnknown)

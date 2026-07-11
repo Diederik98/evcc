@@ -46,6 +46,12 @@ const (
 	BatteryGridChargeActive = "batteryGridChargeActive"
 	BufferSoc               = "bufferSoc"
 	BufferStartSoc          = "bufferStartSoc"
+	GridThreshold           = "gridThreshold"
+	PeakShaveReserveSoc     = "peakShaveReserveSoc"
+	PeakShaveMinSoc         = "peakShaveMinSoc"
+	PeakShaveMaintainSocChargePower = "peakShaveMaintainSocChargePower"
+	PeakShaveLoadShedDelay          = "peakShaveLoadShedDelay"
+	PeakShaveState                  = "peakShaveState"
 
 	// optimizer
 	OptimizerChargingStrategy   = "optimizerChargingStrategy"

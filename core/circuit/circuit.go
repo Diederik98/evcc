@@ -316,7 +316,11 @@ func (c *Circuit) Update(loadpoints []api.CircuitLoad) (err error) {
 
 	defer func() {
 		if maxPower != 0 && c.power > maxPower {
-			c.log.WARN.Printf("over power detected: %.0fW > %.0fW", c.power, maxPower)
+			if c.power >= math.MaxFloat64/2 {
+				c.log.WARN.Printf("circuit power unavailable, assuming overload for load shedding (max %.0fW)", maxPower)
+			} else {
+				c.log.WARN.Printf("over power detected: %.0fW > %.0fW", c.power, maxPower)
+			}
 		} else {
 			c.log.DEBUG.Printf("power: %.0fW", c.power)
 		}
