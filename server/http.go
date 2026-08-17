@@ -155,6 +155,7 @@ func (s *HTTPd) RegisterSiteHandlers(site site.API) {
 		"peakshaveminsoc":         {"POST", "/peakshaveminsoc/{value:[0-9.]+}", floatHandler(site.SetPeakShaveMinSoc, site.GetPeakShaveMinSoc)},
 		"peakshavemaintainpower":  {"POST", "/peakshavemaintainsocchargepower/{value:[0-9.]+}", floatHandler(site.SetPeakShaveMaintainSocChargePower, site.GetPeakShaveMaintainSocChargePower)},
 		"peakshaveloadsheddelay":  {"POST", "/peakshaveloadsheddelay/{value:[0-9.]+}", floatHandler(site.SetPeakShaveLoadShedDelay, site.GetPeakShaveLoadShedDelay)},
+		"batterycyclecost":        {"POST", "/batterycyclecost/{value:[0-9.]+}", floatHandler(site.SetBatteryCycleCost, site.GetBatteryCycleCost)},
 		"smartcost":               {"POST", "/smartcostlimit/{value:-?[0-9.]+}", updateSmartCostLimit(site, smartCostLimit)},
 		"smartcostdelete":         {"DELETE", "/smartcostlimit", updateSmartCostLimit(site, smartCostLimit)},
 		"smartfeedin":             {"POST", "/smartfeedinprioritylimit/{value:-?[0-9.]+}", updateSmartCostLimit(site, smartFeedInPriorityLimit)},

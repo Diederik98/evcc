@@ -46,6 +46,8 @@
 							:peak-shave-load-shed-delay="state.peakShaveLoadShedDelay"
 							:peak-shave-state="state.peakShaveState ?? 'idle'"
 							:limit-controller-available="peakShaveLimitControllerAvailable"
+							:battery-cycle-cost="state.batteryCycleCost ?? 0.05"
+							:battery-plan="state.batteryPlan"
 						/>
 					</template>
 					<p v-else class="my-4 text-muted">

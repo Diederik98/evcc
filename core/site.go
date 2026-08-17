@@ -59,23 +59,24 @@ type Site struct {
 	log *util.Logger
 
 	// configuration
-	Title         string       `mapstructure:"title"`         // UI title
-	Voltage       float64      `mapstructure:"voltage"`       // Operating voltage. 230V for Germany.
-	ResidualPower float64      `mapstructure:"residualPower"` // PV meter only: household usage. Grid meter: household safety margin
-	Meters        MetersConfig `mapstructure:"meters"`        // Meter references
-	GridThreshold                   float64      `mapstructure:"gridThreshold"`                   // Peak shaving grid threshold in kW
-	PeakShaveReserveSoc             float64      `mapstructure:"peakShaveReserveSoc"`             // Peak shaving battery reserve SoC in %
-	PeakShaveMinSoc                 float64      `mapstructure:"peakShaveMinSoc"`                 // Peak shaving battery min SoC in %
-	PeakShaveMaintainSocChargePower float64      `mapstructure:"peakShaveMaintainSocChargePower"` // Power limit for restoring reserve SoC in W
-	PeakShaveLoadShedDelay          float64      `mapstructure:"peakShaveLoadShedDelay"`          // Grace period before EV load shedding in s
-	circuit        api.Circuit                // Circuit
-	hems           api.HEMS                   // HEMS (set by configureHEMS at boot)
-	gridMeter      api.Meter                  // Grid usage meter
-	pvMeters       []config.Device[api.Meter] // PV generation meters
-	batteryMeters  []config.Device[api.Meter] // Battery charging meters
-	extMeters      []config.Device[api.Meter] // External meters - for monitoring only
-	auxMeters      []config.Device[api.Meter] // Auxiliary meters
-	consumerMeters []config.Device[api.Meter] // Consumer meters
+	Title                           string                     `mapstructure:"title"`                           // UI title
+	Voltage                         float64                    `mapstructure:"voltage"`                         // Operating voltage. 230V for Germany.
+	ResidualPower                   float64                    `mapstructure:"residualPower"`                   // PV meter only: household usage. Grid meter: household safety margin
+	Meters                          MetersConfig               `mapstructure:"meters"`                          // Meter references
+	GridThreshold                   float64                    `mapstructure:"gridThreshold"`                   // Peak shaving grid threshold in kW
+	PeakShaveReserveSoc             float64                    `mapstructure:"peakShaveReserveSoc"`             // Peak shaving battery reserve SoC in %
+	PeakShaveMinSoc                 float64                    `mapstructure:"peakShaveMinSoc"`                 // Peak shaving battery min SoC in %
+	PeakShaveMaintainSocChargePower float64                    `mapstructure:"peakShaveMaintainSocChargePower"` // Power limit for restoring reserve SoC in W
+	PeakShaveLoadShedDelay          float64                    `mapstructure:"peakShaveLoadShedDelay"`          // Grace period before EV load shedding in s
+	BatteryCycleCost                float64                    `mapstructure:"batteryCycleCost"`                // Wear cost in currency per kWh discharged
+	circuit                         api.Circuit                // Circuit
+	hems                            api.HEMS                   // HEMS (set by configureHEMS at boot)
+	gridMeter                       api.Meter                  // Grid usage meter
+	pvMeters                        []config.Device[api.Meter] // PV generation meters
+	batteryMeters                   []config.Device[api.Meter] // Battery charging meters
+	extMeters                       []config.Device[api.Meter] // External meters - for monitoring only
+	auxMeters                       []config.Device[api.Meter] // Auxiliary meters
+	consumerMeters                  []config.Device[api.Meter] // Consumer meters
 
 	// battery settings
 	prioritySoc             float64  // prefer battery up to this Soc
@@ -108,6 +109,7 @@ type Site struct {
 	peakShaveState           string             // Peak shaving state machine state
 	peakShaveOverloadSince   time.Time          // Overload start time for load shed delay
 	peakShaveBatteryLimited  bool               // Battery limit controller writes active
+	batteryPlanHold          bool               // Planner requested hold for later peaks or expensive hours
 }
 
 // MetersConfig contains the site's meter configuration
@@ -316,6 +318,7 @@ func NewSite() *Site {
 		PeakShaveMinSoc:                 20,
 		PeakShaveMaintainSocChargePower: 1000,
 		PeakShaveLoadShedDelay:          30,
+		BatteryCycleCost:                defaultBatteryCycleCost,
 	}
 
 	return site
@@ -406,6 +409,9 @@ func (site *Site) restoreSettings() error {
 	}
 	if v, err := settings.Float(keys.PeakShaveLoadShedDelay); err == nil {
 		_ = site.SetPeakShaveLoadShedDelay(v)
+	}
+	if v, err := settings.Float(keys.BatteryCycleCost); err == nil {
+		_ = site.SetBatteryCycleCost(v)
 	}
 
 	// drop legacy accumulator-based forecast settings (now stored via metrics collector)
@@ -1156,6 +1162,8 @@ func (site *Site) prepare() {
 	site.publish(keys.PeakShaveMaintainSocChargePower, site.GetPeakShaveMaintainSocChargePower())
 	site.publish(keys.PeakShaveLoadShedDelay, site.GetPeakShaveLoadShedDelay())
 	site.publish(keys.PeakShaveState, site.GetPeakShaveState())
+	site.publish(keys.BatteryCycleCost, site.GetBatteryCycleCost())
+	site.publishIdleBatteryPlan()
 	site.publish(keys.ResidualPower, site.GetResidualPower())
 	site.publish(keys.SmartCostAvailable, site.isDynamicTariff(api.TariffUsagePlanner))
 	site.publish(keys.SmartFeedInPriorityAvailable, site.isDynamicTariff(api.TariffUsageFeedIn))

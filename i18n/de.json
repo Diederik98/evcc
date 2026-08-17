@@ -112,6 +112,28 @@
     "minSocLabel": "Mindest",
     "maintainSocChargePower": "Wiederherstellungsladeleistung",
     "maintainSocChargePowerHelp": "Ladeleistungsgrenze zum Wiederherstellen des Reserve-SoC nach der Lastspitzenkappung.",
+    "cycleCost": "Zykluskosten",
+    "cycleCostHelp": "Verschleißkosten je entladener kWh. Netzladung nur, wenn die preisliche Spreizung inkl. Steuern Verluste und diese Kosten deckt. 0 ignoriert den Verschleiß.",
+    "cycleCostUnit": "€/kWh",
+    "plan": {
+      "title": "Batterieplanung",
+      "targetSoc": "Ziel-SoC für kommende Lastspitzen: {soc} %",
+      "action": {
+        "normal": "Folgt dem Solarüberschuss",
+        "charge": "Lädt aus dem Netz",
+        "hold": "Hält den Ladestand",
+        "discharge": "Entlädt"
+      },
+      "reason": {
+        "idle": "Keine Aktion nötig",
+        "peak": "Deckt eine vorhergesagte Lastspitze",
+        "preempt": "Startet früh: die Wechselrichtersteuerung ist zu langsam für die Spitze",
+        "charge": "Lädt genug Energie für spätere Lastspitzen",
+        "cheap": "Der Preis inkl. Steuern ist niedrig genug zum Zyklieren",
+        "hold": "Spart Energie für teure oder laststarke Stunden",
+        "recovery": "Stellt den Reserve-SoC wieder her"
+      }
+    },
     "batteryTabTitle": "Batterieschutz",
     "state": {
       "idle": "Inaktiv",

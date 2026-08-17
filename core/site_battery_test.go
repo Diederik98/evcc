@@ -117,6 +117,17 @@ func TestRequiredExternalBatteryMode(t *testing.T) {
 	}
 }
 
+func TestRequiredBatteryModePlanHold(t *testing.T) {
+	site := &Site{
+		log:             util.NewLogger("foo"),
+		batteryMeters:   []config.Device[api.Meter]{nil},
+		batteryPlanHold: true,
+	}
+
+	mode := site.requiredBatteryMode(true, api.Rate{Value: 0.01})
+	assert.Equal(t, api.BatteryHold, mode, "planner hold wins over grid charge")
+}
+
 func TestExternalBatteryModeChange(t *testing.T) {
 	for _, tc := range []struct {
 		internal, external, expected api.BatteryMode
@@ -263,6 +274,34 @@ func newLimitBat(ctrl *gomock.Controller, limitCtrl api.BatteryLimitController) 
 		api.BatteryLimitController
 	}
 	return &fullBat{Meter: meter, BatteryLimitController: limitCtrl}
+}
+
+func TestManageGridLimitsPlannerPreemptsSlowControl(t *testing.T) {
+	ctrl := gomock.NewController(t)
+
+	limitCtrl := api.NewMockBatteryLimitController(ctrl)
+	limitCtrl.EXPECT().SetChargeLimit(0).Return(nil).Times(1)
+	limitCtrl.EXPECT().SetDischargeLimit(gomock.Any()).DoAndReturn(func(w int) error {
+		assert.Greater(t, w, 0)
+		return nil
+	}).Times(1)
+	bat := newLimitBat(ctrl, limitCtrl)
+
+	site := &Site{
+		log:                             util.NewLogger("ps"),
+		batteryMeters:                   []config.Device[api.Meter]{config.NewStaticDevice(config.Named{}, bat)},
+		GridThreshold:                   10.0,
+		PeakShaveReserveSoc:             40.0,
+		PeakShaveMinSoc:                 20.0,
+		PeakShaveMaintainSocChargePower: 1000.0,
+		gridPower:                       9000.0,
+		battery:                         types.BatteryState{Soc: 80.0, Capacity: 10},
+	}
+
+	site.ManageGridLimits(false)
+	assert.Equal(t, PeakShaveIdle, site.peakShaveState)
+	assert.True(t, site.peakShaveBatteryLimited)
+	ctrl.Finish()
 }
 
 func TestManageGridLimitsIdle(t *testing.T) {
@@ -536,4 +575,3 @@ func TestApplyBatteryModeBypassDuringLockout(t *testing.T) {
 	err := site.applyBatteryMode(api.BatteryNormal)
 	assert.NoError(t, err)
 }
-

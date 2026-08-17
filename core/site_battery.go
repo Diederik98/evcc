@@ -8,6 +8,7 @@ import (
 	"github.com/evcc-io/evcc/api"
 	"github.com/evcc-io/evcc/core/keys"
 	"github.com/evcc-io/evcc/core/loadpoint"
+	"github.com/evcc-io/evcc/core/planner"
 	"github.com/evcc-io/evcc/util/config"
 )
 
@@ -166,6 +167,8 @@ func (site *Site) requiredBatteryMode(batteryGridChargeActive bool, rate api.Rat
 		if extMode != batMode {
 			res = extMode
 		}
+	case site.batteryPlanHold:
+		res = keepUnlessModified(api.BatteryHold)
 	case batteryGridChargeActive:
 		res = keepUnlessModified(api.BatteryCharge)
 	case site.dischargeControlActive(rate):
@@ -374,17 +377,27 @@ func (site *Site) peakShaveLoadShedDue(now time.Time) bool {
 
 // ManageGridLimits executes the state machine for active peak shaving and recovery
 func (site *Site) ManageGridLimits(batteryGridChargeActive bool) {
+	plan, planned := site.evaluateBatteryPlan()
+
 	if !site.peakShaveEnabled() {
 		site.Lock()
 		wasLimited := site.peakShaveBatteryLimited
 		site.peakShaveState = PeakShaveIdle
 		site.peakShaveOverloadSince = time.Time{}
-		site.peakShaveBatteryLimited = false
 		site.Unlock()
 		site.clearPeakShaveLoadShedding()
-		if wasLimited {
-			site.resetBatteryLimitLimits()
+		site.Lock()
+		if planned {
+			site.applyBatteryPlan(plan)
+		} else {
+			site.batteryPlanHold = false
+			site.publishIdleBatteryPlan()
+			if wasLimited {
+				site.resetBatteryLimitLimits()
+				site.peakShaveBatteryLimited = false
+			}
 		}
+		site.Unlock()
 		return
 	}
 
@@ -447,39 +460,55 @@ func (site *Site) ManageGridLimits(batteryGridChargeActive bool) {
 
 	switch newState {
 	case PeakShaveActive:
+		site.batteryPlanHold = false
 		site.log.DEBUG.Printf("active peak shaving: gridPower (%.0fW) > threshold (%.0fW), targetDischarge: %.0fW, soc: %.0f%%", site.gridPower, gridThresholdW, targetDischarge, soc)
 		site.clearPeakShaveLoadShedding()
 		site.setBatteryLimitLimits(0, int(targetDischarge))
 		site.peakShaveBatteryLimited = true
 
 	case PeakShaveCritical:
+		site.batteryPlanHold = false
 		site.log.DEBUG.Printf("critical peak shaving: gridPower (%.0fW) > threshold (%.0fW), targetDischarge: %.0fW, soc: %.0f%%", site.gridPower, gridThresholdW, targetDischarge, soc)
 		site.clearPeakShaveLoadShedding()
 		site.setBatteryLimitLimits(0, int(targetDischarge))
 		site.peakShaveBatteryLimited = true
 
 	case PeakShaveShedding:
+		site.batteryPlanHold = false
 		site.log.DEBUG.Printf("peak shaving load shedding: gridPower (%.0fW) > threshold (%.0fW), targetDischarge: %.0fW, soc: %.0f%%", site.gridPower, gridThresholdW, targetDischarge, soc)
 		site.setBatteryLimitLimits(0, int(targetDischarge))
 		site.applyPeakShaveLoadShedding()
 		site.peakShaveBatteryLimited = true
 
 	case PeakShaveLockout:
+		site.batteryPlanHold = false
 		site.log.DEBUG.Printf("hard lockout: grid exceeds limit but battery is empty (soc: %.0f%% <= min: %.0f%%)", soc, minSoc)
 		site.setBatteryLimitLimits(0, 0)
 		site.applyPeakShaveLoadShedding()
 		site.peakShaveBatteryLimited = true
 
 	case PeakShaveRecovery:
+		if planned && (plan.Action == planner.BatteryActionDischarge || plan.Action == planner.BatteryActionHold) {
+			site.applyBatteryPlan(plan)
+			break
+		}
 		chargeLimit := site.peakShaveRecoveryChargePower(maintainPower)
-		gridCharge := int(min(maintainPower, site.peakShaveGridHeadroom()))
+		if planned && plan.Action == planner.BatteryActionCharge {
+			chargeLimit = max(chargeLimit, plan.ChargeW)
+		}
+		gridCharge := int(min(float64(chargeLimit), site.peakShaveGridHeadroom()))
 		site.log.DEBUG.Printf("active recovery: soc (%.0f%%) < reserve (%.0f%%), charging up to %dW (%dW grid + %dW pv)", soc, reserveSoc, chargeLimit, gridCharge, max(0, chargeLimit-gridCharge))
 		site.clearPeakShaveLoadShedding()
 		site.setBatteryLimitLimits(chargeLimit, 0)
 		site.peakShaveBatteryLimited = true
+		site.batteryPlanHold = false
 
 	case PeakShaveIdle:
 		site.clearPeakShaveLoadShedding()
+		if planned {
+			site.applyBatteryPlan(plan)
+			break
+		}
 		if batteryGridChargeActive {
 			chargeLimit := site.peakShaveRecoveryChargePower(headroom)
 			site.log.DEBUG.Printf("grid charge under peak shave limit: charging up to %dW", chargeLimit)

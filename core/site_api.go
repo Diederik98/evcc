@@ -468,6 +468,33 @@ func (site *Site) GetPeakShaveState() string {
 	return site.peakShaveState
 }
 
+// GetBatteryCycleCost returns wear cost per kWh discharged
+func (site *Site) GetBatteryCycleCost() float64 {
+	site.RLock()
+	defer site.RUnlock()
+	return site.BatteryCycleCost
+}
+
+// SetBatteryCycleCost sets wear cost per kWh discharged
+func (site *Site) SetBatteryCycleCost(cost float64) error {
+	if cost < 0 {
+		return errors.New("cycle cost must not be negative")
+	}
+
+	site.Lock()
+	defer site.Unlock()
+
+	site.log.DEBUG.Println("set battery cycle cost:", cost)
+
+	if site.BatteryCycleCost != cost {
+		site.BatteryCycleCost = cost
+		settings.SetFloat(keys.BatteryCycleCost, site.BatteryCycleCost)
+		site.publish(keys.BatteryCycleCost, site.BatteryCycleCost)
+	}
+
+	return nil
+}
+
 // GetGridPower returns the most recent grid power reading in W (positive = import)
 func (site *Site) GetGridPower() float64 {
 	site.RLock()

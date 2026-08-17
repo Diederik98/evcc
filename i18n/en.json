@@ -112,6 +112,28 @@
     "minSocLabel": "Min",
     "maintainSocChargePower": "Recovery charge power",
     "maintainSocChargePowerHelp": "Power limit used to restore the battery to the reserve SoC level after peak shaving.",
+    "cycleCost": "Cycle cost",
+    "cycleCostHelp": "Wear cost per kWh discharged. Grid charging only happens when the tax-inclusive price spread covers losses and this cost. Set 0 to ignore wear.",
+    "cycleCostUnit": "€/kWh",
+    "plan": {
+      "title": "Battery plan",
+      "targetSoc": "Target SoC for upcoming peaks: {soc}%",
+      "action": {
+        "normal": "Following solar surplus",
+        "charge": "Charging from grid",
+        "hold": "Holding charge",
+        "discharge": "Discharging"
+      },
+      "reason": {
+        "idle": "No action required",
+        "peak": "Covering a predicted peak",
+        "preempt": "Starting early: inverter control is too slow to wait for the spike",
+        "charge": "Charging enough energy to cover later peaks",
+        "cheap": "Tax-inclusive price is low enough to cycle",
+        "hold": "Saving energy for later expensive or peak hours",
+        "recovery": "Restoring reserve SoC"
+      }
+    },
     "batteryTabTitle": "Battery protection",
     "state": {
       "idle": "Idle",

@@ -111,6 +111,7 @@ site:
   peakShaveMinSoc: 20.0 # hard battery floor SoC in % below which battery won't discharge
   peakShaveMaintainSocChargePower: 1000.0 # battery charging power in W when recovery charging back to reserve SoC
   peakShaveLoadShedDelay: 30.0 # grace period in seconds before EV load shedding during peak overload
+  batteryCycleCost: 0.05 # wear cost per kWh discharged; grid charging only when tax-inclusive spread covers losses and this cost
 
 # loadpoint describes the charger, charge meter and connected vehicle
 loadpoints:

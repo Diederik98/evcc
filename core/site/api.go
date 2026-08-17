@@ -118,4 +118,8 @@ type API interface {
 	SetPeakShaveLoadShedDelay(float64) error
 	// GetPeakShaveState returns the current peak shaving state string
 	GetPeakShaveState() string
+	// GetBatteryCycleCost returns wear cost per kWh discharged
+	GetBatteryCycleCost() float64
+	// SetBatteryCycleCost sets wear cost per kWh discharged
+	SetBatteryCycleCost(float64) error
 }
