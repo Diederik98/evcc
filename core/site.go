@@ -110,6 +110,10 @@ type Site struct {
 	peakShaveOverloadSince   time.Time          // Overload start time for load shed delay
 	peakShaveBatteryLimited  bool               // Battery limit controller writes active
 	batteryPlanHold          bool               // Planner requested hold for later peaks or expensive hours
+	batteryPlanChargeW       int                // Last planned grid-charge setpoint, capped live on the fast loop
+	lastBatteryChargeW       int                // Last written charge limit
+	lastBatteryDischargeW    int                // Last written discharge limit
+	batteryLimitSet          bool               // Whether a limit has been written this session
 }
 
 // MetersConfig contains the site's meter configuration
@@ -1263,6 +1267,7 @@ func (site *Site) Run(stopC chan struct{}, interval time.Duration) {
 	}
 
 	site.update(<-loadpointChan) // start immediately
+	go site.runBatteryControl(stopC)
 
 	for tick := time.Tick(interval); ; {
 		select {

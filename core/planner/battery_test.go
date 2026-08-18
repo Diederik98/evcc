@@ -72,13 +72,13 @@ func TestPlanBatteryDischargeDuringPeak(t *testing.T) {
 		EtaD:           0.9,
 		GridThresholdW: 5000,
 		HeadroomW:      4000,
-		LiveResidualW:  9000, // already over the limit: inverter lag, start now
+		LiveResidualW:  9000, // already over the 5 kW limit
 	}
 	slots := testSlots([]float64{0.40, 0.40, 0.30}, 8000, 0)
 
 	plan := PlanBattery(cfg, slots)
 	require.Equal(t, BatteryActionDischarge, plan.Action)
-	assert.Equal(t, BatteryReasonPreempt, plan.Reason)
+	assert.Equal(t, BatteryReasonPeak, plan.Reason)
 	assert.Greater(t, plan.DischargeW, 0)
 }
 
@@ -154,7 +154,7 @@ func TestPlanBatteryTaxesWidenSpreadNeededToCycle(t *testing.T) {
 	assert.NotEqual(t, BatteryActionCharge, taxedPlan.Action, "tax-inclusive spread should not grid-charge")
 }
 
-func TestPlanBatteryPreemptsBeforeThreshold(t *testing.T) {
+func TestPlanBatteryDoesNotDischargeBelowThreshold(t *testing.T) {
 	cfg := BatteryConfig{
 		Soc:            60,
 		MinSoc:         20,
@@ -167,13 +167,12 @@ func TestPlanBatteryPreemptsBeforeThreshold(t *testing.T) {
 		EtaD:           0.9,
 		GridThresholdW: 10000,
 		HeadroomW:      5000,
-		LiveResidualW:  9000, // 90% of limit: start discharging before the spike
+		LiveResidualW:  9000,
 	}
 	slots := testSlots([]float64{0.30, 0.30}, 9000, 0)
 
 	plan := PlanBattery(cfg, slots)
-	require.Equal(t, BatteryActionDischarge, plan.Action)
-	assert.Equal(t, BatteryReasonPreempt, plan.Reason)
+	assert.NotEqual(t, BatteryActionDischarge, plan.Action)
 }
 
 func TestPlanBatteryEmptyConfig(t *testing.T) {

@@ -16,14 +16,12 @@ const (
 
 	BatteryReasonIdle     = "idle"
 	BatteryReasonPeak     = "peak"
-	BatteryReasonPreempt  = "preempt"
 	BatteryReasonCharge   = "charge"
 	BatteryReasonCheap    = "cheap"
 	BatteryReasonHold     = "hold"
 	BatteryReasonRecovery = "recovery"
 
 	batteryEta            = 0.9
-	batteryPreemptRatio   = 0.85
 	defaultBatteryChargeW = 2500.0
 )
 
@@ -63,9 +61,9 @@ type BatteryPlan struct {
 
 // PlanBattery decides charge, hold or discharge for the current slot.
 // Prices must already include taxes and levies. Peak energy is a hard constraint:
-// the battery is charged ahead of predicted overshoots so slow inverter control
-// does not miss the spike. Economic cycling only happens when the tax-inclusive
-// spread covers round-trip losses and cycle cost.
+// the battery is charged ahead of predicted overshoots. Live charge/discharge
+// watts are then tracked on a faster control loop. Economic cycling only happens
+// when the tax-inclusive spread covers round-trip losses and cycle cost.
 func PlanBattery(cfg BatteryConfig, slots []BatterySlot) BatteryPlan {
 	if cfg.CapacityWh <= 0 || len(slots) == 0 {
 		return BatteryPlan{Action: BatteryActionNormal, Reason: BatteryReasonIdle}
@@ -120,23 +118,13 @@ func PlanBattery(cfg BatteryConfig, slots []BatterySlot) BatteryPlan {
 	profileResidualW := residualW(cur, hours)
 	residualW := max(profileResidualW, cfg.LiveResidualW)
 	overshootW := max(0, residualW-cfg.GridThresholdW)
-	preemptW := cfg.GridThresholdW * batteryPreemptRatio
-	inPeakWindow := cfg.GridThresholdW > 0 && residualW > preemptW
 
-	if inPeakWindow && socWh > minWh+1 {
-		discharge := residualW - preemptW
-		if cfg.GridThresholdW > 0 && overshootW > discharge {
-			discharge = overshootW
-		}
-		discharge = min(discharge, cfg.DischargeW, (socWh-minWh)/hours*cfg.EtaD)
+	if cfg.GridThresholdW > 0 && overshootW > 0 && socWh > minWh+1 {
+		discharge := min(overshootW, cfg.DischargeW, (socWh-minWh)/hours*cfg.EtaD)
 		if discharge > 0 {
 			plan.Action = BatteryActionDischarge
 			plan.DischargeW = int(math.Round(discharge))
-			if cfg.LiveResidualW > preemptW {
-				plan.Reason = BatteryReasonPreempt
-			} else {
-				plan.Reason = BatteryReasonPeak
-			}
+			plan.Reason = BatteryReasonPeak
 			return plan
 		}
 	}

@@ -127,7 +127,6 @@
       "reason": {
         "idle": "No action required",
         "peak": "Covering a predicted peak",
-        "preempt": "Starting early: inverter control is too slow to wait for the spike",
         "charge": "Charging enough energy to cover later peaks",
         "cheap": "Tax-inclusive price is low enough to cycle",
         "hold": "Saving energy for later expensive or peak hours",

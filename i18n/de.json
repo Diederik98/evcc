@@ -127,7 +127,6 @@
       "reason": {
         "idle": "Keine Aktion nötig",
         "peak": "Deckt eine vorhergesagte Lastspitze",
-        "preempt": "Startet früh: die Wechselrichtersteuerung ist zu langsam für die Spitze",
         "charge": "Lädt genug Energie für spätere Lastspitzen",
         "cheap": "Der Preis inkl. Steuern ist niedrig genug zum Zyklieren",
         "hold": "Spart Energie für teure oder laststarke Stunden",
