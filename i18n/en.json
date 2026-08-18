@@ -118,6 +118,7 @@
     "plan": {
       "title": "Battery plan",
       "targetSoc": "Target SoC for upcoming peaks: {soc}%",
+      "loadpoints": "Includes {energy} planned charging",
       "action": {
         "normal": "Following solar surplus",
         "charge": "Charging from grid",

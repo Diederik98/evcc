@@ -115,6 +115,7 @@ type Site struct {
 	lastBatteryDischargeW    int                // Last written discharge limit
 	batteryLimitSet          bool               // Whether a limit has been written this session
 	batteryPlanDischargeW    int                // Planned export discharge, kept on the fast loop
+	batteryPlanLoadWh        float64            // Planned charger/heater energy included in the current battery plan
 	solarOrientation         *solarOrientation  // Cached clear-sky orientation suggestion
 	solarOrientationAt       time.Time          // Last orientation fit
 }

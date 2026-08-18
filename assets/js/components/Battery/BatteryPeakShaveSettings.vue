@@ -23,6 +23,9 @@
 			<p v-if="planTargetSoc" class="text-muted small mb-0">
 				{{ $t("peakShave.plan.targetSoc", { soc: Math.round(planTargetSoc) }) }}
 			</p>
+			<p v-if="planLoadEnergy" class="text-muted small mb-0">
+				{{ $t("peakShave.plan.loadpoints", { energy: planLoadEnergy }) }}
+			</p>
 		</div>
 
 		<!-- Cycle cost -->
@@ -133,10 +136,12 @@
 <script lang="ts">
 import { defineComponent, type PropType } from "vue";
 import api from "@/api";
+import formatter, { POWER_UNIT } from "@/mixins/formatter";
 import type { PeakShaveState, BatteryPlanStatus } from "@/types/evcc";
 
 export default defineComponent({
 	name: "BatteryPeakShaveSettings",
+	mixins: [formatter],
 	props: {
 		peakShaveReserveSoc: { type: Number, default: 40 },
 		peakShaveMinSoc: { type: Number, default: 20 },
@@ -171,6 +176,13 @@ export default defineComponent({
 		},
 		planTargetSoc(): number {
 			return this.batteryPlan?.targetSoc || 0;
+		},
+		planLoadEnergy(): string {
+			const wh = this.batteryPlan?.loadWh || 0;
+			if (wh < 50) {
+				return "";
+			}
+			return this.fmtWh(wh, POWER_UNIT.AUTO, true, 1);
 		},
 	},
 	watch: {

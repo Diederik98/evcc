@@ -158,6 +158,7 @@ export interface BatteryPlanStatus {
   targetSoc?: number;
   peakWh?: number;
   dischargeFloor?: number;
+  loadWh?: number;
 }
 
 export interface ConfigStatus<C, S> {

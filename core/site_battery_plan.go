@@ -6,6 +6,7 @@ import (
 
 	"github.com/evcc-io/evcc/api"
 	"github.com/evcc-io/evcc/core/keys"
+	"github.com/evcc-io/evcc/core/loadpoint"
 	"github.com/evcc-io/evcc/core/metrics"
 	"github.com/evcc-io/evcc/core/planner"
 	"github.com/evcc-io/evcc/tariff"
@@ -21,6 +22,7 @@ type batteryPlanStatus struct {
 	TargetSoc      float64 `json:"targetSoc"`
 	PeakWh         float64 `json:"peakWh"`
 	DischargeFloor float64 `json:"dischargeFloor"`
+	LoadWh         float64 `json:"loadWh,omitempty"`
 }
 
 var _ api.BytesMarshaler = (*batteryPlanStatus)(nil)
@@ -30,6 +32,7 @@ func (s batteryPlanStatus) MarshalBytes() ([]byte, error) {
 }
 
 func (site *Site) evaluateBatteryPlan() (planner.BatteryPlan, bool) {
+	site.batteryPlanLoadWh = 0
 	if !site.batteryConfigured() || site.battery.Capacity <= 0 {
 		return planner.BatteryPlan{}, false
 	}
@@ -121,7 +124,7 @@ func (site *Site) batteryPlanSlots() []planner.BatterySlot {
 
 	now := time.Now()
 	hours := tariff.SlotDuration.Hours()
-	liveHomeWh := max(0, site.gridPower+max(0, site.pvPower)+site.battery.Power) * hours
+	liveHomeWh := site.householdPower() * hours
 	liveSolarWh := max(0, site.pvPower) * hours
 
 	slots := make([]planner.BatterySlot, n)
@@ -148,12 +151,22 @@ func (site *Site) batteryPlanSlots() []planner.BatterySlot {
 		}
 		slots[i] = s
 	}
+
+	site.batteryPlanLoadWh = applyLoadpointPlans(site.Loadpoints(), slots)
 	return slots
+}
+
+func (site *Site) householdPower() float64 {
+	var charge float64
+	for _, lp := range site.Loadpoints() {
+		charge += lp.GetChargePower()
+	}
+	return max(0, site.gridPower+max(0, site.pvPower)+site.battery.Power-charge)
 }
 
 func (site *Site) fallbackHomeProfile(minLen int) []float64 {
 	hours := tariff.SlotDuration.Hours()
-	wh := max(0, site.gridPower+max(0, site.pvPower)+site.battery.Power) * hours
+	wh := site.householdPower() * hours
 	if wh <= 0 {
 		wh = 400 * hours
 	}
@@ -162,6 +175,89 @@ func (site *Site) fallbackHomeProfile(minLen int) []float64 {
 		res[i] = wh
 	}
 	return res
+}
+
+// applyLoadpointPlans adds planned charger/heater energy onto household slots.
+func applyLoadpointPlans(loadpoints []loadpoint.API, slots []planner.BatterySlot) float64 {
+	var added float64
+	for _, lp := range loadpoints {
+		plan, powerW := loadpointChargePlan(lp)
+		added += applyChargePlan(slots, plan, powerW)
+	}
+	return added
+}
+
+func loadpointChargePlan(lp loadpoint.API) (api.Rates, float64) {
+	planTime := lp.EffectivePlanTime()
+	if planTime.IsZero() {
+		return nil, 0
+	}
+
+	goal, _ := lp.GetPlanGoal()
+	if goal <= 0 {
+		return nil, 0
+	}
+
+	maxPower := lp.EffectiveMaxPower()
+	if maxPower <= 0 {
+		return nil, 0
+	}
+
+	required := lp.GetPlanRequiredDuration(goal, maxPower)
+	if required <= 0 {
+		return nil, 0
+	}
+
+	strategy := lp.EffectivePlanStrategy()
+	plan := lp.GetPlan(planTime, required, strategy.Precondition, strategy.Continuous)
+	if len(plan) == 0 {
+		now := time.Now()
+		start := planTime.Add(-required)
+		if start.Before(now) {
+			start = now
+		}
+		if !planTime.After(start) {
+			return nil, 0
+		}
+		plan = api.Rates{{Start: start, End: planTime}}
+	}
+
+	return plan, maxPower
+}
+
+func applyChargePlan(slots []planner.BatterySlot, plan api.Rates, powerW float64) float64 {
+	if powerW <= 0 || len(plan) == 0 || len(slots) == 0 {
+		return 0
+	}
+
+	var added float64
+	for i := range slots {
+		for _, r := range plan {
+			h := overlapHours(slots[i].Start, slots[i].End, r.Start, r.End)
+			if h <= 0 {
+				continue
+			}
+			wh := powerW * h
+			slots[i].HomeWh += wh
+			added += wh
+		}
+	}
+	return added
+}
+
+func overlapHours(a0, a1, b0, b1 time.Time) float64 {
+	start := a0
+	if b0.After(start) {
+		start = b0
+	}
+	end := a1
+	if b1.Before(end) {
+		end = b1
+	}
+	if !end.After(start) {
+		return 0
+	}
+	return end.Sub(start).Hours()
 }
 
 func (site *Site) applyBatteryPlan(plan planner.BatteryPlan) {
@@ -175,6 +271,7 @@ func (site *Site) applyBatteryPlan(plan planner.BatteryPlan) {
 		TargetSoc:      plan.TargetSoc,
 		PeakWh:         plan.PeakWh,
 		DischargeFloor: plan.DischargeFloor,
+		LoadWh:         site.batteryPlanLoadWh,
 	})
 
 	switch plan.Action {

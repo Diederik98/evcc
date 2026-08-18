@@ -118,6 +118,7 @@
     "plan": {
       "title": "Batterieplanung",
       "targetSoc": "Ziel-SoC für kommende Lastspitzen: {soc} %",
+      "loadpoints": "Enthält {energy} geplante Ladung",
       "action": {
         "normal": "Folgt dem Solarüberschuss",
         "charge": "Lädt aus dem Netz",
