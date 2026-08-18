@@ -24,4 +24,13 @@ export interface SolarDetails {
   tomorrow?: EnergyByDay;
   dayAfterTomorrow?: EnergyByDay;
   timeseries?: TimeseriesEntry[];
+  orientation?: SolarOrientation;
+}
+
+export interface SolarOrientation {
+  azimuth: number;
+  decline: number;
+  days: number;
+  configuredAzimuth?: number;
+  configuredDecline?: number;
 }

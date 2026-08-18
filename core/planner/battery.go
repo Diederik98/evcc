@@ -60,11 +60,12 @@ type BatteryPlan struct {
 	ChargeCeiling  float64
 }
 
-// PlanBattery decides charge, hold or discharge for the current slot.
+// PlanBattery decides charge, hold, discharge or export for the current slot.
 // Prices must already include taxes and levies. Peak energy is a hard constraint:
 // the battery is charged ahead of predicted overshoots. Live charge/discharge
 // watts are then tracked on a faster control loop. Economic cycling only happens
-// when the tax-inclusive spread covers round-trip losses and cycle cost.
+// when the tax-inclusive spread covers round-trip losses and cycle cost. Leftover
+// energy above the peak reserve can be sold on expensive feed-in hours only.
 func PlanBattery(cfg BatteryConfig, slots []BatterySlot) BatteryPlan {
 	if cfg.CapacityWh <= 0 || len(slots) == 0 {
 		return BatteryPlan{Action: BatteryActionNormal, Reason: BatteryReasonIdle}
