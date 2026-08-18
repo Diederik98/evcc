@@ -116,6 +116,10 @@ type API interface {
 	GetPeakShaveLoadShedDelay() float64
 	// SetPeakShaveLoadShedDelay sets the load shed grace period in seconds
 	SetPeakShaveLoadShedDelay(float64) error
+	// GetPeakShaveAverage returns whether peak shaving uses the 15-minute average
+	GetPeakShaveAverage() bool
+	// SetPeakShaveAverage sets whether peak shaving uses the 15-minute average
+	SetPeakShaveAverage(bool) error
 	// GetPeakShaveState returns the current peak shaving state string
 	GetPeakShaveState() string
 	// GetBatteryCycleCost returns wear cost per kWh discharged

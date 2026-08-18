@@ -99,6 +99,8 @@
     "gridPowerLive": "Aktueller Netzbezug: {power} kW",
     "loadShedDelay": "Lastabwurf-Verzögerung",
     "loadShedDelayHelp": "Wartezeit in Sekunden, bevor das EV-Laden gedrosselt wird, wenn der Netzbezug über der Grenze bleibt. 0 für sofortigen Lastabwurf.",
+    "average": "15-Minuten-Mittelwert",
+    "averageHelp": "Begrenzt den taktgebundenen 15-Minuten-Netzbezug statt der Momentanleistung. Kurze Spitzen können durchgehen, wenn im Viertel noch Budget ist. Die Momentanregelung bleibt Standard und ist für die Rechnung sicherer.",
     "noLimitController": "Die Lastspitzenkappung erfordert eine Batterie mit Lade- und Entladeleistungsgrenzen. Konfiguriere chargelimit und dischargelimit am Batteriezähler.",
     "socInvalid": "Der Reserve-SoC darf nicht unter dem Mindest-SoC der Batterie liegen.",
     "reserveSoc": "Reserve-SoC",
@@ -119,6 +121,7 @@
       "title": "Batterieplanung",
       "targetSoc": "Ziel-SoC für kommende Lastspitzen: {soc} %",
       "loadpoints": "Enthält {energy} geplante Ladung",
+      "loadCap": "Geplante Ladung begrenzt auf {power}",
       "action": {
         "normal": "Folgt dem Solarüberschuss",
         "charge": "Lädt aus dem Netz",

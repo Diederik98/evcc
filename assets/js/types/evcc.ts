@@ -137,6 +137,7 @@ export interface State {
   peakShaveMinSoc?: number;
   peakShaveMaintainSocChargePower?: number;
   peakShaveLoadShedDelay?: number;
+  peakShaveAverage?: boolean;
   peakShaveState?: PeakShaveState;
   batteryCycleCost?: number;
   batteryPlan?: BatteryPlanStatus;
@@ -159,6 +160,7 @@ export interface BatteryPlanStatus {
   peakWh?: number;
   dischargeFloor?: number;
   loadWh?: number;
+  loadW?: number;
 }
 
 export interface ConfigStatus<C, S> {

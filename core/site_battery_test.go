@@ -703,3 +703,18 @@ func TestApplyLiveBatteryPowerLimitsKeepsExportDischarge(t *testing.T) {
 	assert.Equal(t, 1800, site.lastBatteryDischargeW)
 	ctrl.Finish()
 }
+
+func TestPeakShaveRemainingAllowedW(t *testing.T) {
+	slot := 15 * time.Minute
+	limit := 10000.0
+
+	assert.InDelta(t, 10000, peakShaveRemainingAllowedW(limit, 0, 0, slot), 1)
+
+	// 10 minutes of 2 kW in a 10 kW quarter still has budget for a 15 kW spike
+	energy := 2000 * 10.0 / 60
+	allowed := peakShaveRemainingAllowedW(limit, energy, 10*time.Minute, slot)
+	assert.Greater(t, allowed, 15000.0)
+
+	// quarter already over budget: remaining allowed is negative
+	assert.Less(t, peakShaveRemainingAllowedW(limit, 3000, 14*time.Minute, slot), 0.0)
+}

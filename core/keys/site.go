@@ -51,6 +51,7 @@ const (
 	PeakShaveMinSoc                 = "peakShaveMinSoc"
 	PeakShaveMaintainSocChargePower = "peakShaveMaintainSocChargePower"
 	PeakShaveLoadShedDelay          = "peakShaveLoadShedDelay"
+	PeakShaveAverage                = "peakShaveAverage"
 	PeakShaveState                  = "peakShaveState"
 	BatteryCycleCost                = "batteryCycleCost"
 	BatteryPlan                     = "batteryPlan"

@@ -458,6 +458,33 @@ func (site *Site) SetPeakShaveLoadShedDelay(delay float64) error {
 	return nil
 }
 
+// GetPeakShaveAverage returns whether peak shaving uses the clock-aligned 15-minute average
+func (site *Site) GetPeakShaveAverage() bool {
+	site.RLock()
+	defer site.RUnlock()
+	return site.PeakShaveAverage
+}
+
+// SetPeakShaveAverage sets whether peak shaving uses the clock-aligned 15-minute average
+func (site *Site) SetPeakShaveAverage(avg bool) error {
+	site.Lock()
+	defer site.Unlock()
+
+	if len(site.batteryMeters) == 0 {
+		return ErrBatteryNotConfigured
+	}
+
+	site.log.DEBUG.Println("set peak shave average:", avg)
+
+	if site.PeakShaveAverage != avg {
+		site.PeakShaveAverage = avg
+		settings.SetBool(keys.PeakShaveAverage, site.PeakShaveAverage)
+		site.publish(keys.PeakShaveAverage, site.PeakShaveAverage)
+	}
+
+	return nil
+}
+
 // GetPeakShaveState returns the PeakShaveState
 func (site *Site) GetPeakShaveState() string {
 	site.RLock()

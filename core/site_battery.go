@@ -9,6 +9,7 @@ import (
 	"github.com/evcc-io/evcc/core/keys"
 	"github.com/evcc-io/evcc/core/loadpoint"
 	"github.com/evcc-io/evcc/core/planner"
+	"github.com/evcc-io/evcc/tariff"
 	"github.com/evcc-io/evcc/util/config"
 )
 
@@ -88,13 +89,64 @@ func (site *Site) peakShaveEnabled() bool {
 const peakShaveUnlimitedPower = 100000
 
 func (site *Site) peakShaveGridHeadroom() float64 {
-	gridThresholdW := site.GridThreshold * 1000.0
-	return max(0, gridThresholdW-site.idleGridPower())
+	return max(0, site.peakShaveAllowedW()-site.idleGridPower())
 }
 
 // idleGridPower is the grid import if the battery were neither charging nor discharging.
 func (site *Site) idleGridPower() float64 {
 	return site.gridPower - site.battery.Power
+}
+
+func (site *Site) peakShaveLimitW() float64 {
+	return site.GridThreshold * 1000
+}
+
+func (site *Site) peakShaveAllowedW() float64 {
+	if !site.PeakShaveAverage || site.peakShaveQuarterStart.IsZero() {
+		return site.peakShaveLimitW()
+	}
+	elapsed := time.Since(site.peakShaveQuarterStart)
+	if elapsed < 0 {
+		elapsed = 0
+	}
+	return peakShaveRemainingAllowedW(site.peakShaveLimitW(), site.peakShaveQuarterWh, elapsed, tariff.SlotDuration)
+}
+
+func (site *Site) peakShaveOvershootW() float64 {
+	return site.idleGridPower() - site.peakShaveAllowedW()
+}
+
+func peakShaveRemainingAllowedW(limitW, energyWh float64, elapsed, slot time.Duration) float64 {
+	h := slot.Hours()
+	if h <= 0 {
+		return limitW
+	}
+	remain := h - elapsed.Hours()
+	if remain < 1.0/3600 {
+		remain = 1.0 / 3600
+	}
+	return (limitW*h - energyWh) / remain
+}
+
+func (site *Site) accumulateGridQuarter(now time.Time) {
+	slot := now.Truncate(tariff.SlotDuration)
+	if site.peakShaveQuarterStart.IsZero() || !slot.Equal(site.peakShaveQuarterStart) {
+		site.peakShaveQuarterStart = slot
+		site.peakShaveQuarterWh = 0
+		site.peakShaveQuarterAt = now
+		return
+	}
+	if site.peakShaveQuarterAt.IsZero() {
+		site.peakShaveQuarterAt = now
+		return
+	}
+	dt := now.Sub(site.peakShaveQuarterAt).Seconds()
+	if dt <= 0 || dt > 120 {
+		site.peakShaveQuarterAt = now
+		return
+	}
+	site.peakShaveQuarterWh += max(0, site.gridPower) * dt / 3600
+	site.peakShaveQuarterAt = now
 }
 
 func (site *Site) peakShaveRecoveryChargePower(maintainPower float64) int {
@@ -402,6 +454,7 @@ func (site *Site) ManageGridLimits(batteryGridChargeActive bool) {
 		site.Lock()
 		if planned {
 			site.applyBatteryPlan(plan)
+			site.applyPlannedLoadpointCaps()
 		} else {
 			site.batteryPlanHold = false
 			site.batteryPlanChargeW = 0
@@ -421,18 +474,19 @@ func (site *Site) ManageGridLimits(batteryGridChargeActive bool) {
 		return
 	}
 
-	gridThresholdW := site.GridThreshold * 1000.0
-	targetDischarge := site.idleGridPower() - gridThresholdW
-
 	soc := site.battery.Soc
 	reserveSoc := site.PeakShaveReserveSoc
 	minSoc := site.peakShaveEffectiveMinSoc()
 	maintainPower := site.PeakShaveMaintainSocChargePower
-	headroom := site.peakShaveGridHeadroom()
 	now := time.Now()
 
 	site.Lock()
 	defer site.Unlock()
+
+	site.accumulateGridQuarter(now)
+	gridThresholdW := site.peakShaveAllowedW()
+	targetDischarge := site.peakShaveOvershootW()
+	headroom := site.peakShaveGridHeadroom()
 
 	oldState := site.peakShaveState
 	if oldState == "" {
@@ -551,6 +605,8 @@ func (site *Site) ManageGridLimits(batteryGridChargeActive bool) {
 			}
 		}
 	}
+
+	site.applyPlannedLoadpointCaps()
 }
 
 func (site *Site) validatePeakShaveSoc(minSoc, reserveSoc float64) error {
@@ -632,12 +688,12 @@ func (site *Site) applyLiveBatteryPowerLimits() {
 	site.Lock()
 	defer site.Unlock()
 
-	gridThresholdW := site.GridThreshold * 1000
-	idleGrid := site.idleGridPower()
-	overshoot := idleGrid - gridThresholdW
+	site.accumulateGridQuarter(time.Now())
+
+	overshoot := site.peakShaveOvershootW()
 	soc := site.battery.Soc
 	minSoc := site.peakShaveEffectiveMinSoc()
-	headroom := max(0, gridThresholdW-idleGrid)
+	headroom := site.peakShaveGridHeadroom()
 
 	switch {
 	case overshoot > 0 && soc <= minSoc:

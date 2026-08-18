@@ -38,6 +38,7 @@
 					:peak-shave-min-soc="state.peakShaveMinSoc"
 					:peak-shave-maintain-soc-charge-power="state.peakShaveMaintainSocChargePower"
 					:peak-shave-load-shed-delay="state.peakShaveLoadShedDelay"
+					:peak-shave-average="state.peakShaveAverage ?? false"
 					:peak-shave-state="state.peakShaveState ?? 'idle'"
 					:limit-controller-available="peakShaveLimitControllerAvailable"
 					:battery-cycle-cost="state.batteryCycleCost ?? 0.05"

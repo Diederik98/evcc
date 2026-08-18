@@ -68,6 +68,7 @@ type Site struct {
 	PeakShaveMinSoc                 float64                    `mapstructure:"peakShaveMinSoc"`                 // Peak shaving battery min SoC in %
 	PeakShaveMaintainSocChargePower float64                    `mapstructure:"peakShaveMaintainSocChargePower"` // Power limit for restoring reserve SoC in W
 	PeakShaveLoadShedDelay          float64                    `mapstructure:"peakShaveLoadShedDelay"`          // Grace period before EV load shedding in s
+	PeakShaveAverage                bool                       `mapstructure:"peakShaveAverage"`                // Control clock-aligned 15-minute average instead of instantaneous watts
 	BatteryCycleCost                float64                    `mapstructure:"batteryCycleCost"`                // Wear cost in currency per kWh discharged
 	circuit                         api.Circuit                // Circuit
 	hems                            api.HEMS                   // HEMS (set by configureHEMS at boot)
@@ -116,6 +117,10 @@ type Site struct {
 	batteryLimitSet          bool               // Whether a limit has been written this session
 	batteryPlanDischargeW    int                // Planned export discharge, kept on the fast loop
 	batteryPlanLoadWh        float64            // Planned charger/heater energy included in the current battery plan
+	batteryPlanLoadCaps      []float64          // Flattened charger/heater watts for the current slot, per loadpoint
+	peakShaveQuarterStart    time.Time          // Clock-aligned quarter used for average peak control
+	peakShaveQuarterWh       float64            // Imported grid energy in the current quarter
+	peakShaveQuarterAt       time.Time          // Last sample time for quarter energy
 	solarOrientation         *solarOrientation  // Cached clear-sky orientation suggestion
 	solarOrientationAt       time.Time          // Last orientation fit
 }
@@ -417,6 +422,9 @@ func (site *Site) restoreSettings() error {
 	}
 	if v, err := settings.Float(keys.PeakShaveLoadShedDelay); err == nil {
 		_ = site.SetPeakShaveLoadShedDelay(v)
+	}
+	if v, err := settings.Bool(keys.PeakShaveAverage); err == nil {
+		_ = site.SetPeakShaveAverage(v)
 	}
 	if v, err := settings.Float(keys.BatteryCycleCost); err == nil {
 		_ = site.SetBatteryCycleCost(v)
@@ -1169,6 +1177,7 @@ func (site *Site) prepare() {
 	site.publish(keys.PeakShaveMinSoc, site.GetPeakShaveMinSoc())
 	site.publish(keys.PeakShaveMaintainSocChargePower, site.GetPeakShaveMaintainSocChargePower())
 	site.publish(keys.PeakShaveLoadShedDelay, site.GetPeakShaveLoadShedDelay())
+	site.publish(keys.PeakShaveAverage, site.GetPeakShaveAverage())
 	site.publish(keys.PeakShaveState, site.GetPeakShaveState())
 	site.publish(keys.BatteryCycleCost, site.GetBatteryCycleCost())
 	site.publishIdleBatteryPlan()

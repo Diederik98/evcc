@@ -26,6 +26,25 @@
 			<p v-if="planLoadEnergy" class="text-muted small mb-0">
 				{{ $t("peakShave.plan.loadpoints", { energy: planLoadEnergy }) }}
 			</p>
+			<p v-if="planLoadPower" class="text-muted small mb-0">
+				{{ $t("peakShave.plan.loadCap", { power: planLoadPower }) }}
+			</p>
+		</div>
+
+		<!-- 15-minute average -->
+		<div class="form-check form-switch mb-4">
+			<input
+				id="peakShaveAverage"
+				class="form-check-input"
+				type="checkbox"
+				role="switch"
+				:checked="localAverage"
+				@change="saveAverage"
+			/>
+			<label class="form-check-label" for="peakShaveAverage">
+				<span class="fw-bold">{{ $t("peakShave.average") }}</span>
+				<p class="text-muted small mb-0">{{ $t("peakShave.averageHelp") }}</p>
+			</label>
 		</div>
 
 		<!-- Cycle cost -->
@@ -147,6 +166,7 @@ export default defineComponent({
 		peakShaveMinSoc: { type: Number, default: 20 },
 		peakShaveMaintainSocChargePower: { type: Number, default: 1000 },
 		peakShaveLoadShedDelay: { type: Number, default: 30 },
+		peakShaveAverage: { type: Boolean, default: false },
 		peakShaveState: { type: String as PropType<PeakShaveState>, default: "idle" },
 		limitControllerAvailable: { type: Boolean, default: true },
 		batteryCycleCost: { type: Number, default: 0.05 },
@@ -157,6 +177,7 @@ export default defineComponent({
 			localReserveSoc: this.peakShaveReserveSoc,
 			localMaintainPower: this.peakShaveMaintainSocChargePower,
 			localLoadShedDelay: this.peakShaveLoadShedDelay,
+			localAverage: this.peakShaveAverage,
 			localCycleCost: this.batteryCycleCost,
 			dragging: false,
 		};
@@ -184,6 +205,13 @@ export default defineComponent({
 			}
 			return this.fmtWh(wh, POWER_UNIT.AUTO, true, 1);
 		},
+		planLoadPower(): string {
+			const w = this.batteryPlan?.loadW || 0;
+			if (w < 50) {
+				return "";
+			}
+			return this.fmtW(w, POWER_UNIT.KW, true, 1);
+		},
 	},
 	watch: {
 		peakShaveReserveSoc(v: number) {
@@ -196,6 +224,9 @@ export default defineComponent({
 		},
 		peakShaveLoadShedDelay(v: number) {
 			this.localLoadShedDelay = v;
+		},
+		peakShaveAverage(v: boolean) {
+			this.localAverage = v;
 		},
 		batteryCycleCost(v: number) {
 			this.localCycleCost = v;
@@ -291,6 +322,16 @@ export default defineComponent({
 				);
 			} catch (err) {
 				console.error(err);
+			}
+		},
+		async saveAverage(event: Event) {
+			const checked = (event.target as HTMLInputElement).checked;
+			this.localAverage = checked;
+			try {
+				await api.post(`peakshaveaverage/${encodeURIComponent(String(checked))}`);
+			} catch (err) {
+				console.error(err);
+				this.localAverage = this.peakShaveAverage;
 			}
 		},
 		async saveCycleCost() {

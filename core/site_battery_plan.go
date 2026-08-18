@@ -23,6 +23,7 @@ type batteryPlanStatus struct {
 	PeakWh         float64 `json:"peakWh"`
 	DischargeFloor float64 `json:"dischargeFloor"`
 	LoadWh         float64 `json:"loadWh,omitempty"`
+	LoadW          float64 `json:"loadW,omitempty"`
 }
 
 var _ api.BytesMarshaler = (*batteryPlanStatus)(nil)
@@ -33,6 +34,7 @@ func (s batteryPlanStatus) MarshalBytes() ([]byte, error) {
 
 func (site *Site) evaluateBatteryPlan() (planner.BatteryPlan, bool) {
 	site.batteryPlanLoadWh = 0
+	site.batteryPlanLoadCaps = nil
 	if !site.batteryConfigured() || site.battery.Capacity <= 0 {
 		return planner.BatteryPlan{}, false
 	}
@@ -152,7 +154,7 @@ func (site *Site) batteryPlanSlots() []planner.BatterySlot {
 		slots[i] = s
 	}
 
-	site.batteryPlanLoadWh = applyLoadpointPlans(site.Loadpoints(), slots)
+	site.batteryPlanLoadWh, site.batteryPlanLoadCaps = applyLoadpointPlans(site.Loadpoints(), slots, site.GridThreshold*1000)
 	return slots
 }
 
@@ -177,14 +179,27 @@ func (site *Site) fallbackHomeProfile(minLen int) []float64 {
 	return res
 }
 
-// applyLoadpointPlans adds planned charger/heater energy onto household slots.
-func applyLoadpointPlans(loadpoints []loadpoint.API, slots []planner.BatterySlot) float64 {
-	var added float64
-	for _, lp := range loadpoints {
+// applyLoadpointPlans adds planned charger/heater energy onto household slots,
+// flattening under the grid limit when there is enough time before the deadline.
+func applyLoadpointPlans(loadpoints []loadpoint.API, slots []planner.BatterySlot, gridThresholdW float64) (float64, []float64) {
+	demands := make([]planner.ChargeDemand, len(loadpoints))
+	for i, lp := range loadpoints {
 		plan, powerW := loadpointChargePlan(lp)
-		added += applyChargePlan(slots, plan, powerW)
+		if powerW <= 0 || len(plan) == 0 {
+			continue
+		}
+		var required float64
+		for _, r := range plan {
+			required += powerW * r.End.Sub(r.Start).Hours()
+		}
+		demands[i] = planner.ChargeDemand{
+			RequiredWh: required,
+			MaxW:       powerW,
+			Deadline:   lp.EffectivePlanTime(),
+			Preferred:  plan,
+		}
 	}
-	return added
+	return planner.FlattenChargeDemands(slots, demands, gridThresholdW)
 }
 
 func loadpointChargePlan(lp loadpoint.API) (api.Rates, float64) {
@@ -225,41 +240,6 @@ func loadpointChargePlan(lp loadpoint.API) (api.Rates, float64) {
 	return plan, maxPower
 }
 
-func applyChargePlan(slots []planner.BatterySlot, plan api.Rates, powerW float64) float64 {
-	if powerW <= 0 || len(plan) == 0 || len(slots) == 0 {
-		return 0
-	}
-
-	var added float64
-	for i := range slots {
-		for _, r := range plan {
-			h := overlapHours(slots[i].Start, slots[i].End, r.Start, r.End)
-			if h <= 0 {
-				continue
-			}
-			wh := powerW * h
-			slots[i].HomeWh += wh
-			added += wh
-		}
-	}
-	return added
-}
-
-func overlapHours(a0, a1, b0, b1 time.Time) float64 {
-	start := a0
-	if b0.After(start) {
-		start = b0
-	}
-	end := a1
-	if b1.Before(end) {
-		end = b1
-	}
-	if !end.After(start) {
-		return 0
-	}
-	return end.Sub(start).Hours()
-}
-
 func (site *Site) applyBatteryPlan(plan planner.BatteryPlan) {
 	site.batteryPlanHold = false
 
@@ -272,6 +252,7 @@ func (site *Site) applyBatteryPlan(plan planner.BatteryPlan) {
 		PeakWh:         plan.PeakWh,
 		DischargeFloor: plan.DischargeFloor,
 		LoadWh:         site.batteryPlanLoadWh,
+		LoadW:          site.batteryPlanLoadW(),
 	})
 
 	switch plan.Action {
@@ -314,6 +295,54 @@ func (site *Site) applyBatteryPlan(plan planner.BatteryPlan) {
 	}
 }
 
+func (site *Site) batteryPlanLoadW() float64 {
+	var sum float64
+	for _, w := range site.batteryPlanLoadCaps {
+		sum += w
+	}
+	return sum
+}
+
 func (site *Site) publishIdleBatteryPlan() {
 	site.publish(keys.BatteryPlan, batteryPlanStatus{Action: planner.BatteryActionNormal, Reason: planner.BatteryReasonIdle})
+}
+
+func (site *Site) applyPlannedLoadpointCaps() {
+	if site.peakShaveState == PeakShaveShedding || site.peakShaveState == PeakShaveLockout {
+		return
+	}
+
+	v := Voltage
+	if v <= 0 {
+		v = site.Voltage
+	}
+	if v <= 0 {
+		v = 230
+	}
+
+	for i, lp := range site.loadpoints {
+		if lp.GetMode() == api.ModeNow {
+			lp.SetPeakShaveMaxCurrent(nil)
+			continue
+		}
+		if i >= len(site.batteryPlanLoadCaps) || site.batteryPlanLoadCaps[i] <= 0 {
+			lp.SetPeakShaveMaxCurrent(nil)
+			continue
+		}
+
+		phases := lp.ActivePhases()
+		if phases <= 0 {
+			phases = 1
+		}
+		cur := site.batteryPlanLoadCaps[i] / (float64(phases) * v)
+		minC := lp.GetMinCurrent()
+		if cur < minC {
+			cur = minC
+		}
+		maxC := lp.GetMaxCurrent()
+		if maxC > 0 && cur > maxC {
+			cur = maxC
+		}
+		lp.SetPeakShaveMaxCurrent(&cur)
+	}
 }
