@@ -181,18 +181,25 @@ func (site *Site) applyBatteryPlan(plan planner.BatteryPlan) {
 	case planner.BatteryActionCharge:
 		site.log.DEBUG.Printf("battery plan: charge %dW (reason %s, target soc %.0f%%, peak %.0fWh)", plan.ChargeW, plan.Reason, plan.TargetSoc, plan.PeakWh)
 		site.batteryPlanChargeW = plan.ChargeW
+		site.batteryPlanDischargeW = 0
 		site.setBatteryLimitLimits(plan.ChargeW, 0)
 		site.peakShaveBatteryLimited = true
 
 	case planner.BatteryActionDischarge:
 		site.log.DEBUG.Printf("battery plan: discharge %dW (reason %s)", plan.DischargeW, plan.Reason)
 		site.batteryPlanChargeW = 0
+		if plan.Reason == planner.BatteryReasonExport {
+			site.batteryPlanDischargeW = plan.DischargeW
+		} else {
+			site.batteryPlanDischargeW = 0
+		}
 		site.setBatteryLimitLimits(0, plan.DischargeW)
 		site.peakShaveBatteryLimited = true
 
 	case planner.BatteryActionHold:
 		site.log.DEBUG.Printf("battery plan: hold (reason %s, floor %.3f)", plan.Reason, plan.DischargeFloor)
 		site.batteryPlanChargeW = 0
+		site.batteryPlanDischargeW = 0
 		if site.peakShaveBatteryLimited {
 			site.resetBatteryLimitLimits()
 			site.peakShaveBatteryLimited = false
@@ -201,6 +208,7 @@ func (site *Site) applyBatteryPlan(plan planner.BatteryPlan) {
 
 	default:
 		site.batteryPlanChargeW = 0
+		site.batteryPlanDischargeW = 0
 		if site.peakShaveBatteryLimited {
 			site.log.DEBUG.Println("battery plan: idle, resetting battery limits")
 			site.resetBatteryLimitLimits()

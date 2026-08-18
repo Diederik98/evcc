@@ -130,7 +130,8 @@
         "charge": "Charging enough energy to cover later peaks",
         "cheap": "Tax-inclusive price is low enough to cycle",
         "hold": "Saving energy for later expensive or peak hours",
-        "recovery": "Restoring reserve SoC"
+        "recovery": "Restoring reserve SoC",
+        "export": "Selling leftover energy while feed-in is expensive"
       }
     },
     "batteryTabTitle": "Battery protection",
@@ -1164,6 +1165,9 @@
       "today": "Today",
       "tomorrow": "Tomorrow"
     },
+    "orientationSuggest": "Clear-sky production suggests azimuth {azimuth}° and tilt {decline}° ({days} clear days)",
+    "orientationSuggestDiff": "Configured azimuth {configuredAzimuth}° / tilt {configuredDecline}°. Clear-sky production suggests {azimuth}° / {decline}° ({days} clear days)",
+    "orientationSuggestLink": "Review solar forecast",
     "solarAdjust": "Adjust solar forecast based on real production data{percent}.",
     "solarAdjustMedium": "real data adjust",
     "solarAdjustShort": "adjust",

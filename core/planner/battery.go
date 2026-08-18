@@ -20,6 +20,7 @@ const (
 	BatteryReasonCheap    = "cheap"
 	BatteryReasonHold     = "hold"
 	BatteryReasonRecovery = "recovery"
+	BatteryReasonExport   = "export"
 
 	batteryEta            = 0.9
 	defaultBatteryChargeW = 2500.0
@@ -162,6 +163,13 @@ func PlanBattery(cfg BatteryConfig, slots []BatterySlot) BatteryPlan {
 		return plan
 	}
 
+	if w := exportExcessW(cfg, slots, socWh, targetWh); w > 0 {
+		plan.Action = BatteryActionDischarge
+		plan.DischargeW = int(math.Round(w))
+		plan.Reason = BatteryReasonExport
+		return plan
+	}
+
 	if socWh < reserveWh-1 && cfg.GridThresholdW > 0 && cfg.HeadroomW > 0 {
 		charge := min(cfg.ChargeW, cfg.HeadroomW, (reserveWh-socWh)/hours/cfg.EtaC)
 		if charge > 0 {
@@ -281,6 +289,58 @@ func firstPeakIndex(cfg BatteryConfig, slots []BatterySlot) int {
 		}
 	}
 	return -1
+}
+
+// exportExcessW is AC discharge for selling leftover energy on expensive
+// feed-in hours. Energy reserved for later peaks is never sold. If a later
+// hour pays more, that hour is filled first and only overflow is sold now.
+func exportExcessW(cfg BatteryConfig, slots []BatterySlot, socWh, targetWh float64) float64 {
+	excessWh := socWh - targetWh
+	if excessWh <= 1 {
+		return 0
+	}
+
+	cur := slots[0]
+	if cur.FeedIn <= 0 || cur.FeedIn < cfg.CycleCost {
+		return 0
+	}
+
+	var feeds []float64
+	for _, s := range slots {
+		if s.FeedIn > 0 {
+			feeds = append(feeds, s.FeedIn)
+		}
+	}
+	if len(feeds) < 4 {
+		return 0
+	}
+
+	sorted := slices.Clone(feeds)
+	slices.Sort(sorted)
+	if percentile(sorted, 0.75)-percentile(sorted, 0.25) < 0.01 {
+		return 0
+	}
+	if cur.FeedIn < percentile(sorted, 0.75) {
+		return 0
+	}
+
+	hours := slotHours(cur)
+	if hours <= 0 || cfg.EtaD <= 0 {
+		return 0
+	}
+
+	var laterWh float64
+	for _, s := range slots[1:] {
+		if s.FeedIn > cur.FeedIn && s.FeedIn >= cfg.CycleCost {
+			laterWh += cfg.DischargeW * slotHours(s) / cfg.EtaD
+		}
+	}
+	sellWh := excessWh - min(excessWh, laterWh)
+	if sellWh <= 1 {
+		return 0
+	}
+
+	return min(cfg.DischargeW, sellWh/hours*cfg.EtaD)
 }
 
 func slotPrices(slots []BatterySlot) []float64 {

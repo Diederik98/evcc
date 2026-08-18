@@ -179,3 +179,86 @@ func TestPlanBatteryEmptyConfig(t *testing.T) {
 	plan := PlanBattery(BatteryConfig{}, nil)
 	assert.Equal(t, BatteryActionNormal, plan.Action)
 }
+
+func exportCfg() BatteryConfig {
+	return BatteryConfig{
+		Soc:            90,
+		MinSoc:         20,
+		MaxSoc:         100,
+		ReserveSoc:     20,
+		CapacityWh:     10000,
+		ChargeW:        2500,
+		DischargeW:     2500,
+		EtaC:           0.9,
+		EtaD:           0.9,
+		CycleCost:      0.05,
+		GridThresholdW: 10000,
+		HeadroomW:      8000,
+		LiveResidualW:  1000,
+	}
+}
+
+func TestPlanBatteryExportsExcessOnExpensiveFeedIn(t *testing.T) {
+	cfg := exportCfg()
+	prices := []float64{0.35, 0.20, 0.18, 0.18, 0.19, 0.20, 0.18, 0.22}
+	slots := testSlots(prices, 1000, 0)
+	feedIn := []float64{0.16, 0.04, 0.04, 0.04, 0.04, 0.05, 0.04, 0.12}
+	for i := range slots {
+		slots[i].FeedIn = feedIn[i]
+	}
+
+	plan := PlanBattery(cfg, slots)
+	require.Equal(t, BatteryActionDischarge, plan.Action)
+	assert.Equal(t, BatteryReasonExport, plan.Reason)
+	assert.Greater(t, plan.DischargeW, 0)
+}
+
+func TestPlanBatteryExportsOnlyOverflowWhenLaterHourPaysMore(t *testing.T) {
+	cfg := exportCfg()
+	cfg.Soc = 30
+	cfg.CapacityWh = 2000
+	prices := []float64{0.30, 0.18, 0.18, 0.18, 0.40, 0.18, 0.18, 0.18}
+	slots := testSlots(prices, 1000, 0)
+	feedIn := []float64{0.12, 0.04, 0.04, 0.04, 0.18, 0.04, 0.04, 0.04}
+	for i := range slots {
+		slots[i].FeedIn = feedIn[i]
+	}
+
+	plan := PlanBattery(cfg, slots)
+	assert.NotEqual(t, BatteryReasonExport, plan.Reason, "small leftover should wait for the higher feed-in hour")
+}
+
+func TestPlanBatteryDoesNotExportEnergyNeededForPeak(t *testing.T) {
+	cfg := exportCfg()
+	cfg.Soc = 25
+	cfg.GridThresholdW = 5000
+	cfg.LiveResidualW = 2000
+	prices := make([]float64, 16)
+	for i := range prices {
+		prices[i] = 0.20
+	}
+	slots := testSlots(prices, 2000, 0)
+	for i := 8; i < len(slots); i++ {
+		slots[i].HomeWh = 8000 * tariff.SlotDuration.Hours()
+	}
+	for i := range slots {
+		slots[i].FeedIn = 0.04
+	}
+	slots[0].FeedIn = 0.16
+
+	plan := PlanBattery(cfg, slots)
+	assert.NotEqual(t, BatteryReasonExport, plan.Reason)
+	assert.NotEqual(t, BatteryActionDischarge, plan.Action)
+}
+
+func TestPlanBatteryDoesNotExportStaticFeedIn(t *testing.T) {
+	cfg := exportCfg()
+	prices := []float64{0.30, 0.18, 0.18, 0.18, 0.20, 0.18, 0.18, 0.22}
+	slots := testSlots(prices, 1000, 0)
+	for i := range slots {
+		slots[i].FeedIn = 0.08
+	}
+
+	plan := PlanBattery(cfg, slots)
+	assert.NotEqual(t, BatteryReasonExport, plan.Reason)
+}

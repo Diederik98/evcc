@@ -130,7 +130,8 @@
         "charge": "Lädt genug Energie für spätere Lastspitzen",
         "cheap": "Der Preis inkl. Steuern ist niedrig genug zum Zyklieren",
         "hold": "Spart Energie für teure oder laststarke Stunden",
-        "recovery": "Stellt den Reserve-SoC wieder her"
+        "recovery": "Stellt den Reserve-SoC wieder her",
+        "export": "Verkauft überschüssige Energie bei teurer Einspeisung"
       }
     },
     "batteryTabTitle": "Batterieschutz",
@@ -1164,6 +1165,9 @@
       "today": "Heute",
       "tomorrow": "Morgen"
     },
+    "orientationSuggest": "Produktion bei klarem Himmel legt Azimut {azimuth}° und Neigung {decline}° nahe ({days} klare Tage)",
+    "orientationSuggestDiff": "Konfiguriert: Azimut {configuredAzimuth}° / Neigung {configuredDecline}°. Bei klarem Himmel: {azimuth}° / {decline}° ({days} klare Tage)",
+    "orientationSuggestLink": "Solarprognose prüfen",
     "solarAdjust": "Solarprognose anhand der realen Produktionsdaten anpassen{percent}.",
     "solarAdjustMedium": "an reale Produktionsdaten anpassen",
     "solarAdjustShort": "anpassen",

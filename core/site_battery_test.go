@@ -680,3 +680,26 @@ func TestApplyLiveBatteryPowerLimitsStopsDischargeWhenOvershootGone(t *testing.T
 	assert.Equal(t, 0, site.lastBatteryDischargeW)
 	ctrl.Finish()
 }
+
+func TestApplyLiveBatteryPowerLimitsKeepsExportDischarge(t *testing.T) {
+	ctrl := gomock.NewController(t)
+
+	limitCtrl := api.NewMockBatteryLimitController(ctrl)
+	limitCtrl.EXPECT().SetChargeLimit(0).Return(nil).Times(1)
+	limitCtrl.EXPECT().SetDischargeLimit(1800).Return(nil).Times(1)
+	bat := newLimitBat(ctrl, limitCtrl)
+
+	site := &Site{
+		log:                   util.NewLogger("ps"),
+		batteryMeters:         []config.Device[api.Meter]{config.NewStaticDevice(config.Named{}, bat)},
+		GridThreshold:         10.0,
+		PeakShaveMinSoc:       20.0,
+		gridPower:             2000.0,
+		batteryPlanDischargeW: 1800,
+		battery:               types.BatteryState{Soc: 80.0},
+	}
+
+	site.applyLiveBatteryPowerLimits()
+	assert.Equal(t, 1800, site.lastBatteryDischargeW)
+	ctrl.Finish()
+}

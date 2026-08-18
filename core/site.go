@@ -114,6 +114,9 @@ type Site struct {
 	lastBatteryChargeW       int                // Last written charge limit
 	lastBatteryDischargeW    int                // Last written discharge limit
 	batteryLimitSet          bool               // Whether a limit has been written this session
+	batteryPlanDischargeW    int                // Planned export discharge, kept on the fast loop
+	solarOrientation         *solarOrientation  // Cached clear-sky orientation suggestion
+	solarOrientationAt       time.Time          // Last orientation fit
 }
 
 // MetersConfig contains the site's meter configuration
