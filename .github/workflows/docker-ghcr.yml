@@ -37,6 +37,16 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Require GHCR_TOKEN
+        env:
+          GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
+        run: |
+          if [ -z "$GHCR_TOKEN" ]; then
+            echo "Add a Personal Access Token with write:packages as repository secret GHCR_TOKEN."
+            echo "GITHUB_TOKEN cannot publish GHCR packages from this fork."
+            exit 1
+          fi
+
       - name: Image name
         run: echo "IMAGE=${{ env.REGISTRY }}/$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')/evcc" >> "$GITHUB_ENV"
 
@@ -47,8 +57,8 @@ jobs:
         uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4
         with:
           registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GHCR_TOKEN }}
 
       - name: Publish
         uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7
@@ -73,8 +83,8 @@ jobs:
         uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4
         with:
           registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GHCR_TOKEN }}
 
       - name: Setup Buildx
         uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5 # v4
@@ -86,14 +96,3 @@ jobs:
             -t "${IMAGE}:${GITHUB_SHA}" \
             "${IMAGE}:${TAG}-amd64" \
             "${IMAGE}:${TAG}-arm64"
-
-      - name: Make package public
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          owner="${{ github.repository_owner }}"
-          gh api --method PUT \
-            -H "Accept: application/vnd.github+json" \
-            "/users/${owner}/packages/container/evcc/visibility" \
-            -f visibility=public \
-            || echo "Could not change package visibility. Set ghcr.io/${owner}/evcc to public in GitHub Packages."
