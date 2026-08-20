@@ -24,7 +24,7 @@
 			</div>
 			<div class="col-3">
 				<label :for="formId('goal')">
-					{{ $t("main.chargingPlan.goal") }}
+					{{ goalLabel }}
 				</label>
 			</div>
 			<div class="col-2">
@@ -74,7 +74,7 @@
 			</div>
 			<div class="col-5 d-lg-none col-form-label">
 				<label :for="formId('goal')">
-					{{ $t("main.chargingPlan.goal") }}
+					{{ goalLabel }}
 				</label>
 			</div>
 			<div class="col-7 col-lg-3 mb-2 mb-lg-0">
@@ -139,6 +139,9 @@
 				</button>
 			</div>
 		</div>
+		<p v-if="heating" class="small text-muted mt-2 mb-0">
+			{{ $t("main.chargingPlan.duration.help") }}
+		</p>
 		<p class="mb-0" data-testid="plan-entry-warnings">
 			<span v-if="timeInThePast" class="d-block text-danger my-2">
 				{{ $t("main.targetCharge.targetIsInThePast") }}
@@ -150,8 +153,14 @@
 <script lang="ts">
 import { distanceUnit } from "@/units";
 
-import formatter from "@/mixins/formatter";
-import { energyOptions } from "@/utils/energyOptions.ts";
+import formatter, { POWER_UNIT } from "@/mixins/formatter";
+import {
+	DEFAULT_HEATING_PLAN_HOURS,
+	energyFromHours,
+	energyOptions,
+	HEATING_PLAN_HOURS,
+	hoursFromEnergy,
+} from "@/utils/energyOptions.ts";
 import { defineComponent } from "vue";
 import settings from "@/settings";
 
@@ -170,6 +179,8 @@ export default defineComponent({
 		capacity: Number,
 		socBasedPlanning: Boolean,
 		multiplePlans: Boolean,
+		heating: Boolean,
+		maxPower: Number,
 	},
 	emits: ["static-plan-updated", "static-plan-removed", "plan-preview"],
 	data() {
@@ -199,7 +210,26 @@ export default defineComponent({
 
 			return options;
 		},
+		goalLabel() {
+			return this.heating
+				? this.$t("main.chargingPlan.duration.label")
+				: this.$t("main.chargingPlan.goal");
+		},
 		energyOptions() {
+			if (this.heating && this.maxPower && this.maxPower > 0) {
+				const options = HEATING_PLAN_HOURS.map((hours) =>
+					this.heatingDurationOption(hours, this.energyFromHours(hours))
+				);
+				if (
+					this.selectedEnergy &&
+					!options.find((o) => o.energy === this.selectedEnergy)
+				) {
+					const hours = hoursFromEnergy(this.selectedEnergy, this.maxPower);
+					options.push(this.heatingDurationOption(hours, this.selectedEnergy));
+					options.sort((a, b) => a.energy - b.energy);
+				}
+				return options;
+			}
 			const options = energyOptions(
 				0,
 				this.capacity || 100,
@@ -274,12 +304,29 @@ export default defineComponent({
 			const name = this.fmtSocOption(value, this.rangePerSoc, distanceUnit());
 			return { value, name };
 		},
+		energyFromHours(hours: number) {
+			return energyFromHours(hours, this.maxPower || 0);
+		},
+		heatingDurationOption(hours: number, energy: number) {
+			const digits = Number.isInteger(energy) ? 0 : 1;
+			return {
+				energy,
+				text: this.$t("main.chargingPlan.duration.option", {
+					duration: this.fmtDurationLong(hours * 3600, "short"),
+					energy: this.fmtWh(energy * 1e3, POWER_UNIT.KW, true, digits),
+				}),
+			};
+		},
 		initInputFields() {
 			if (!this.selectedSoc) {
 				this.selectedSoc = settings.lastSocGoal ?? 100;
 			}
 			if (!this.selectedEnergy) {
-				this.selectedEnergy = settings.lastEnergyGoal ?? (this.capacity || 10);
+				if (this.heating && this.maxPower && this.maxPower > 0) {
+					this.selectedEnergy = this.energyFromHours(DEFAULT_HEATING_PLAN_HOURS);
+				} else {
+					this.selectedEnergy = settings.lastEnergyGoal ?? (this.capacity || 10);
+				}
 			}
 
 			let t = this.time;
@@ -322,7 +369,9 @@ export default defineComponent({
 				const minutes = this.selectedDate.getMinutes();
 				settings.lastTargetTime = `${hours}:${minutes}`;
 				settings.lastSocGoal = this.selectedSoc;
-				settings.lastEnergyGoal = this.selectedEnergy;
+				if (!this.heating) {
+					settings.lastEnergyGoal = this.selectedEnergy;
+				}
 			} catch (e) {
 				console.warn(e);
 			}

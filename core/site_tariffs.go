@@ -1,29 +1,36 @@
 package core
 
 import (
+	"encoding/json"
 	"math"
+	"strconv"
 	"time"
 
 	"github.com/evcc-io/evcc/api"
 	"github.com/evcc-io/evcc/core/keys"
 	"github.com/evcc-io/evcc/core/metrics"
+	"github.com/evcc-io/evcc/core/solar"
 	"github.com/evcc-io/evcc/tariff"
 	"github.com/evcc-io/evcc/util"
+	"github.com/evcc-io/evcc/util/config"
 	"github.com/jinzhu/now"
 )
 
 type solarDetails struct {
-	Scale            *float64     `json:"scale,omitempty"`            // scale factor yield/forecasted today
-	Today            dailyDetails `json:"today,omitempty"`            // tomorrow
-	Tomorrow         dailyDetails `json:"tomorrow,omitempty"`         // tomorrow
-	DayAfterTomorrow dailyDetails `json:"dayAfterTomorrow,omitempty"` // day after tomorrow
-	Timeseries       timeseries   `json:"timeseries,omitempty"`       // timeseries of forecasted energy
+	Scale            *float64          `json:"scale,omitempty"`            // scale factor yield/forecasted today
+	Today            dailyDetails      `json:"today,omitempty"`            // tomorrow
+	Tomorrow         dailyDetails      `json:"tomorrow,omitempty"`         // tomorrow
+	DayAfterTomorrow dailyDetails      `json:"dayAfterTomorrow,omitempty"` // day after tomorrow
+	Timeseries       timeseries        `json:"timeseries,omitempty"`       // timeseries of forecasted energy
+	Orientation      *solarOrientation `json:"orientation,omitempty"`      // clear-sky azimuth/tilt fit
 }
 
 type dailyDetails struct {
 	Yield    float64 `json:"energy"`
 	Complete bool    `json:"complete"`
 }
+
+type solarOrientation = solar.Suggestion
 
 // greenShare returns
 //   - the current green share, calculated for the part of the consumption between powerFrom and powerTo
@@ -156,6 +163,9 @@ func (site *Site) solarDetails(solar api.Rates) solarDetails {
 		res.Scale = &scale
 	}
 
+	site.updateSolarOrientation()
+	res.Orientation = site.solarOrientation
+
 	return res
 }
 
@@ -192,6 +202,92 @@ func (site *Site) solarScale() float64 {
 	scale := pv / fcst
 	site.log.DEBUG.Printf("solar forecast: produced %.3fkWh, forecasted %.3fkWh, scale %.3f", pv, fcst, scale)
 	return scale
+}
+
+func (site *Site) updateSolarOrientation() {
+	if !site.solarOrientationAt.IsZero() && time.Since(site.solarOrientationAt) < 6*time.Hour {
+		return
+	}
+	site.solarOrientationAt = time.Now()
+	site.solarOrientation = nil
+
+	geo, ok := solarForecastGeometry()
+	if !ok || len(site.pvMeters) == 0 {
+		return
+	}
+
+	from := time.Now().AddDate(0, 0, -60)
+	series, err := metrics.QueryEnergy(from, time.Now(), "hour", true, metrics.EnergyFilter{Group: metrics.PV})
+	if err != nil {
+		site.log.DEBUG.Printf("solar orientation: %v", err)
+		return
+	}
+
+	var slots []solar.Slot
+	for _, s := range series {
+		if s.Group != metrics.PV {
+			continue
+		}
+		for _, d := range s.Data {
+			e := d.Energy
+			if e <= 0 {
+				e = d.ReturnEnergy
+			}
+			if e > 0 {
+				slots = append(slots, solar.Slot{Start: d.Start, Energy: e})
+			}
+		}
+	}
+
+	sug, ok := solar.SuggestOrientation(geo, slots)
+	if !ok {
+		return
+	}
+	site.solarOrientation = &sug
+	site.log.DEBUG.Printf("solar orientation: clear-sky fit azimuth %.0f° tilt %.0f° (%d days)", sug.Azimuth, sug.Decline, sug.Days)
+}
+
+func solarForecastGeometry() (solar.Geometry, bool) {
+	for _, dev := range config.Tariffs().Devices() {
+		n := dev.Config()
+		lat, okLat := anyFloat(n.Property("lat"))
+		lon, okLon := anyFloat(n.Property("lon"))
+		if !okLat || !okLon {
+			continue
+		}
+		g := solar.Geometry{Lat: lat, Lon: lon}
+		az, okAz := anyFloat(n.Property("az"))
+		dec, okDec := anyFloat(n.Property("dec"))
+		if okAz && okDec {
+			g.Az, g.Dec, g.HasAzDec = az, dec, true
+		}
+		return g, true
+	}
+	return solar.Geometry{}, false
+}
+
+func anyFloat(v any) (float64, bool) {
+	if v == nil {
+		return 0, false
+	}
+	switch t := v.(type) {
+	case float64:
+		return t, true
+	case float32:
+		return float64(t), true
+	case int:
+		return float64(t), true
+	case int64:
+		return float64(t), true
+	case json.Number:
+		f, err := t.Float64()
+		return f, err == nil
+	case string:
+		f, err := strconv.ParseFloat(t, 64)
+		return f, err == nil
+	default:
+		return 0, false
+	}
 }
 
 func (site *Site) isDynamicTariff(usage api.TariffUsage) bool {

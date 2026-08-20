@@ -36,7 +36,7 @@ import LabelAndValue from "../Helper/LabelAndValue.vue";
 
 import formatter from "@/mixins/formatter";
 import minuteTicker from "@/mixins/minuteTicker";
-import { optionStep, fmtEnergy } from "@/utils/energyOptions.ts";
+import { optionStep, fmtEnergy, hoursFromEnergy } from "@/utils/energyOptions.ts";
 import { defineComponent, type PropType } from "vue";
 import type { CURRENCY, Vehicle } from "@/types/evcc";
 import type { PlanStrategy } from "./types";
@@ -74,6 +74,8 @@ export default defineComponent({
 		vehicleLimitSoc: Number,
 		vehicleNotReachable: Boolean,
 		forecast: Object as PropType<Forecast>,
+		heating: Boolean,
+		effectiveMaxPower: Number,
 	},
 	emits: ["open-modal"],
 	data() {
@@ -103,6 +105,12 @@ export default defineComponent({
 		targetSocLabel(): string {
 			if (this.socBasedPlanning && this.effectivePlanSoc) {
 				return this.fmtPercentage(this.effectivePlanSoc);
+			}
+			if (this.heating && this.effectiveMaxPower && this.planEnergy) {
+				const hours = hoursFromEnergy(this.planEnergy, this.effectiveMaxPower);
+				if (hours > 0) {
+					return this.fmtDurationLong(hours * 3600, "short");
+				}
 			}
 			return fmtEnergy(
 				this.planEnergy,

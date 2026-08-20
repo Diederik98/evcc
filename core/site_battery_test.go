@@ -117,6 +117,17 @@ func TestRequiredExternalBatteryMode(t *testing.T) {
 	}
 }
 
+func TestRequiredBatteryModePlanHold(t *testing.T) {
+	site := &Site{
+		log:             util.NewLogger("foo"),
+		batteryMeters:   []config.Device[api.Meter]{nil},
+		batteryPlanHold: true,
+	}
+
+	mode := site.requiredBatteryMode(true, api.Rate{Value: 0.01})
+	assert.Equal(t, api.BatteryHold, mode, "planner hold wins over grid charge")
+}
+
 func TestExternalBatteryModeChange(t *testing.T) {
 	for _, tc := range []struct {
 		internal, external, expected api.BatteryMode
@@ -263,6 +274,29 @@ func newLimitBat(ctrl *gomock.Controller, limitCtrl api.BatteryLimitController) 
 		api.BatteryLimitController
 	}
 	return &fullBat{Meter: meter, BatteryLimitController: limitCtrl}
+}
+
+func TestManageGridLimitsIdleNearThreshold(t *testing.T) {
+	ctrl := gomock.NewController(t)
+
+	limitCtrl := api.NewMockBatteryLimitController(ctrl)
+	bat := newLimitBat(ctrl, limitCtrl)
+
+	site := &Site{
+		log:                             util.NewLogger("ps"),
+		batteryMeters:                   []config.Device[api.Meter]{config.NewStaticDevice(config.Named{}, bat)},
+		GridThreshold:                   10.0,
+		PeakShaveReserveSoc:             40.0,
+		PeakShaveMinSoc:                 20.0,
+		PeakShaveMaintainSocChargePower: 1000.0,
+		gridPower:                       9000.0,
+		battery:                         types.BatteryState{Soc: 80.0, Capacity: 10},
+	}
+
+	site.ManageGridLimits(false)
+	assert.Equal(t, PeakShaveIdle, site.peakShaveState)
+	assert.False(t, site.peakShaveBatteryLimited)
+	ctrl.Finish()
 }
 
 func TestManageGridLimitsIdle(t *testing.T) {
@@ -537,3 +571,269 @@ func TestApplyBatteryModeBypassDuringLockout(t *testing.T) {
 	assert.NoError(t, err)
 }
 
+func TestApplyLiveBatteryPowerLimitsDischargesOvershoot(t *testing.T) {
+	ctrl := gomock.NewController(t)
+
+	limitCtrl := api.NewMockBatteryLimitController(ctrl)
+	limitCtrl.EXPECT().SetChargeLimit(0).Return(nil).Times(1)
+	limitCtrl.EXPECT().SetDischargeLimit(5000).Return(nil).Times(1)
+	bat := newLimitBat(ctrl, limitCtrl)
+
+	site := &Site{
+		log:             util.NewLogger("ps"),
+		batteryMeters:   []config.Device[api.Meter]{config.NewStaticDevice(config.Named{}, bat)},
+		GridThreshold:   10.0,
+		PeakShaveMinSoc: 20.0,
+		gridPower:       15000.0,
+		battery:         types.BatteryState{Soc: 80.0},
+	}
+
+	site.applyLiveBatteryPowerLimits()
+	assert.Equal(t, 5000, site.lastBatteryDischargeW)
+	ctrl.Finish()
+}
+
+func TestApplyLiveBatteryPowerLimitsKeepsDischargeFromResidual(t *testing.T) {
+	ctrl := gomock.NewController(t)
+
+	limitCtrl := api.NewMockBatteryLimitController(ctrl)
+	limitCtrl.EXPECT().SetChargeLimit(0).Return(nil).Times(1)
+	limitCtrl.EXPECT().SetDischargeLimit(5000).Return(nil).Times(1)
+	bat := newLimitBat(ctrl, limitCtrl)
+
+	site := &Site{
+		log:             util.NewLogger("ps"),
+		batteryMeters:   []config.Device[api.Meter]{config.NewStaticDevice(config.Named{}, bat)},
+		GridThreshold:   10.0,
+		PeakShaveMinSoc: 20.0,
+		gridPower:       12000.0,
+		battery:         types.BatteryState{Soc: 80.0, Power: -3000},
+	}
+
+	site.applyLiveBatteryPowerLimits()
+	assert.Equal(t, 5000, site.lastBatteryDischargeW)
+	ctrl.Finish()
+}
+
+func TestApplyLiveBatteryPowerLimitsDoesNotDischargeBelowThreshold(t *testing.T) {
+	ctrl := gomock.NewController(t)
+
+	limitCtrl := api.NewMockBatteryLimitController(ctrl)
+	bat := newLimitBat(ctrl, limitCtrl)
+
+	site := &Site{
+		log:             util.NewLogger("ps"),
+		batteryMeters:   []config.Device[api.Meter]{config.NewStaticDevice(config.Named{}, bat)},
+		GridThreshold:   10.0,
+		PeakShaveMinSoc: 20.0,
+		gridPower:       9000.0,
+		battery:         types.BatteryState{Soc: 80.0},
+	}
+
+	site.applyLiveBatteryPowerLimits()
+	assert.Equal(t, 0, site.lastBatteryDischargeW)
+	ctrl.Finish()
+}
+
+func TestApplyLiveBatteryPowerLimitsCapsChargeToHeadroom(t *testing.T) {
+	ctrl := gomock.NewController(t)
+
+	limitCtrl := api.NewMockBatteryLimitController(ctrl)
+	limitCtrl.EXPECT().SetChargeLimit(1000).Return(nil).Times(1)
+	bat := newLimitBat(ctrl, limitCtrl)
+
+	site := &Site{
+		log:                util.NewLogger("ps"),
+		batteryMeters:      []config.Device[api.Meter]{config.NewStaticDevice(config.Named{}, bat)},
+		GridThreshold:      10.0,
+		PeakShaveMinSoc:    20.0,
+		gridPower:          9000.0,
+		batteryPlanChargeW: 2500,
+		battery:            types.BatteryState{Soc: 50.0},
+	}
+
+	site.applyLiveBatteryPowerLimits()
+	assert.Equal(t, 1000, site.lastBatteryChargeW)
+	ctrl.Finish()
+}
+
+func TestApplyLiveBatteryPowerLimitsStopsDischargeWhenOvershootGone(t *testing.T) {
+	ctrl := gomock.NewController(t)
+
+	limitCtrl := api.NewMockBatteryLimitController(ctrl)
+	limitCtrl.EXPECT().SetChargeLimit(0).Return(nil).Times(1)
+	limitCtrl.EXPECT().SetDischargeLimit(0).Return(nil).Times(1)
+	bat := newLimitBat(ctrl, limitCtrl)
+
+	site := &Site{
+		log:                   util.NewLogger("ps"),
+		batteryMeters:         []config.Device[api.Meter]{config.NewStaticDevice(config.Named{}, bat)},
+		GridThreshold:         10.0,
+		PeakShaveMinSoc:       20.0,
+		gridPower:             5000.0,
+		lastBatteryDischargeW: 5000,
+		batteryLimitSet:       true,
+		battery:               types.BatteryState{Soc: 80.0},
+	}
+
+	site.applyLiveBatteryPowerLimits()
+	assert.Equal(t, 0, site.lastBatteryDischargeW)
+	ctrl.Finish()
+}
+
+func TestApplyLiveBatteryPowerLimitsKeepsExportDischarge(t *testing.T) {
+	ctrl := gomock.NewController(t)
+
+	limitCtrl := api.NewMockBatteryLimitController(ctrl)
+	limitCtrl.EXPECT().SetChargeLimit(0).Return(nil).Times(1)
+	limitCtrl.EXPECT().SetDischargeLimit(1800).Return(nil).Times(1)
+	bat := newLimitBat(ctrl, limitCtrl)
+
+	site := &Site{
+		log:                   util.NewLogger("ps"),
+		batteryMeters:         []config.Device[api.Meter]{config.NewStaticDevice(config.Named{}, bat)},
+		GridThreshold:         10.0,
+		PeakShaveMinSoc:       20.0,
+		gridPower:             2000.0,
+		batteryPlanDischargeW: 1800,
+		battery:               types.BatteryState{Soc: 80.0},
+	}
+
+	site.applyLiveBatteryPowerLimits()
+	assert.Equal(t, 1800, site.lastBatteryDischargeW)
+	ctrl.Finish()
+}
+
+func TestRequiredBatteryModeSkipsHoldWithLimitController(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	limitCtrl := api.NewMockBatteryLimitController(ctrl)
+	bat := newLimitBat(ctrl, limitCtrl)
+
+	site := &Site{
+		log:             util.NewLogger("foo"),
+		batteryMeters:   []config.Device[api.Meter]{config.NewStaticDevice(config.Named{}, bat)},
+		batteryPlanHold: true,
+		batteryMode:     api.BatteryNormal,
+	}
+
+	mode := site.requiredBatteryMode(true, api.Rate{Value: 0.01})
+	assert.Equal(t, api.BatteryUnknown, mode)
+	ctrl.Finish()
+}
+
+func TestBatterySurplusChargeW(t *testing.T) {
+	site := &Site{gridPower: -800, battery: types.BatteryState{Power: 0}}
+	assert.Equal(t, 800, site.batterySurplusChargeW())
+
+	site.gridPower = -800
+	site.battery.Power = -500
+	assert.Equal(t, 1300, site.batterySurplusChargeW())
+
+	site.gridPower = 2000
+	site.battery.Power = 0
+	assert.Equal(t, 0, site.batterySurplusChargeW())
+
+	site.gridPower = -20
+	site.battery.Power = 0
+	assert.Equal(t, 0, site.batterySurplusChargeW())
+}
+
+func TestApplyLiveBatteryPowerLimitsAbsorbsExportWhenChargerActive(t *testing.T) {
+	ctrl := gomock.NewController(t)
+
+	limitCtrl := api.NewMockBatteryLimitController(ctrl)
+	limitCtrl.EXPECT().SetChargeLimit(800).Return(nil).Times(1)
+	bat := newLimitBat(ctrl, limitCtrl)
+
+	lp := NewLoadpoint(util.NewLogger("lp"), nil)
+	lp.status = api.StatusC
+	lp.mode = api.ModeNow
+
+	site := &Site{
+		log:                     util.NewLogger("ps"),
+		batteryMeters:           []config.Device[api.Meter]{config.NewStaticDevice(config.Named{}, bat)},
+		GridThreshold:           10.0,
+		PeakShaveMinSoc:         20.0,
+		batteryDischargeControl: true,
+		gridPower:               -800,
+		loadpoints:              []*Loadpoint{lp},
+		battery:                 types.BatteryState{Soc: 60.0},
+	}
+
+	site.applyLiveBatteryPowerLimits()
+	assert.Equal(t, 800, site.lastBatteryChargeW)
+	assert.Equal(t, 0, site.lastBatteryDischargeW)
+	ctrl.Finish()
+}
+
+func TestApplyLiveBatteryPowerLimitsHoldsWhenChargerActiveAndImporting(t *testing.T) {
+	ctrl := gomock.NewController(t)
+
+	limitCtrl := api.NewMockBatteryLimitController(ctrl)
+	limitCtrl.EXPECT().SetChargeLimit(0).Return(nil).Times(1)
+	limitCtrl.EXPECT().SetDischargeLimit(0).Return(nil).Times(1)
+	bat := newLimitBat(ctrl, limitCtrl)
+
+	lp := NewLoadpoint(util.NewLogger("lp"), nil)
+	lp.status = api.StatusC
+	lp.mode = api.ModeNow
+
+	site := &Site{
+		log:                     util.NewLogger("ps"),
+		batteryMeters:           []config.Device[api.Meter]{config.NewStaticDevice(config.Named{}, bat)},
+		GridThreshold:           10.0,
+		PeakShaveMinSoc:         20.0,
+		batteryDischargeControl: true,
+		gridPower:               2000,
+		loadpoints:              []*Loadpoint{lp},
+		battery:                 types.BatteryState{Soc: 60.0},
+	}
+
+	site.applyLiveBatteryPowerLimits()
+	assert.Equal(t, 0, site.lastBatteryChargeW)
+	assert.Equal(t, 0, site.lastBatteryDischargeW)
+	ctrl.Finish()
+}
+
+func TestApplyLiveBatteryPowerLimitsPeakWinsOverChargeOnly(t *testing.T) {
+	ctrl := gomock.NewController(t)
+
+	limitCtrl := api.NewMockBatteryLimitController(ctrl)
+	limitCtrl.EXPECT().SetChargeLimit(0).Return(nil).Times(1)
+	limitCtrl.EXPECT().SetDischargeLimit(5000).Return(nil).Times(1)
+	bat := newLimitBat(ctrl, limitCtrl)
+
+	lp := NewLoadpoint(util.NewLogger("lp"), nil)
+	lp.status = api.StatusC
+	lp.mode = api.ModeNow
+
+	site := &Site{
+		log:                     util.NewLogger("ps"),
+		batteryMeters:           []config.Device[api.Meter]{config.NewStaticDevice(config.Named{}, bat)},
+		GridThreshold:           10.0,
+		PeakShaveMinSoc:         20.0,
+		batteryDischargeControl: true,
+		gridPower:               15000,
+		loadpoints:              []*Loadpoint{lp},
+		battery:                 types.BatteryState{Soc: 80.0},
+	}
+
+	site.applyLiveBatteryPowerLimits()
+	assert.Equal(t, 5000, site.lastBatteryDischargeW)
+	ctrl.Finish()
+}
+
+func TestPeakShaveRemainingAllowedW(t *testing.T) {
+	slot := 15 * time.Minute
+	limit := 10000.0
+
+	assert.InDelta(t, 10000, peakShaveRemainingAllowedW(limit, 0, 0, slot), 1)
+
+	// 10 minutes of 2 kW in a 10 kW quarter still has budget for a 15 kW spike
+	energy := 2000 * 10.0 / 60
+	allowed := peakShaveRemainingAllowedW(limit, energy, 10*time.Minute, slot)
+	assert.Greater(t, allowed, 15000.0)
+
+	// quarter already over budget: remaining allowed is negative
+	assert.Less(t, peakShaveRemainingAllowedW(limit, 3000, 14*time.Minute, slot), 0.0)
+}

@@ -21,7 +21,7 @@
 							{{ $t("main.chargingPlan.departureTab") }}
 						</a>
 					</li>
-					<li class="nav-item">
+					<li v-if="!heating" class="nav-item">
 						<a
 							class="nav-link"
 							:class="{ active: arrivalTabActive }"
@@ -55,6 +55,8 @@
 						:vehicleLimitSoc="loadpoint?.vehicleLimitSoc"
 						:planOverrun="loadpoint?.planOverrun"
 						:forecast="forecast"
+						:heating="heating"
+						:maxPower="loadpoint?.effectiveMaxPower"
 						@static-plan-updated="updateStaticPlan"
 						@static-plan-removed="removeStaticPlan"
 						@repeating-plans-updated="updateRepeatingPlans"
@@ -112,6 +114,7 @@ export default defineComponent({
 			isModalVisible: false,
 			activeTab: "departure",
 			id: undefined as string | number | undefined,
+			strategyTouched: false,
 		};
 	},
 	computed: {
@@ -148,10 +151,13 @@ export default defineComponent({
 			return baseTitle;
 		},
 		departureTabActive(): boolean {
-			return this.activeTab === "departure";
+			return this.heating || this.activeTab === "departure";
 		},
 		arrivalTabActive(): boolean {
-			return this.activeTab === "arrival";
+			return !this.heating && this.activeTab === "arrival";
+		},
+		heating(): boolean {
+			return !!this.loadpoint?.chargerFeatureHeating;
 		},
 		apiVehicle(): string {
 			return `vehicles/${this.vehicle?.name}/`;
@@ -173,6 +179,7 @@ export default defineComponent({
 	methods: {
 		open(loadpointId?: string | number) {
 			this.id = loadpointId;
+			this.strategyTouched = false;
 			const modalRef = this.$refs["modal"] as InstanceType<typeof GenericModal> | undefined;
 			modalRef?.open();
 		},
@@ -181,6 +188,7 @@ export default defineComponent({
 		},
 		modalInvisible(): void {
 			this.isModalVisible = false;
+			this.strategyTouched = false;
 		},
 		setMinSoc(soc: number): void {
 			api.post(`${this.apiVehicle}minsoc/${soc}`);
@@ -189,6 +197,7 @@ export default defineComponent({
 			api.post(`${this.apiVehicle}limitsoc/${soc}`);
 		},
 		updateStaticPlan(plan: StaticPlan): void {
+			const isNew = !this.staticPlan;
 			const timeISO = plan.time.toISOString();
 			if (this.loadpoint?.socBasedPlanning) {
 				const p = plan as StaticSocPlan;
@@ -196,6 +205,12 @@ export default defineComponent({
 			} else {
 				const p = plan as StaticEnergyPlan;
 				api.post(`${this.apiLoadpoint}plan/energy/${p.energy}/${timeISO}`, null);
+				if (isNew && this.heating && !this.strategyTouched) {
+					api.post(`${this.apiLoadpoint}plan/strategy`, {
+						continuous: true,
+						precondition: this.loadpoint?.effectivePlanStrategy?.precondition ?? 0,
+					});
+				}
 			}
 		},
 		removeStaticPlan(): void {
@@ -209,6 +224,7 @@ export default defineComponent({
 			api.post(`${this.apiVehicle}plan/repeating`, plans);
 		},
 		updatePlanStrategy(strategy: PlanStrategy): void {
+			this.strategyTouched = true;
 			if (this.loadpoint?.socBasedPlanning) {
 				api.post(`${this.apiVehicle}plan/strategy`, strategy);
 			} else {

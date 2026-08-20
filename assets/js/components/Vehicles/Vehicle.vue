@@ -49,7 +49,6 @@
 				align="start"
 			/>
 			<ChargingPlan
-				v-if="!heating"
 				ref="chargingPlan"
 				class="flex-grow-1 target-charge"
 				v-bind="chargingPlan"
@@ -127,6 +126,7 @@ export default defineComponent({
 		effectivePlanSoc: Number,
 		effectivePlanTime: String,
 		effectivePlanStrategy: Object as PropType<PlanStrategy>,
+		effectiveMaxPower: Number,
 		batteryBoost: Boolean,
 		batteryBoostActive: Boolean,
 		batteryBoostAvailable: Boolean,

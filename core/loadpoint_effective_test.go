@@ -221,3 +221,73 @@ func TestGetChargePowerFlexibility(t *testing.T) {
 		})
 	}
 }
+
+func TestHeatingPlanExclusive(t *testing.T) {
+	ctrl := gomock.NewController(t)
+
+	type FeatureDecorator struct {
+		api.Charger
+		api.FeatureDescriber
+	}
+
+	withFeatures := func(features []api.Feature) *Loadpoint {
+		fd := api.NewMockFeatureDescriber(ctrl)
+		fd.EXPECT().Features().AnyTimes().Return(features)
+		lp := NewLoadpoint(util.NewLogger("foo"), nil)
+		lp.charger = &FeatureDecorator{
+			Charger:          api.NewMockCharger(ctrl),
+			FeatureDescriber: fd,
+		}
+		return lp
+	}
+
+	heater := withFeatures([]api.Feature{api.Heating})
+	assert.False(t, heater.heatingPlanExclusive())
+
+	heater.planTime = time.Now().Add(time.Hour)
+	heater.planEnergy = 6
+	assert.True(t, heater.heatingPlanExclusive())
+
+	ev := withFeatures(nil)
+	ev.planTime = time.Now().Add(time.Hour)
+	ev.planEnergy = 6
+	assert.False(t, ev.heatingPlanExclusive())
+}
+
+func TestGetChargePowerFlexibilityHeatingPlanIgnoresSmartCost(t *testing.T) {
+	Voltage = 230
+	ctrl := gomock.NewController(t)
+
+	type FeatureDecorator struct {
+		api.Charger
+		api.FeatureDescriber
+	}
+
+	fd := api.NewMockFeatureDescriber(ctrl)
+	fd.EXPECT().Features().AnyTimes().Return([]api.Feature{api.Heating})
+
+	lp := NewLoadpoint(util.NewLogger("foo"), nil)
+	lp.charger = &FeatureDecorator{
+		Charger:          api.NewMockCharger(ctrl),
+		FeatureDescriber: fd,
+	}
+	lp.mode = api.ModePV
+	lp.status = api.StatusC
+	lp.chargePower = 2700
+	lp.minCurrent = 6
+	lp.phases = 1
+	lp.planTime = time.Now().Add(2 * time.Hour)
+	lp.planEnergy = 6
+	limit := 0.10
+	lp.smartCostLimit = &limit
+
+	rates := api.Rates{{
+		Start: time.Now().Add(-time.Hour),
+		End:   time.Now().Add(time.Hour),
+		Value: 0.05,
+	}}
+
+	assert.True(t, lp.heatingPlanExclusive())
+	assert.True(t, lp.smartLimitActive(lp.GetSmartCostLimit(), rates, true))
+	assert.Equal(t, 2700.0, lp.GetChargePowerFlexibility(rates))
+}

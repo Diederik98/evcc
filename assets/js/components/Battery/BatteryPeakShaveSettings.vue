@@ -14,6 +14,59 @@
 			<span class="fw-bold">{{ $t("peakShave.state." + peakShaveState) }}</span>
 		</div>
 
+		<div v-if="planAction" class="mb-4">
+			<p class="fw-bold mb-1">{{ $t("peakShave.plan.title") }}</p>
+			<p class="mb-1">{{ $t("peakShave.plan.action." + planAction) }}</p>
+			<p v-if="planReason" class="text-muted small mb-1">
+				{{ $t("peakShave.plan.reason." + planReason) }}
+			</p>
+			<p v-if="planTargetSoc" class="text-muted small mb-0">
+				{{ $t("peakShave.plan.targetSoc", { soc: Math.round(planTargetSoc) }) }}
+			</p>
+			<p v-if="planLoadEnergy" class="text-muted small mb-0">
+				{{ $t("peakShave.plan.loadpoints", { energy: planLoadEnergy }) }}
+			</p>
+			<p v-if="planLoadPower" class="text-muted small mb-0">
+				{{ $t("peakShave.plan.loadCap", { power: planLoadPower }) }}
+			</p>
+		</div>
+
+		<!-- 15-minute average -->
+		<div class="form-check form-switch mb-4">
+			<input
+				id="peakShaveAverage"
+				class="form-check-input"
+				type="checkbox"
+				role="switch"
+				:checked="localAverage"
+				@change="saveAverage"
+			/>
+			<label class="form-check-label" for="peakShaveAverage">
+				<span class="fw-bold">{{ $t("peakShave.average") }}</span>
+				<p class="text-muted small mb-0">{{ $t("peakShave.averageHelp") }}</p>
+			</label>
+		</div>
+
+		<!-- Cycle cost -->
+		<div class="mb-4">
+			<label for="batteryCycleCost" class="form-label fw-bold">
+				{{ $t("peakShave.cycleCost") }}
+			</label>
+			<p class="text-muted small mb-2">{{ $t("peakShave.cycleCostHelp") }}</p>
+			<div class="input-group">
+				<input
+					id="batteryCycleCost"
+					v-model.number="localCycleCost"
+					type="number"
+					min="0"
+					step="0.01"
+					class="form-control"
+					@change="saveCycleCost"
+				/>
+				<span class="input-group-text">{{ $t("peakShave.cycleCostUnit") }}</span>
+			</div>
+		</div>
+
 		<!-- Load shed delay -->
 		<div class="mb-4">
 			<label for="peakShaveLoadShedDelay" class="form-label fw-bold">
@@ -102,23 +155,30 @@
 <script lang="ts">
 import { defineComponent, type PropType } from "vue";
 import api from "@/api";
-import type { PeakShaveState } from "@/types/evcc";
+import formatter, { POWER_UNIT } from "@/mixins/formatter";
+import type { PeakShaveState, BatteryPlanStatus } from "@/types/evcc";
 
 export default defineComponent({
 	name: "BatteryPeakShaveSettings",
+	mixins: [formatter],
 	props: {
 		peakShaveReserveSoc: { type: Number, default: 40 },
 		peakShaveMinSoc: { type: Number, default: 20 },
 		peakShaveMaintainSocChargePower: { type: Number, default: 1000 },
 		peakShaveLoadShedDelay: { type: Number, default: 30 },
+		peakShaveAverage: { type: Boolean, default: false },
 		peakShaveState: { type: String as PropType<PeakShaveState>, default: "idle" },
 		limitControllerAvailable: { type: Boolean, default: true },
+		batteryCycleCost: { type: Number, default: 0.05 },
+		batteryPlan: { type: Object as PropType<BatteryPlanStatus | null>, default: null },
 	},
 	data() {
 		return {
 			localReserveSoc: this.peakShaveReserveSoc,
 			localMaintainPower: this.peakShaveMaintainSocChargePower,
 			localLoadShedDelay: this.peakShaveLoadShedDelay,
+			localAverage: this.peakShaveAverage,
+			localCycleCost: this.batteryCycleCost,
 			dragging: false,
 		};
 	},
@@ -128,6 +188,29 @@ export default defineComponent({
 		},
 		reserveBandWidth(): number {
 			return Math.max(0, this.localReserveSoc - this.peakShaveMinSoc);
+		},
+		planAction(): string {
+			return this.batteryPlan?.action || "";
+		},
+		planReason(): string {
+			return this.batteryPlan?.reason || "";
+		},
+		planTargetSoc(): number {
+			return this.batteryPlan?.targetSoc || 0;
+		},
+		planLoadEnergy(): string {
+			const wh = this.batteryPlan?.loadWh || 0;
+			if (wh < 50) {
+				return "";
+			}
+			return this.fmtWh(wh, POWER_UNIT.AUTO, true, 1);
+		},
+		planLoadPower(): string {
+			const w = this.batteryPlan?.loadW || 0;
+			if (w < 50) {
+				return "";
+			}
+			return this.fmtW(w, POWER_UNIT.KW, true, 1);
 		},
 	},
 	watch: {
@@ -141,6 +224,12 @@ export default defineComponent({
 		},
 		peakShaveLoadShedDelay(v: number) {
 			this.localLoadShedDelay = v;
+		},
+		peakShaveAverage(v: boolean) {
+			this.localAverage = v;
+		},
+		batteryCycleCost(v: number) {
+			this.localCycleCost = v;
 		},
 	},
 	beforeUnmount() {
@@ -231,6 +320,23 @@ export default defineComponent({
 				await api.post(
 					`peakshaveloadsheddelay/${encodeURIComponent(this.localLoadShedDelay)}`
 				);
+			} catch (err) {
+				console.error(err);
+			}
+		},
+		async saveAverage(event: Event) {
+			const checked = (event.target as HTMLInputElement).checked;
+			this.localAverage = checked;
+			try {
+				await api.post(`peakshaveaverage/${encodeURIComponent(String(checked))}`);
+			} catch (err) {
+				console.error(err);
+				this.localAverage = this.peakShaveAverage;
+			}
+		},
+		async saveCycleCost() {
+			try {
+				await api.post(`batterycyclecost/${encodeURIComponent(this.localCycleCost)}`);
 			} catch (err) {
 				console.error(err);
 			}

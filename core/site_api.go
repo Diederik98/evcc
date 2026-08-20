@@ -458,6 +458,33 @@ func (site *Site) SetPeakShaveLoadShedDelay(delay float64) error {
 	return nil
 }
 
+// GetPeakShaveAverage returns whether peak shaving uses the clock-aligned 15-minute average
+func (site *Site) GetPeakShaveAverage() bool {
+	site.RLock()
+	defer site.RUnlock()
+	return site.PeakShaveAverage
+}
+
+// SetPeakShaveAverage sets whether peak shaving uses the clock-aligned 15-minute average
+func (site *Site) SetPeakShaveAverage(avg bool) error {
+	site.Lock()
+	defer site.Unlock()
+
+	if len(site.batteryMeters) == 0 {
+		return ErrBatteryNotConfigured
+	}
+
+	site.log.DEBUG.Println("set peak shave average:", avg)
+
+	if site.PeakShaveAverage != avg {
+		site.PeakShaveAverage = avg
+		settings.SetBool(keys.PeakShaveAverage, site.PeakShaveAverage)
+		site.publish(keys.PeakShaveAverage, site.PeakShaveAverage)
+	}
+
+	return nil
+}
+
 // GetPeakShaveState returns the PeakShaveState
 func (site *Site) GetPeakShaveState() string {
 	site.RLock()
@@ -466,6 +493,33 @@ func (site *Site) GetPeakShaveState() string {
 		return "idle"
 	}
 	return site.peakShaveState
+}
+
+// GetBatteryCycleCost returns wear cost per kWh discharged
+func (site *Site) GetBatteryCycleCost() float64 {
+	site.RLock()
+	defer site.RUnlock()
+	return site.BatteryCycleCost
+}
+
+// SetBatteryCycleCost sets wear cost per kWh discharged
+func (site *Site) SetBatteryCycleCost(cost float64) error {
+	if cost < 0 {
+		return errors.New("cycle cost must not be negative")
+	}
+
+	site.Lock()
+	defer site.Unlock()
+
+	site.log.DEBUG.Println("set battery cycle cost:", cost)
+
+	if site.BatteryCycleCost != cost {
+		site.BatteryCycleCost = cost
+		settings.SetFloat(keys.BatteryCycleCost, site.BatteryCycleCost)
+		site.publish(keys.BatteryCycleCost, site.BatteryCycleCost)
+	}
+
+	return nil
 }
 
 // GetGridPower returns the most recent grid power reading in W (positive = import)

@@ -137,7 +137,10 @@ export interface State {
   peakShaveMinSoc?: number;
   peakShaveMaintainSocChargePower?: number;
   peakShaveLoadShedDelay?: number;
+  peakShaveAverage?: boolean;
   peakShaveState?: PeakShaveState;
+  batteryCycleCost?: number;
+  batteryPlan?: BatteryPlanStatus;
 }
 
 export type PeakShaveState =
@@ -147,6 +150,18 @@ export type PeakShaveState =
   | "shedding"
   | "recovery"
   | "lockout";
+
+export interface BatteryPlanStatus {
+  action?: string;
+  reason?: string;
+  chargeW?: number;
+  dischargeW?: number;
+  targetSoc?: number;
+  peakWh?: number;
+  dischargeFloor?: number;
+  loadWh?: number;
+  loadW?: number;
+}
 
 export interface ConfigStatus<C, S> {
   config?: C;
@@ -339,6 +354,7 @@ export interface Loadpoint {
   disableThreshold: number;
   effectiveLimitSoc: number;
   effectiveMaxCurrent: number;
+  effectiveMaxPower: number;
   effectiveMinCurrent: number;
   effectivePlanId: number;
   effectivePlanSoc: number;

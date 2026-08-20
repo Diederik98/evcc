@@ -597,16 +597,25 @@ func loadpointProfile(lp loadpoint.API, minLen int) []float64 {
 
 // homeProfile returns the home base load in Wh
 func (site *Site) homeProfile(minLen int) ([]float64, error) {
-	// kWh over last 30 days
-	profile, err := site.collectors[metrics.Home].EnergyProfile(now.BeginningOfDay().AddDate(0, 0, -30))
-	if err != nil {
-		return nil, err
-	}
+	from := now.BeginningOfDay().AddDate(0, 0, -30)
+	startDay := now.BeginningOfDay()
+	col := site.collectors[metrics.Home]
 
-	// max 4 days
-	slots := make([]float64, 0, minLen+1)
-	for len(slots) <= minLen+24*4 { // allow for prorating first day
-		slots = append(slots, profile[:]...)
+	var slots []float64
+	for day := 0; len(slots) < minLen+96; day++ {
+		d := startDay.AddDate(0, 0, day)
+		p, err := col.EnergyProfileWeekday(from, d.Weekday())
+		if err != nil {
+			p, err = col.EnergyProfile(from)
+			if err != nil {
+				return nil, err
+			}
+			for len(slots) <= minLen+24*4 {
+				slots = append(slots, p[:]...)
+			}
+			break
+		}
+		slots = append(slots, p[:]...)
 	}
 
 	res := profileSlotsFromNow(slots)
@@ -624,7 +633,7 @@ func (site *Site) homeProfile(minLen int) ([]float64, error) {
 }
 
 // profileSlotsFromNow strips away any slots before "now".
-// The profile contains 48 15min slots (00:00-23:45) that repeat for multiple days.
+// The profile contains 96 15min slots (00:00-23:45) that repeat for multiple days.
 func profileSlotsFromNow(profile []float64) []float64 {
 	firstSlot := int(time.Now().Truncate(tariff.SlotDuration).Sub(now.BeginningOfDay()) / tariff.SlotDuration)
 	return profile[firstSlot:]

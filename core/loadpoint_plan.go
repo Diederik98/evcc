@@ -118,6 +118,12 @@ func (lp *Loadpoint) GetPlan(targetTime time.Time, requiredDuration, preconditio
 	return lp.planner.Plan(requiredDuration, precondition, targetTime, continuous)
 }
 
+// heatingPlanExclusive reports whether a heating device has a configured charge plan.
+// The plan owns the heater runtime: smart cost and PV surplus must not start it outside that slot.
+func (lp *Loadpoint) heatingPlanExclusive() bool {
+	return lp.chargerHasFeature(api.Heating) && !lp.EffectivePlanTime().IsZero()
+}
+
 // plannerActive checks if the charging plan has a currently active slot
 func (lp *Loadpoint) plannerActive() (active bool) {
 	defer func() {

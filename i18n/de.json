@@ -39,7 +39,7 @@
       },
       "bufferTitle": "Batterie als Ladepuffer",
       "discharge": "Entladung der Hausbatterie im Schnell-Modus und bei geplantem Laden verhindern.",
-      "dischargePeakShave": "Entladung der Hausbatterie im Schnell-Modus und bei geplantem Laden verhindern. Lastspitzenkappung greift bei Bedarf automatisch.",
+      "dischargePeakShave": "Die Hausbatterie speist Schnell- und Planladen nicht. Überschuss wird weiter gespeichert, damit das Netz im Gleichgewicht bleibt. Lastspitzenkappung und Verkauf von Restenergie können weiterhin entladen.",
       "priority": "Hausspeicher hat Vorrang, solange er unter {soc} liegt. Dann erhalten die Ladepunkte den Überschuss.",
       "priorityNone": "Sonnenüberschuss geht direkt an die Ladepunkte. Setze einen Wert über {soc}, um den Hausspeicher zu bevorzugen.",
       "priorityTitle": "Wohin geht der Überschuss zuerst?"
@@ -69,8 +69,8 @@
     "capacity": "{energy} von {total}",
     "control": "Batteriesteuerung",
     "discharge": "Verhindere Entladung im Schnell-Modus und bei geplantem Laden.",
-    "dischargePeakShave": "Verhindere Entladung im Schnell-Modus und bei geplantem Laden. Lastspitzenkappung greift bei Bedarf automatisch.",
-    "dischargePeakShaveHelp": "Bei Netzbezug über dem Schwellwert kann die Lastspitzenkappung die Batterie entladen, unabhängig von dieser Einstellung.",
+    "dischargePeakShave": "Die Hausbatterie speist Schnell- und Planladen nicht. Überschuss wird weiter gespeichert, damit das Netz im Gleichgewicht bleibt. Lastspitzenkappung und Verkauf von Restenergie können weiterhin entladen.",
+    "dischargePeakShaveHelp": "Die Batterie bleibt im Eigenverbrauch, außer wenn ein Ladepunkt schnell oder nach Plan lädt. Dann entlädt sie nicht in diese Last, speichert aber weiter Überschuss statt zu exportieren. Lastspitzenkappung und geplanter Verkauf entladen weiter.",
     "disclaimerHint": "Hinweis:",
     "disclaimerText": "Nur relevant im PV-Modus. Das Ladeverhalten wird entsprechend angepasst.",
     "gridChargeTab": "Netzladen",
@@ -99,6 +99,8 @@
     "gridPowerLive": "Aktueller Netzbezug: {power} kW",
     "loadShedDelay": "Lastabwurf-Verzögerung",
     "loadShedDelayHelp": "Wartezeit in Sekunden, bevor das EV-Laden gedrosselt wird, wenn der Netzbezug über der Grenze bleibt. 0 für sofortigen Lastabwurf.",
+    "average": "15-Minuten-Mittelwert",
+    "averageHelp": "Begrenzt den taktgebundenen 15-Minuten-Netzbezug statt der Momentanleistung. Kurze Spitzen können durchgehen, wenn im Viertel noch Budget ist. Die Momentanregelung bleibt Standard und ist für die Rechnung sicherer.",
     "noLimitController": "Die Lastspitzenkappung erfordert eine Batterie mit Lade- und Entladeleistungsgrenzen. Konfiguriere chargelimit und dischargelimit am Batteriezähler.",
     "socInvalid": "Der Reserve-SoC darf nicht unter dem Mindest-SoC der Batterie liegen.",
     "reserveSoc": "Reserve-SoC",
@@ -112,6 +114,30 @@
     "minSocLabel": "Mindest",
     "maintainSocChargePower": "Wiederherstellungsladeleistung",
     "maintainSocChargePowerHelp": "Ladeleistungsgrenze zum Wiederherstellen des Reserve-SoC nach der Lastspitzenkappung.",
+    "cycleCost": "Zykluskosten",
+    "cycleCostHelp": "Verschleißkosten je entladener kWh. Netzladung nur, wenn die preisliche Spreizung inkl. Steuern Verluste und diese Kosten deckt. 0 ignoriert den Verschleiß.",
+    "cycleCostUnit": "€/kWh",
+    "plan": {
+      "title": "Batterieplanung",
+      "targetSoc": "Ziel-SoC für kommende Lastspitzen: {soc} %",
+      "loadpoints": "Enthält {energy} geplante Ladung",
+      "loadCap": "Geplante Ladung begrenzt auf {power}",
+      "action": {
+        "normal": "Folgt dem Solarüberschuss",
+        "charge": "Lädt aus dem Netz",
+        "hold": "Hält den Ladestand",
+        "discharge": "Entlädt"
+      },
+      "reason": {
+        "idle": "Keine Aktion nötig",
+        "peak": "Deckt eine vorhergesagte Lastspitze",
+        "charge": "Lädt genug Energie für spätere Lastspitzen",
+        "cheap": "Der Preis inkl. Steuern ist niedrig genug zum Zyklieren",
+        "hold": "Spart Energie für teure oder laststarke Stunden",
+        "recovery": "Stellt den Reserve-SoC wieder her",
+        "export": "Verkauft überschüssige Energie bei teurer Einspeisung"
+      }
+    },
     "batteryTabTitle": "Batterieschutz",
     "state": {
       "idle": "Inaktiv",
@@ -1143,6 +1169,9 @@
       "today": "Heute",
       "tomorrow": "Morgen"
     },
+    "orientationSuggest": "Produktion bei klarem Himmel legt Azimut {azimuth}° und Neigung {decline}° nahe ({days} klare Tage)",
+    "orientationSuggestDiff": "Konfiguriert: Azimut {configuredAzimuth}° / Neigung {configuredDecline}°. Bei klarem Himmel: {azimuth}° / {decline}° ({days} klare Tage)",
+    "orientationSuggestLink": "Solarprognose prüfen",
     "solarAdjust": "Solarprognose anhand der realen Produktionsdaten anpassen{percent}.",
     "solarAdjustMedium": "an reale Produktionsdaten anpassen",
     "solarAdjustShort": "anpassen",
@@ -1269,6 +1298,12 @@
       "arrivalTab": "Ankunft",
       "day": "Tag",
       "departureTab": "Abfahrt",
+      "duration": {
+        "help": "Die Heizung läuft am Stück mit voller Leistung. Der Planer wählt das günstigste Fenster vor dem Zielzeitpunkt.",
+        "label": "Dauer",
+        "option": "{duration} ({energy})",
+        "planOverridesPrice": "Ein Plan hat Vorrang vor dem Preislimit: die Heizung läuft nur im geplanten Fenster, nicht bei jedem günstigen Preis."
+      },
       "goal": "Ladeziel",
       "modalTitle": "Ladeplanung",
       "none": "keiner",

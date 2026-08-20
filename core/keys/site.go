@@ -41,17 +41,20 @@ const (
 	ConsumerMeters = "consumerMeters"
 
 	// battery settings
-	BatteryDischargeControl = "batteryDischargeControl"
-	BatteryGridChargeLimit  = "batteryGridChargeLimit"
-	BatteryGridChargeActive = "batteryGridChargeActive"
-	BufferSoc               = "bufferSoc"
-	BufferStartSoc          = "bufferStartSoc"
-	GridThreshold           = "gridThreshold"
-	PeakShaveReserveSoc     = "peakShaveReserveSoc"
-	PeakShaveMinSoc         = "peakShaveMinSoc"
+	BatteryDischargeControl         = "batteryDischargeControl"
+	BatteryGridChargeLimit          = "batteryGridChargeLimit"
+	BatteryGridChargeActive         = "batteryGridChargeActive"
+	BufferSoc                       = "bufferSoc"
+	BufferStartSoc                  = "bufferStartSoc"
+	GridThreshold                   = "gridThreshold"
+	PeakShaveReserveSoc             = "peakShaveReserveSoc"
+	PeakShaveMinSoc                 = "peakShaveMinSoc"
 	PeakShaveMaintainSocChargePower = "peakShaveMaintainSocChargePower"
 	PeakShaveLoadShedDelay          = "peakShaveLoadShedDelay"
+	PeakShaveAverage                = "peakShaveAverage"
 	PeakShaveState                  = "peakShaveState"
+	BatteryCycleCost                = "batteryCycleCost"
+	BatteryPlan                     = "batteryPlan"
 
 	// optimizer
 	OptimizerChargingStrategy   = "optimizerChargingStrategy"

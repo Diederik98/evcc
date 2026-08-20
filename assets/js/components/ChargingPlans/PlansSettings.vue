@@ -11,6 +11,8 @@
 					:soc-per-kwh="socPerKwh"
 					:soc-based-planning="socBasedPlanning"
 					:multiple-plans="multiplePlans"
+					:heating="heating"
+					:max-power="maxPower"
 					@static-plan-updated="updateStaticPlan"
 					@static-plan-removed="removeStaticPlan"
 					@plan-preview="previewStaticPlan"
@@ -58,7 +60,7 @@
 		<ChargingPlanStrategy
 			:id="id"
 			:precondition="effectivePlanStrategy?.precondition"
-			:continuous="effectivePlanStrategy?.continuous"
+			:continuous="strategyContinuous"
 			:disabled="strategyDisabled"
 			:show="strategyOpen"
 			@update="updatePlanStrategy"
@@ -124,6 +126,8 @@ export default defineComponent({
 		vehicleLimitSoc: Number,
 		planOverrun: Number,
 		forecast: Object as PropType<Forecast>,
+		heating: Boolean,
+		maxPower: Number,
 	},
 	emits: [
 		"static-plan-removed",
@@ -174,6 +178,13 @@ export default defineComponent({
 			const slots = this.forecast?.planner || [];
 			const values = new Set(slots.map(({ value }) => value));
 			return values.size <= 1;
+		},
+		strategyContinuous(): boolean {
+			if (this.effectivePlanStrategy?.continuous) {
+				return true;
+			}
+			// heaters default to one continuous window until a plan is saved
+			return !!(this.heating && this.noActivePlan);
 		},
 	},
 	watch: {

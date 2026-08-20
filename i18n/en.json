@@ -39,7 +39,7 @@
       },
       "bufferTitle": "Battery as charging buffer",
       "discharge": "Prevent home battery discharge in fast mode and during planned charging.",
-      "dischargePeakShave": "Prevent home battery discharge in fast mode and during planned charging. Peak shaving acts automatically when required.",
+      "dischargePeakShave": "Do not feed the charger from the home battery in fast mode and during planned charging. Surplus is still stored so the grid stays at equilibrium. Peak shaving and selling leftover energy can still discharge.",
       "priority": "Home battery has priority while it is below {soc}. Then the charging points receive the surplus.",
       "priorityNone": "Solar surplus goes straight to the charging points. Set a value above {soc} to prioritize the home battery.",
       "priorityTitle": "Where does the surplus go first?"
@@ -69,8 +69,8 @@
     "capacity": "{energy} of {total}",
     "control": "Battery control",
     "discharge": "Prevent discharge in fast mode and planned charging.",
-    "dischargePeakShave": "Prevent discharge in fast mode and planned charging. Peak shaving acts automatically when required.",
-    "dischargePeakShaveHelp": "When grid import exceeds the threshold, peak shaving may discharge the battery regardless of this setting.",
+    "dischargePeakShave": "Do not feed the charger from the home battery in fast mode and planned charging. Surplus is still stored so the grid stays at equilibrium. Peak shaving and selling leftover energy can still discharge.",
+    "dischargePeakShaveHelp": "The battery keeps self-consumption except while a charger runs on fast or planned charging. Then it will not discharge into that load, but it still absorbs surplus instead of exporting. Peak shaving and planned selling still discharge.",
     "disclaimerHint": "Note:",
     "disclaimerText": "These settings only affect solar mode. Charging behaviour is adjusted accordingly.",
     "gridChargeTab": "Grid charging",
@@ -99,6 +99,8 @@
     "gridPowerLive": "Current grid import: {power} kW",
     "loadShedDelay": "Load shed delay",
     "loadShedDelayHelp": "Grace period in seconds before EV charging is throttled when grid import stays above the threshold. Set to 0 for immediate load shedding.",
+    "average": "15-minute average",
+    "averageHelp": "Limit the clock-aligned 15-minute grid average instead of instantaneous watts. Short spikes can pass if the quarter still has budget. Instantaneous control stays the default and is safer for the bill.",
     "noLimitController": "Peak shaving requires a battery that supports charge and discharge power limits. Configure chargelimit and dischargelimit on your battery meter.",
     "socInvalid": "Reserve SoC must not be below the battery minimum SoC.",
     "reserveSoc": "Reserve SoC",
@@ -112,6 +114,30 @@
     "minSocLabel": "Min",
     "maintainSocChargePower": "Recovery charge power",
     "maintainSocChargePowerHelp": "Power limit used to restore the battery to the reserve SoC level after peak shaving.",
+    "cycleCost": "Cycle cost",
+    "cycleCostHelp": "Wear cost per kWh discharged. Grid charging only happens when the tax-inclusive price spread covers losses and this cost. Set 0 to ignore wear.",
+    "cycleCostUnit": "€/kWh",
+    "plan": {
+      "title": "Battery plan",
+      "targetSoc": "Target SoC for upcoming peaks: {soc}%",
+      "loadpoints": "Includes {energy} planned charging",
+      "loadCap": "Planned charging limited to {power}",
+      "action": {
+        "normal": "Following solar surplus",
+        "charge": "Charging from grid",
+        "hold": "Holding charge",
+        "discharge": "Discharging"
+      },
+      "reason": {
+        "idle": "No action required",
+        "peak": "Covering a predicted peak",
+        "charge": "Charging enough energy to cover later peaks",
+        "cheap": "Tax-inclusive price is low enough to cycle",
+        "hold": "Saving energy for later expensive or peak hours",
+        "recovery": "Restoring reserve SoC",
+        "export": "Selling leftover energy while feed-in is expensive"
+      }
+    },
     "batteryTabTitle": "Battery protection",
     "state": {
       "idle": "Idle",
@@ -1143,6 +1169,9 @@
       "today": "Today",
       "tomorrow": "Tomorrow"
     },
+    "orientationSuggest": "Clear-sky production suggests azimuth {azimuth}° and tilt {decline}° ({days} clear days)",
+    "orientationSuggestDiff": "Configured azimuth {configuredAzimuth}° / tilt {configuredDecline}°. Clear-sky production suggests {azimuth}° / {decline}° ({days} clear days)",
+    "orientationSuggestLink": "Review solar forecast",
     "solarAdjust": "Adjust solar forecast based on real production data{percent}.",
     "solarAdjustMedium": "real data adjust",
     "solarAdjustShort": "adjust",
@@ -1269,6 +1298,12 @@
       "arrivalTab": "Arrival",
       "day": "Day",
       "departureTab": "Departure",
+      "duration": {
+        "help": "The heater runs in one stretch at full power. The planner picks the cheapest window before the deadline.",
+        "label": "Duration",
+        "option": "{duration} ({energy})",
+        "planOverridesPrice": "A plan overrides the price limit: the heater only runs in the planned window, not whenever the price is cheap."
+      },
       "goal": "Charging goal",
       "modalTitle": "Charging Plan",
       "none": "none",
