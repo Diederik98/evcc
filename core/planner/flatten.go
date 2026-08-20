@@ -14,6 +14,7 @@ type ChargeDemand struct {
 	MaxW       float64
 	Deadline   time.Time
 	Preferred  api.Rates
+	Continuous bool // keep one contiguous window at max power
 }
 
 // FlattenChargeDemands spreads planned charging into household slots. When a
@@ -34,7 +35,7 @@ func FlattenChargeDemands(slots []BatterySlot, demands []ChargeDemand, gridThres
 		}
 
 		var alloc []float64
-		if gridThresholdW <= 0 || d.Deadline.IsZero() {
+		if d.Continuous || gridThresholdW <= 0 || d.Deadline.IsZero() {
 			before := slots[0].HomeWh
 			addedWh += applyChargePlan(slots, d.Preferred, d.MaxW)
 			if hours0 > 0 {

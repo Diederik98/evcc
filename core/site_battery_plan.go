@@ -197,6 +197,7 @@ func applyLoadpointPlans(loadpoints []loadpoint.API, slots []planner.BatterySlot
 			MaxW:       powerW,
 			Deadline:   lp.EffectivePlanTime(),
 			Preferred:  plan,
+			Continuous: lp.EffectivePlanStrategy().Continuous,
 		}
 	}
 	return planner.FlattenChargeDemands(slots, demands, gridThresholdW)

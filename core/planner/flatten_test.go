@@ -148,3 +148,28 @@ func TestFlattenChargeDemandsCurrentSlotWatts(t *testing.T) {
 	require.Len(t, currentW, 1)
 	assert.InDelta(t, 8000, currentW[0], 1, "current slot should use remaining 8 kW headroom")
 }
+
+func TestFlattenChargeDemandsKeepsContinuousBlock(t *testing.T) {
+	slots := flattenSlots(16, 2000)
+	start := slots[0].Start
+	preferred := api.Rates{{Start: start.Add(8 * tariff.SlotDuration), End: start.Add(16 * tariff.SlotDuration)}}
+	demand := ChargeDemand{
+		RequiredWh: 6000,
+		MaxW:       3000,
+		Deadline:   start.Add(16 * tariff.SlotDuration),
+		Preferred:  preferred,
+		Continuous: true,
+	}
+
+	added, _ := FlattenChargeDemands(slots, []ChargeDemand{demand}, 10000)
+	assert.InDelta(t, 6000, added, 1)
+
+	hours := tariff.SlotDuration.Hours()
+	for i, s := range slots {
+		if i >= 8 && i < 16 {
+			assert.InDelta(t, (2000+3000)*hours, s.HomeWh, 1, "continuous window stays at full heater power")
+			continue
+		}
+		assert.InDelta(t, 2000*hours, s.HomeWh, 1, "slots outside the window stay untouched")
+	}
+}

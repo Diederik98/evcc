@@ -21,7 +21,7 @@
 							{{ $t("main.chargingPlan.departureTab") }}
 						</a>
 					</li>
-					<li class="nav-item">
+					<li v-if="!heating" class="nav-item">
 						<a
 							class="nav-link"
 							:class="{ active: arrivalTabActive }"
@@ -148,10 +148,13 @@ export default defineComponent({
 			return baseTitle;
 		},
 		departureTabActive(): boolean {
-			return this.activeTab === "departure";
+			return this.heating || this.activeTab === "departure";
 		},
 		arrivalTabActive(): boolean {
-			return this.activeTab === "arrival";
+			return !this.heating && this.activeTab === "arrival";
+		},
+		heating(): boolean {
+			return !!this.loadpoint?.chargerFeatureHeating;
 		},
 		apiVehicle(): string {
 			return `vehicles/${this.vehicle?.name}/`;

@@ -49,7 +49,6 @@
 				align="start"
 			/>
 			<ChargingPlan
-				v-if="!heating"
 				ref="chargingPlan"
 				class="flex-grow-1 target-charge"
 				v-bind="chargingPlan"
