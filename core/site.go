@@ -111,6 +111,7 @@ type Site struct {
 	peakShaveOverloadSince   time.Time          // Overload start time for load shed delay
 	peakShaveBatteryLimited  bool               // Battery limit controller writes active
 	batteryPlanHold          bool               // Planner requested hold for later peaks or expensive hours
+	batteryDischargeLocked   bool               // Discharge control: do not feed the charger from the battery
 	batteryPlanChargeW       int                // Last planned grid-charge setpoint, capped live on the fast loop
 	lastBatteryChargeW       int                // Last written charge limit
 	lastBatteryDischargeW    int                // Last written discharge limit

@@ -704,6 +704,125 @@ func TestApplyLiveBatteryPowerLimitsKeepsExportDischarge(t *testing.T) {
 	ctrl.Finish()
 }
 
+func TestRequiredBatteryModeSkipsHoldWithLimitController(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	limitCtrl := api.NewMockBatteryLimitController(ctrl)
+	bat := newLimitBat(ctrl, limitCtrl)
+
+	site := &Site{
+		log:             util.NewLogger("foo"),
+		batteryMeters:   []config.Device[api.Meter]{config.NewStaticDevice(config.Named{}, bat)},
+		batteryPlanHold: true,
+		batteryMode:     api.BatteryNormal,
+	}
+
+	mode := site.requiredBatteryMode(true, api.Rate{Value: 0.01})
+	assert.Equal(t, api.BatteryUnknown, mode)
+	ctrl.Finish()
+}
+
+func TestBatterySurplusChargeW(t *testing.T) {
+	site := &Site{gridPower: -800, battery: types.BatteryState{Power: 0}}
+	assert.Equal(t, 800, site.batterySurplusChargeW())
+
+	site.gridPower = -800
+	site.battery.Power = -500
+	assert.Equal(t, 1300, site.batterySurplusChargeW())
+
+	site.gridPower = 2000
+	site.battery.Power = 0
+	assert.Equal(t, 0, site.batterySurplusChargeW())
+
+	site.gridPower = -20
+	site.battery.Power = 0
+	assert.Equal(t, 0, site.batterySurplusChargeW())
+}
+
+func TestApplyLiveBatteryPowerLimitsAbsorbsExportWhenChargerActive(t *testing.T) {
+	ctrl := gomock.NewController(t)
+
+	limitCtrl := api.NewMockBatteryLimitController(ctrl)
+	limitCtrl.EXPECT().SetChargeLimit(800).Return(nil).Times(1)
+	bat := newLimitBat(ctrl, limitCtrl)
+
+	lp := NewLoadpoint(util.NewLogger("lp"), nil)
+	lp.status = api.StatusC
+	lp.mode = api.ModeNow
+
+	site := &Site{
+		log:                     util.NewLogger("ps"),
+		batteryMeters:           []config.Device[api.Meter]{config.NewStaticDevice(config.Named{}, bat)},
+		GridThreshold:           10.0,
+		PeakShaveMinSoc:         20.0,
+		batteryDischargeControl: true,
+		gridPower:               -800,
+		loadpoints:              []*Loadpoint{lp},
+		battery:                 types.BatteryState{Soc: 60.0},
+	}
+
+	site.applyLiveBatteryPowerLimits()
+	assert.Equal(t, 800, site.lastBatteryChargeW)
+	assert.Equal(t, 0, site.lastBatteryDischargeW)
+	ctrl.Finish()
+}
+
+func TestApplyLiveBatteryPowerLimitsHoldsWhenChargerActiveAndImporting(t *testing.T) {
+	ctrl := gomock.NewController(t)
+
+	limitCtrl := api.NewMockBatteryLimitController(ctrl)
+	limitCtrl.EXPECT().SetChargeLimit(0).Return(nil).Times(1)
+	limitCtrl.EXPECT().SetDischargeLimit(0).Return(nil).Times(1)
+	bat := newLimitBat(ctrl, limitCtrl)
+
+	lp := NewLoadpoint(util.NewLogger("lp"), nil)
+	lp.status = api.StatusC
+	lp.mode = api.ModeNow
+
+	site := &Site{
+		log:                     util.NewLogger("ps"),
+		batteryMeters:           []config.Device[api.Meter]{config.NewStaticDevice(config.Named{}, bat)},
+		GridThreshold:           10.0,
+		PeakShaveMinSoc:         20.0,
+		batteryDischargeControl: true,
+		gridPower:               2000,
+		loadpoints:              []*Loadpoint{lp},
+		battery:                 types.BatteryState{Soc: 60.0},
+	}
+
+	site.applyLiveBatteryPowerLimits()
+	assert.Equal(t, 0, site.lastBatteryChargeW)
+	assert.Equal(t, 0, site.lastBatteryDischargeW)
+	ctrl.Finish()
+}
+
+func TestApplyLiveBatteryPowerLimitsPeakWinsOverChargeOnly(t *testing.T) {
+	ctrl := gomock.NewController(t)
+
+	limitCtrl := api.NewMockBatteryLimitController(ctrl)
+	limitCtrl.EXPECT().SetChargeLimit(0).Return(nil).Times(1)
+	limitCtrl.EXPECT().SetDischargeLimit(5000).Return(nil).Times(1)
+	bat := newLimitBat(ctrl, limitCtrl)
+
+	lp := NewLoadpoint(util.NewLogger("lp"), nil)
+	lp.status = api.StatusC
+	lp.mode = api.ModeNow
+
+	site := &Site{
+		log:                     util.NewLogger("ps"),
+		batteryMeters:           []config.Device[api.Meter]{config.NewStaticDevice(config.Named{}, bat)},
+		GridThreshold:           10.0,
+		PeakShaveMinSoc:         20.0,
+		batteryDischargeControl: true,
+		gridPower:               15000,
+		loadpoints:              []*Loadpoint{lp},
+		battery:                 types.BatteryState{Soc: 80.0},
+	}
+
+	site.applyLiveBatteryPowerLimits()
+	assert.Equal(t, 5000, site.lastBatteryDischargeW)
+	ctrl.Finish()
+}
+
 func TestPeakShaveRemainingAllowedW(t *testing.T) {
 	slot := 15 * time.Minute
 	limit := 10000.0

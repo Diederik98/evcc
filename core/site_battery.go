@@ -3,6 +3,7 @@ package core
 import (
 	"errors"
 	"fmt"
+	"math"
 	"time"
 
 	"github.com/evcc-io/evcc/api"
@@ -55,7 +56,20 @@ func (site *Site) SetBatteryMode(batMode api.BatteryMode) {
 	}
 }
 
+func (site *Site) hasBatteryLimitController() bool {
+	for _, dev := range site.batteryMeters {
+		if dev == nil {
+			continue
+		}
+		if api.HasCap[api.BatteryLimitController](dev.Instance()) {
+			return true
+		}
+	}
+	return false
+}
+
 func (site *Site) updateBatteryMode(batteryGridChargeActive bool, rate api.Rate) {
+	site.batteryDischargeLocked = site.dischargeControlActive(rate)
 	batteryMode := site.requiredBatteryMode(batteryGridChargeActive, rate)
 
 	// put battery into hold mode when charging is active and HEMS dimmed
@@ -225,11 +239,20 @@ func (site *Site) requiredBatteryMode(batteryGridChargeActive bool, rate api.Rat
 			res = extMode
 		}
 	case site.batteryPlanHold:
-		res = keepUnlessModified(api.BatteryHold)
+		if site.hasBatteryLimitController() {
+			// live loop keeps equilibrium: charge surplus, do not discharge
+			res = api.BatteryUnknown
+		} else {
+			res = keepUnlessModified(api.BatteryHold)
+		}
 	case batteryGridChargeActive:
 		res = keepUnlessModified(api.BatteryCharge)
 	case site.dischargeControlActive(rate):
-		res = keepUnlessModified(api.BatteryHold)
+		if site.hasBatteryLimitController() {
+			res = api.BatteryUnknown
+		} else {
+			res = keepUnlessModified(api.BatteryHold)
+		}
 	case batteryModeModified(batMode):
 		res = api.BatteryNormal
 	}
@@ -369,6 +392,47 @@ func (site *Site) dischargeControlActive(rate api.Rate) bool {
 	}
 
 	return false
+}
+
+func (site *Site) fastChargeLocksDischarge() bool {
+	if !site.batteryDischargeControl {
+		return false
+	}
+	for _, lp := range site.Loadpoints() {
+		if lp.GetStatus() == api.StatusC && lp.IsFastChargingActive() {
+			return true
+		}
+	}
+	return false
+}
+
+// batteryChargeOnlyLocked reports charge-only equilibrium. Caller holds site.Lock or accepts a slightly stale peak-shave state.
+func (site *Site) batteryChargeOnlyLocked() bool {
+	if site.peakShaveState != "" && site.peakShaveState != PeakShaveIdle {
+		return false
+	}
+	return site.batteryPlanHold || site.batteryDischargeLocked || site.fastChargeLocksDischarge()
+}
+
+func (site *Site) batteryChargeOnly() bool {
+	site.RLock()
+	defer site.RUnlock()
+	return site.batteryChargeOnlyLocked()
+}
+
+const batterySurplusDeadbandW = 50.0
+
+// batterySurplusChargeW is the charge setpoint that absorbs current grid export.
+func (site *Site) batterySurplusChargeW() int {
+	w := -site.gridPower - site.battery.Power
+	if w < batterySurplusDeadbandW {
+		return 0
+	}
+	chargeW, _ := site.batteryPowerLimits()
+	if chargeW > 0 && w > chargeW {
+		w = chargeW
+	}
+	return int(math.Round(w))
 }
 
 const (
@@ -595,6 +659,9 @@ func (site *Site) ManageGridLimits(batteryGridChargeActive bool) {
 			site.peakShaveBatteryLimited = true
 			site.batteryPlanChargeW = chargeLimit
 			site.batteryPlanDischargeW = 0
+		} else if site.batteryChargeOnlyLocked() {
+			site.batteryPlanChargeW = 0
+			site.batteryPlanDischargeW = 0
 		} else {
 			site.batteryPlanChargeW = 0
 			site.batteryPlanDischargeW = 0
@@ -639,7 +706,10 @@ func (site *Site) runBatteryControl(stopC <-chan struct{}) {
 }
 
 func (site *Site) updateBatteryPowerControl() {
-	if !site.peakShaveEnabled() || site.gridMeter == nil {
+	if site.gridMeter == nil {
+		return
+	}
+	if !site.peakShaveEnabled() && !site.batteryChargeOnly() {
 		return
 	}
 
@@ -681,16 +751,20 @@ func (site *Site) refreshGridAndBatteryPower() error {
 // applyLiveBatteryPowerLimits updates charge/discharge watts from the latest
 // grid reading so peaks are tracked every second instead of on the site interval.
 func (site *Site) applyLiveBatteryPowerLimits() {
-	if !site.peakShaveEnabled() {
-		return
-	}
-
 	site.Lock()
 	defer site.Unlock()
 
+	chargeOnly := site.batteryChargeOnlyLocked()
+	if !site.peakShaveEnabled() && !chargeOnly {
+		return
+	}
+
 	site.accumulateGridQuarter(time.Now())
 
-	overshoot := site.peakShaveOvershootW()
+	var overshoot float64
+	if site.peakShaveEnabled() {
+		overshoot = site.peakShaveOvershootW()
+	}
 	soc := site.battery.Soc
 	minSoc := site.peakShaveEffectiveMinSoc()
 	headroom := site.peakShaveGridHeadroom()
@@ -715,7 +789,18 @@ func (site *Site) applyLiveBatteryPowerLimits() {
 		site.setBatteryLimitLimits(0, site.batteryPlanDischargeW)
 		site.peakShaveBatteryLimited = true
 
-	case site.lastBatteryDischargeW > 0:
-		site.setBatteryLimitLimits(0, 0)
+	case chargeOnly:
+		if w := site.batterySurplusChargeW(); w > 0 {
+			site.log.DEBUG.Printf("battery equilibrium: charge surplus %dW", w)
+			site.setBatteryLimitLimits(w, 0)
+		} else {
+			site.setBatteryLimitLimits(0, 0)
+			_ = site.applyBatteryModeDirect(api.BatteryHold)
+		}
+		site.peakShaveBatteryLimited = true
+
+	case site.lastBatteryDischargeW > 0 || site.lastBatteryChargeW > 0:
+		site.resetBatteryLimitLimits()
+		site.peakShaveBatteryLimited = false
 	}
 }

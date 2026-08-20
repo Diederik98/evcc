@@ -279,11 +279,16 @@ func (site *Site) applyBatteryPlan(plan planner.BatteryPlan) {
 		site.log.DEBUG.Printf("battery plan: hold (reason %s, floor %.3f)", plan.Reason, plan.DischargeFloor)
 		site.batteryPlanChargeW = 0
 		site.batteryPlanDischargeW = 0
+		site.batteryPlanHold = true
+		if site.hasBatteryLimitController() {
+			// live loop absorbs surplus; do not return to self-consumption
+			site.peakShaveBatteryLimited = true
+			break
+		}
 		if site.peakShaveBatteryLimited {
 			site.resetBatteryLimitLimits()
 			site.peakShaveBatteryLimited = false
 		}
-		site.batteryPlanHold = true
 
 	default:
 		site.batteryPlanChargeW = 0
