@@ -61,6 +61,7 @@ const (
 	EffectivePlanSoc    = "effectivePlanSoc"    // effective plan soc
 	EffectiveMinCurrent = "effectiveMinCurrent" // effective min current
 	EffectiveMaxCurrent = "effectiveMaxCurrent" // effective max current
+	EffectiveMaxPower   = "effectiveMaxPower"   // effective max charging power in W
 
 	EffectiveLimitSoc     = "effectiveLimitSoc"     // effective limit soc
 	EffectivePlanStrategy = "effectivePlanStrategy" // effective plan strategy

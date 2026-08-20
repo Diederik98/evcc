@@ -31,6 +31,23 @@ export function estimatedSoc(energy: number, socPerKwh?: number) {
   return Math.round(energy * socPerKwh);
 }
 
+export const HEATING_PLAN_HOURS = [0.25, 0.5, 1, 1.5, 2, 3, 4, 6, 8];
+export const DEFAULT_HEATING_PLAN_HOURS = 2;
+
+export function energyFromHours(hours: number, maxPowerW: number): number {
+  if (!(maxPowerW > 0) || !(hours > 0)) {
+    return 0;
+  }
+  return parseFloat(((hours * maxPowerW) / 1000).toFixed(3));
+}
+
+export function hoursFromEnergy(energyKwh: number, maxPowerW: number): number {
+  if (!(maxPowerW > 0) || !(energyKwh > 0)) {
+    return 0;
+  }
+  return energyKwh / (maxPowerW / 1000);
+}
+
 export function energyOptions(
   fromEnergy: number,
   maxEnergy: number,

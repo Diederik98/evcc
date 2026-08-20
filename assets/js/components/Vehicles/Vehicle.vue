@@ -126,6 +126,7 @@ export default defineComponent({
 		effectivePlanSoc: Number,
 		effectivePlanTime: String,
 		effectivePlanStrategy: Object as PropType<PlanStrategy>,
+		effectiveMaxPower: Number,
 		batteryBoost: Boolean,
 		batteryBoostActive: Boolean,
 		batteryBoostAvailable: Boolean,

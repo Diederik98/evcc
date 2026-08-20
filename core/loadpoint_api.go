@@ -682,8 +682,9 @@ func (lp *Loadpoint) GetChargePower() float64 {
 // GetChargePowerFlexibility returns the flexible amount of current charging power
 func (lp *Loadpoint) GetChargePowerFlexibility(rates api.Rates) float64 {
 	mode := lp.GetMode()
+	smartCost := !lp.heatingPlanExclusive() && lp.smartLimitActive(lp.GetSmartCostLimit(), rates, true)
 	if mode == api.ModeNow || !lp.charging() || lp.minSocNotReached() ||
-		lp.planActive || lp.smartLimitActive(lp.GetSmartCostLimit(), rates, true) {
+		lp.planActive || smartCost {
 		return 0
 	}
 

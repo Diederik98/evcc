@@ -1298,6 +1298,12 @@
       "arrivalTab": "Arrival",
       "day": "Day",
       "departureTab": "Departure",
+      "duration": {
+        "help": "The heater runs in one stretch at full power. The planner picks the cheapest window before the deadline.",
+        "label": "Duration",
+        "option": "{duration} ({energy})",
+        "planOverridesPrice": "A plan overrides the price limit: the heater only runs in the planned window, not whenever the price is cheap."
+      },
       "goal": "Charging goal",
       "modalTitle": "Charging Plan",
       "none": "none",

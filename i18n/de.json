@@ -1298,6 +1298,12 @@
       "arrivalTab": "Ankunft",
       "day": "Tag",
       "departureTab": "Abfahrt",
+      "duration": {
+        "help": "Die Heizung läuft am Stück mit voller Leistung. Der Planer wählt das günstigste Fenster vor dem Zielzeitpunkt.",
+        "label": "Dauer",
+        "option": "{duration} ({energy})",
+        "planOverridesPrice": "Ein Plan hat Vorrang vor dem Preislimit: die Heizung läuft nur im geplanten Fenster, nicht bei jedem günstigen Preis."
+      },
       "goal": "Ladeziel",
       "modalTitle": "Ladeplanung",
       "none": "keiner",

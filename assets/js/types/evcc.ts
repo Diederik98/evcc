@@ -354,6 +354,7 @@ export interface Loadpoint {
   disableThreshold: number;
   effectiveLimitSoc: number;
   effectiveMaxCurrent: number;
+  effectiveMaxPower: number;
   effectiveMinCurrent: number;
   effectivePlanId: number;
   effectivePlanSoc: number;

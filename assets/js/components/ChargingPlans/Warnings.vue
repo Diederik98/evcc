@@ -1,5 +1,8 @@
 <template>
 	<p class="mb-3 root" data-testid="plan-warnings">
+		<span v-if="heating && planEnergy" class="d-block evcc-gray mb-1">
+			{{ $t("main.chargingPlan.duration.planOverridesPrice") }}
+		</span>
 		<span v-if="targetIsAboveLimit" class="d-block evcc-gray mb-1">
 			{{ $t("main.targetCharge.targetIsAboveLimit", { limit: limitFmt }) }}
 		</span>
@@ -42,6 +45,7 @@ export default defineComponent({
 		plan: Object as PropType<PlanWrapper>,
 		vehicleLimitSoc: Number,
 		planOverrun: Number,
+		heating: Boolean,
 	},
 	computed: {
 		endTime(): Date | null {

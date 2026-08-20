@@ -194,6 +194,7 @@ export default defineComponent({
 		effectivePlanTime: String as PropType<string | null>,
 		effectivePlanSoc: Number,
 		effectivePlanStrategy: Object as PropType<PlanStrategy>,
+		effectiveMaxPower: Number,
 		vehicleProviderLoggedIn: Boolean,
 		vehicleProviderLoginPath: String,
 		vehicleProviderLogoutPath: String,

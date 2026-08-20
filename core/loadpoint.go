@@ -2007,6 +2007,11 @@ func (lp *Loadpoint) Update(sitePower, batteryBoostPower float64, consumption, f
 
 	// smart cost
 	smartCostActive, smartCostNextStart := lp.checkSmartLimit(lp.GetSmartCostLimit(), consumption, true)
+	if lp.heatingPlanExclusive() {
+		// plan owns the heater window; do not advertise cheap-tariff charging
+		smartCostActive = false
+		smartCostNextStart = time.Time{}
+	}
 	lp.publish(keys.SmartCostActive, smartCostActive)
 	lp.publish(keys.SmartCostNextStart, smartCostNextStart)
 
@@ -2153,6 +2158,12 @@ func (lp *Loadpoint) Update(sitePower, batteryBoostPower float64, consumption, f
 		err = lp.fastCharging()
 
 	case mode == api.ModeMinPV || mode == api.ModePV:
+		if lp.heatingPlanExclusive() {
+			// wait for the planned slot; do not start via cheap tariff or PV surplus
+			err = lp.setLimit(0)
+			break
+		}
+
 		// cheap tariff
 		if smartCostActive {
 			rate, _ := consumption.At(time.Now())

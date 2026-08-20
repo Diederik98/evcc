@@ -1184,6 +1184,12 @@
       "arrivalTab": "Aankomst",
       "day": "Dag",
       "departureTab": "Vertrek",
+      "duration": {
+        "help": "De verwarming draait in één stuk op vol vermogen. De planner kiest het goedkoopste venster vóór het eindtijdstip.",
+        "label": "Duur",
+        "option": "{duration} ({energy})",
+        "planOverridesPrice": "Een plan gaat boven de prijslimiet: de verwarming draait alleen in het geplande venster, niet telkens wanneer de prijs laag is."
+      },
       "goal": "Laaddoel",
       "modalTitle": "Laad Plan",
       "none": "geen",
