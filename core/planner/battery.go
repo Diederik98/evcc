@@ -219,6 +219,15 @@ func residualW(s BatterySlot, hours float64) float64 {
 	return max(0, (s.HomeWh-s.SolarWh)/hours)
 }
 
+// netPowerW is house minus solar in watts. Negative means PV surplus available
+// to charge the battery.
+func netPowerW(s BatterySlot, hours float64) float64 {
+	if hours <= 0 {
+		return 0
+	}
+	return (s.HomeWh - s.SolarWh) / hours
+}
+
 func thresholdWh(cfg BatteryConfig, hours float64) float64 {
 	return max(0, cfg.GridThresholdW) * hours
 }
@@ -581,7 +590,7 @@ func applyHorizonStep(cfg BatteryConfig, s BatterySlot, plan BatteryPlan, socWh 
 	minWh := minEnergyWh(cfg)
 	maxWh := cfg.CapacityWh * cfg.MaxSoc / 100
 	floorWh := reserveEnergyWh(cfg)
-	residual := residualW(s, hours)
+	net := netPowerW(s, hours)
 	etaC, etaD := cfg.EtaC, cfg.EtaD
 	if etaC <= 0 {
 		etaC = batteryEta
@@ -593,20 +602,21 @@ func applyHorizonStep(cfg BatteryConfig, s BatterySlot, plan BatteryPlan, socWh 
 	switch plan.Action {
 	case BatteryActionCharge:
 		socWh += float64(plan.ChargeW) * hours * etaC
-		if residual < 0 {
-			socWh += min(-residual, cfg.ChargeW) * hours * etaC
+		if net < 0 {
+			socWh += min(-net, cfg.ChargeW) * hours * etaC
 		}
 	case BatteryActionDischarge:
 		socWh -= float64(plan.DischargeW) * hours / etaD
 	case BatteryActionHold:
-		if residual < 0 {
-			socWh += min(-residual, cfg.ChargeW) * hours * etaC
+		// Hold blocks discharge to the house, but PV surplus may still charge.
+		if net < 0 {
+			socWh += min(-net, cfg.ChargeW) * hours * etaC
 		}
 	default:
-		if residual < 0 {
-			socWh += min(-residual, cfg.ChargeW) * hours * etaC
-		} else if residual > 0 && socWh > floorWh+1 {
-			cover := min(residual, cfg.DischargeW, (socWh-floorWh)/hours*etaD)
+		if net < 0 {
+			socWh += min(-net, cfg.ChargeW) * hours * etaC
+		} else if net > 0 && socWh > floorWh+1 {
+			cover := min(net, cfg.DischargeW, (socWh-floorWh)/hours*etaD)
 			socWh -= cover * hours / etaD
 		}
 	}

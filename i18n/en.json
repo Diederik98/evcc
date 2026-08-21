@@ -198,6 +198,7 @@
       "charging": "Planned charging",
       "threshold": "Limit",
       "price": "Price",
+      "soc": "Battery SoC",
       "overLimit": "Above the grid limit if the battery stays idle",
       "action": {
         "normal": "Following solar surplus",
@@ -1246,10 +1247,12 @@
       "today": "Today",
       "tomorrow": "Tomorrow"
     },
-    "orientationSuggest": "Clear-sky production suggests azimuth {azimuth}° and tilt {decline}° ({days} clear days)",
-    "orientationSuggestDiff": "Configured azimuth {configuredAzimuth}° / tilt {configuredDecline}°. Clear-sky production suggests {azimuth}° / {decline}° ({days} clear days)",
+    "orientationSuggest": "Clear-sky production suggests azimuth {azimuth}° and tilt {decline}° ({days} clear days). 0° = south, negative = east of south, positive = west of south",
+    "orientationSuggestDiff": "Configured azimuth {configuredAzimuth}° / tilt {configuredDecline}°. Clear-sky fit of your production suggests {azimuth}° / {decline}° ({days} clear days). 0° = south, −90° = east, +90° = west. Mixed east/south arrays: use the suggested compromise, or add a second solar forecast for the other orientation",
     "orientationSuggestLink": "Review solar forecast",
+    "orientationSuggestApply": "Suggested settings to match measured production: azimuth {azimuth}°, tilt {decline}°",
     "solarAdjust": "Adjust solar forecast based on real production data{percent}.",
+    "solarAdjustHelp": "Compares today's measured PV energy to the forecast so far. +135% means production is about 2.35× the forecast. The battery plan uses this scale automatically; this toggle only changes the Forecast chart.",
     "solarAdjustMedium": "real data adjust",
     "solarAdjustShort": "adjust",
     "type": {

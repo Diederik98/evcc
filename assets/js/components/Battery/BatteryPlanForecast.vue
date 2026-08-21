@@ -24,6 +24,24 @@
 				</span>
 			</template>
 		</div>
+		<div v-if="parsedSlots.length" class="legend small mb-2">
+			<span class="legend-item">
+				<span class="legend-swatch series-house"></span>
+				{{ $t("peakShave.plan.house") }}
+			</span>
+			<span class="legend-item">
+				<span class="legend-swatch series-solar"></span>
+				{{ $t("peakShave.plan.solar") }}
+			</span>
+			<span class="legend-item">
+				<span class="legend-swatch series-soc"></span>
+				{{ $t("peakShave.plan.soc") }}
+			</span>
+			<span v-if="hasPrices" class="legend-item">
+				<span class="legend-swatch series-price"></span>
+				{{ $t("peakShave.plan.price") }}
+			</span>
+		</div>
 
 		<p v-if="parsedSlots.length" class="text-muted small mb-1">
 			{{ $t("peakShave.plan.batteryStrip") }}
@@ -226,20 +244,142 @@ export default defineComponent({
 			const load: [number, number][] = [];
 			const solar: [number, number][] = [];
 			const soc: [number, number][] = [];
+			const price: [number, number][] = [];
 			for (const s of slots) {
 				const t = s.start.getTime();
 				house.push([t, (s.homeW || 0) / 1000]);
 				load.push([t, (s.loadW || 0) / 1000]);
 				solar.push([t, (s.solarW || 0) / 1000]);
 				soc.push([t, s.soc || 0]);
+				price.push([t, (s.price || 0) * 100]); // ct/kWh
 			}
 			const threshold = this.gridThreshold > 0 ? this.gridThreshold : undefined;
-			const selfColor = colors.self || "#0FDE41";
+			const solarColor = colors.selfPalette?.[1] || colors.price || "#FFBD2F";
+			const priceColor = colors.price || "#ff912f";
+			const socColor = colors.batteryPalette[0] || "#0BA631";
 			const gridColor = colors.grid || "#FD6158";
 			const muted = colors.muted || "#9ca3af";
+			const houseColor = "#64748B";
+			const yAxes: Record<string, unknown>[] = [
+				{
+					type: "value",
+					name: "kW",
+					nameTextStyle: { color: muted, fontSize: 10, fontFamily: FONT_FAMILY },
+					min: 0,
+					splitLine: { lineStyle: { color: colors.border || "#e5e7eb" } },
+					axisLabel: {
+						color: muted,
+						fontSize: 11,
+						fontFamily: FONT_FAMILY,
+						formatter: (v: number) => this.fmtNumber(v, 0),
+					},
+				},
+				{
+					type: "value",
+					name: "SoC %",
+					nameTextStyle: { color: socColor, fontSize: 10, fontFamily: FONT_FAMILY },
+					min: 0,
+					max: 100,
+					splitLine: { show: false },
+					axisLabel: {
+						color: socColor,
+						fontSize: 11,
+						fontFamily: FONT_FAMILY,
+						formatter: (v: number) => `${v}`,
+					},
+				},
+			];
+			if (this.hasPrices) {
+				yAxes.push({
+					type: "value",
+					name: "ct",
+					nameTextStyle: { color: priceColor, fontSize: 10, fontFamily: FONT_FAMILY },
+					min: 0,
+					offset: 45,
+					splitLine: { show: false },
+					axisLabel: {
+						color: priceColor,
+						fontSize: 11,
+						fontFamily: FONT_FAMILY,
+						formatter: (v: number) => this.fmtNumber(v, 0),
+					},
+				});
+			}
+			const series: Record<string, unknown>[] = [
+				{
+					name: this.$t("peakShave.plan.house"),
+					type: "bar",
+					stack: "load",
+					barWidth: "70%",
+					itemStyle: { color: houseColor },
+					data: house,
+				},
+				{
+					name: this.$t("peakShave.plan.charging"),
+					type: "bar",
+					stack: "load",
+					barWidth: "70%",
+					itemStyle: { color: colors.palette[0] },
+					data: load,
+				},
+				{
+					name: this.$t("peakShave.plan.solar"),
+					type: "line",
+					showSymbol: false,
+					smooth: 0.2,
+					lineStyle: { width: 2, color: solarColor },
+					itemStyle: { color: solarColor },
+					areaStyle: { color: solarColor, opacity: 0.18 },
+					data: solar,
+				},
+				{
+					name: "SoC",
+					type: "line",
+					yAxisIndex: 1,
+					showSymbol: false,
+					lineStyle: { width: 2.5, color: socColor },
+					itemStyle: { color: socColor },
+					data: soc,
+				},
+			];
+			if (this.hasPrices) {
+				series.push({
+					name: this.$t("peakShave.plan.price"),
+					type: "line",
+					yAxisIndex: 2,
+					showSymbol: false,
+					lineStyle: { width: 1.5, type: "dashed", color: priceColor },
+					itemStyle: { color: priceColor },
+					data: price,
+				});
+			}
+			if (threshold) {
+				series.push({
+					type: "line",
+					markLine: {
+						silent: true,
+						symbol: "none",
+						label: {
+							formatter: this.$t("peakShave.plan.threshold"),
+							color: gridColor,
+							fontFamily: FONT_FAMILY,
+							fontSize: 11,
+						},
+						lineStyle: { type: "dashed", color: gridColor },
+						data: [{ yAxis: threshold }],
+					},
+					data: [],
+				});
+			}
 			return {
 				animation: false,
-				grid: { top: 28, right: 36, bottom: 28, left: 40, borderWidth: 0 },
+				grid: {
+					top: 28,
+					right: this.hasPrices ? 72 : 36,
+					bottom: 28,
+					left: 40,
+					borderWidth: 0,
+				},
 				tooltip: {
 					...tooltipStyle(colors.text || "#111", () => this.chart),
 					trigger: "axis",
@@ -257,86 +397,8 @@ export default defineComponent({
 						formatter: (value: number) => this.axisLabel(value),
 					},
 				},
-				yAxis: [
-					{
-						type: "value",
-						min: 0,
-						splitLine: { lineStyle: { color: colors.border || "#e5e7eb" } },
-						axisLabel: {
-							color: muted,
-							fontSize: 11,
-							fontFamily: FONT_FAMILY,
-							formatter: (v: number) => this.fmtNumber(v, 0),
-						},
-					},
-					{
-						type: "value",
-						min: 0,
-						max: 100,
-						splitLine: { show: false },
-						axisLabel: {
-							color: muted,
-							fontSize: 11,
-							fontFamily: FONT_FAMILY,
-							formatter: (v: number) => `${v}`,
-						},
-					},
-				],
-				series: [
-					{
-						name: this.$t("peakShave.plan.house"),
-						type: "bar",
-						stack: "load",
-						barWidth: "70%",
-						itemStyle: { color: muted },
-						data: house,
-					},
-					{
-						name: this.$t("peakShave.plan.charging"),
-						type: "bar",
-						stack: "load",
-						barWidth: "70%",
-						itemStyle: { color: colors.palette[0] },
-						data: load,
-					},
-					{
-						name: this.$t("peakShave.plan.solar"),
-						type: "line",
-						showSymbol: false,
-						lineStyle: { width: 2, color: selfColor },
-						itemStyle: { color: selfColor },
-						data: solar,
-					},
-					{
-						name: "SoC",
-						type: "line",
-						yAxisIndex: 1,
-						showSymbol: false,
-						lineStyle: { width: 2, color: colors.batteryPalette[0] },
-						itemStyle: { color: colors.batteryPalette[0] },
-						data: soc,
-					},
-					...(threshold
-						? [
-								{
-									type: "line",
-									markLine: {
-										silent: true,
-										symbol: "none",
-										label: {
-											formatter: this.$t("peakShave.plan.threshold"),
-											color: gridColor,
-											fontFamily: FONT_FAMILY,
-											fontSize: 11,
-										},
-										lineStyle: { type: "dashed", color: gridColor },
-										data: [{ yAxis: threshold }],
-									},
-									data: [],
-								},
-							]
-						: []),
-				],
+				yAxis: yAxes,
+				series,
 			};
 		},
 	},
@@ -523,8 +585,20 @@ export default defineComponent({
 .schedule-slot.action-charger-idle {
 	background: #e2e8f0;
 }
+.series-house {
+	background: #64748b;
+}
+.series-solar {
+	background: #ffbd2f;
+}
+.series-soc {
+	background: #0ba631;
+}
+.series-price {
+	background: var(--evcc-price, #ff912f);
+}
 .forecast-chart {
-	height: 240px;
+	height: 260px;
 	width: 100%;
 }
 </style>

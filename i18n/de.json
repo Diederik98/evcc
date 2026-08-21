@@ -198,6 +198,7 @@
       "charging": "Geplante Ladung",
       "threshold": "Grenze",
       "price": "Preis",
+      "soc": "Batterie-SoC",
       "overLimit": "Über der Netzgrenze, wenn die Batterie untätig bleibt",
       "action": {
         "normal": "Folgt dem Solarüberschuss",
@@ -1246,10 +1247,12 @@
       "today": "Heute",
       "tomorrow": "Morgen"
     },
-    "orientationSuggest": "Produktion bei klarem Himmel legt Azimut {azimuth}° und Neigung {decline}° nahe ({days} klare Tage)",
-    "orientationSuggestDiff": "Konfiguriert: Azimut {configuredAzimuth}° / Neigung {configuredDecline}°. Bei klarem Himmel: {azimuth}° / {decline}° ({days} klare Tage)",
+    "orientationSuggest": "Produktion bei klarem Himmel legt Azimut {azimuth}° und Neigung {decline}° nahe ({days} klare Tage). 0° = Süden, negativ = östlich von Süden, positiv = westlich von Süden",
+    "orientationSuggestDiff": "Konfiguriert: Azimut {configuredAzimuth}° / Neigung {configuredDecline}°. Aus deiner Produktion bei klarem Himmel: {azimuth}° / {decline}° ({days} klare Tage). 0° = Süden, −90° = Osten, +90° = Westen. Gemischte Ost/Süd-Module: Kompromisswert nutzen oder zweite Solarprognose für die andere Ausrichtung anlegen",
     "orientationSuggestLink": "Solarprognose prüfen",
+    "orientationSuggestApply": "Empfohlene Einstellung zur gemessenen Produktion: Azimut {azimuth}°, Neigung {decline}°",
     "solarAdjust": "Solarprognose anhand der realen Produktionsdaten anpassen{percent}.",
+    "solarAdjustHelp": "Vergleicht die heutige gemessene PV-Energie mit der Prognose. +135% heißt etwa 2,35× so viel Produktion wie prognostiziert. Der Batterieplan nutzt diesen Faktor automatisch; dieser Schalter ändert nur die Prognose-Grafik.",
     "solarAdjustMedium": "an reale Produktionsdaten anpassen",
     "solarAdjustShort": "anpassen",
     "type": {

@@ -548,3 +548,39 @@ func TestPlanBatteryHorizonDoesNotOscillateAroundReserve(t *testing.T) {
 	assert.Equal(t, 0, charges, "should not grid-charge between peaks while already above reserve")
 	assert.GreaterOrEqual(t, horizon[len(horizon)-1].Soc, cfg.ReserveSoc-1.0)
 }
+
+func TestPlanBatteryHorizonSocRisesFromSolarSurplus(t *testing.T) {
+	// At reserve with daytime PV surplus: SoC must climb. Previously residualW
+	// clamped surplus to 0 so the horizon stayed flat at reserve forever.
+	cfg := BatteryConfig{
+		Soc:            30,
+		MinSoc:         10,
+		MaxSoc:         100,
+		ReserveSoc:     30,
+		CapacityWh:     5120,
+		ChargeW:        2500,
+		DischargeW:     2500,
+		EtaC:           0.9,
+		EtaD:           0.9,
+		CycleCost:      0.05,
+		GridThresholdW: 10000,
+		HeadroomW:      7000,
+		LiveResidualW:  400,
+	}
+	hours := tariff.SlotDuration.Hours()
+	prices := make([]float64, 16)
+	for i := range prices {
+		prices[i] = 0.20
+	}
+	slots := testSlots(prices, 400, 0)
+	for i := 4; i < 12; i++ {
+		slots[i].HomeWh = 400 * hours
+		slots[i].SolarWh = 2000 * hours // 2 kW PV, 0.4 kW house → surplus
+	}
+
+	_, horizon := PlanBatteryHorizon(cfg, slots)
+	require.Len(t, horizon, len(slots))
+	assert.Greater(t, horizon[11].Soc, cfg.ReserveSoc+5,
+		"SoC should rise above reserve when solar exceeds house load (got %.1f%%)", horizon[11].Soc)
+	assert.Greater(t, horizon[len(horizon)-1].Soc, cfg.Soc)
+}

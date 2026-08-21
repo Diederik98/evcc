@@ -63,6 +63,9 @@
 							</label>
 						</div>
 					</div>
+					<p v-if="showSolarAdjust" class="text-muted small mb-2">
+						{{ $t("forecast.solarAdjustHelp") }}
+					</p>
 					<div class="chart-edge">
 						<SolarChart
 							:solar="solar"

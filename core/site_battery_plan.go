@@ -237,6 +237,11 @@ func (site *Site) batteryPlanSlots() []planner.BatterySlot {
 	hours := tariff.SlotDuration.Hours()
 	liveHomeWh := site.householdPower() * hours
 	liveSolarWh := max(0, site.pvPower) * hours
+	// Match optimizer: scale forecast by measured vs forecasted production ratio.
+	solarScale := site.solarScale()
+	if solarScale <= 0 {
+		solarScale = 1
+	}
 
 	slots := make([]planner.BatterySlot, n)
 	for i := range n {
@@ -254,7 +259,7 @@ func (site *Site) batteryPlanSlots() []planner.BatterySlot {
 		if i == 0 {
 			s.SolarWh = liveSolarWh
 		} else {
-			s.SolarWh = max(0, solarEnergy(solar, s.Start, s.End))
+			s.SolarWh = max(0, solarEnergy(solar, s.Start, s.End)) * solarScale
 		}
 		slots[i] = s
 	}
