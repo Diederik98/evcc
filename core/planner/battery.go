@@ -362,6 +362,10 @@ func firstPeakIndex(cfg BatteryConfig, slots []BatterySlot) int {
 // exportExcessW is AC discharge for selling leftover energy on expensive
 // feed-in hours. Energy reserved for later peaks is never sold. If a later
 // hour pays more, that hour is filled first and only overflow is sold now.
+//
+// Energy that later house load would self-consume (avoiding tax-inclusive
+// import) is never sold. Only true leftover above that need can be exported,
+// and only when feed-in revenue beats the avoided-import value of that slice.
 func exportExcessW(cfg BatteryConfig, slots []BatterySlot, socWh, targetWh float64) float64 {
 	excessWh := socWh - targetWh
 	if excessWh <= 1 {
@@ -408,7 +412,58 @@ func exportExcessW(cfg BatteryConfig, slots []BatterySlot, socWh, targetWh float
 		return 0
 	}
 
+	// Keep enough for later self-consumption under the grid limit.
+	scNeedDC := selfConsumptionNeedWh(cfg, slots) / cfg.EtaD
+	sellWh -= min(sellWh, scNeedDC)
+	if sellWh <= 1 {
+		return 0
+	}
+
+	if keep := selfConsumptionValueEur(cfg, slots, sellWh); keep > 0 {
+		sell := sellWh / 1000 * cfg.EtaD * (cur.FeedIn - cfg.CycleCost)
+		if sell <= keep {
+			return 0
+		}
+	}
+
 	return min(cfg.DischargeW, sellWh/hours*cfg.EtaD)
+}
+
+// selfConsumptionNeedWh is later house residual (under the grid threshold) that
+// the battery could cover from AC discharge, in Wh.
+func selfConsumptionNeedWh(cfg BatteryConfig, slots []BatterySlot) float64 {
+	var need float64
+	for _, s := range slots[1:] {
+		h := slotHours(s)
+		residual := max(0, s.HomeWh-s.SolarWh)
+		if cfg.GridThresholdW > 0 {
+			residual = min(residual, cfg.GridThresholdW*h)
+		}
+		need += residual
+	}
+	return need
+}
+
+// selfConsumptionValueEur is the € value of keeping excessWh for later house
+// load that would otherwise import at tax-inclusive Price.
+func selfConsumptionValueEur(cfg BatteryConfig, slots []BatterySlot, excessWh float64) float64 {
+	remaining := excessWh * cfg.EtaD
+	var euros float64
+	for _, s := range slots[1:] {
+		if remaining <= 1 || s.Price <= 0 {
+			continue
+		}
+		h := slotHours(s)
+		residual := max(0, s.HomeWh-s.SolarWh)
+		cap := residual
+		if cfg.GridThresholdW > 0 {
+			cap = min(residual, cfg.GridThresholdW*h)
+		}
+		take := min(remaining, cap)
+		euros += take / 1000 * s.Price
+		remaining -= take
+	}
+	return euros
 }
 
 func slotPrices(slots []BatterySlot) []float64 {
