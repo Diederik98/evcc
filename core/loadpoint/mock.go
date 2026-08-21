@@ -931,6 +931,20 @@ func (mr *MockAPIMockRecorder) SetHeatingComfort(arg0 any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetHeatingComfort", reflect.TypeOf((*MockAPI)(nil).SetHeatingComfort), arg0)
 }
 
+// SetHeatingHistory mocks base method.
+func (m *MockAPI) SetHeatingHistory(arg0 []HeatingBoost, arg1 HeatingPattern) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetHeatingHistory", arg0, arg1)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// SetHeatingHistory indicates an expected call of SetHeatingHistory.
+func (mr *MockAPIMockRecorder) SetHeatingHistory(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetHeatingHistory", reflect.TypeOf((*MockAPI)(nil).SetHeatingHistory), arg0, arg1)
+}
+
 // SetLimitEnergy mocks base method.
 func (m *MockAPI) SetLimitEnergy(energy float64) {
 	m.ctrl.T.Helper()

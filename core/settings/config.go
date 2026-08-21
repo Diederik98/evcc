@@ -114,9 +114,27 @@ func (s *ConfigSettings) Bool(key string) (bool, error) {
 }
 
 func (s *ConfigSettings) Json(key string, res any) error {
-	str, err := s.String(key)
-	if str == "" || err != nil {
+	val, err := s.get(key)
+	if err != nil {
 		return err
 	}
-	return json.Unmarshal([]byte(str), &res)
+
+	switch v := val.(type) {
+	case []byte:
+		if len(v) == 0 {
+			return errors.New("not found")
+		}
+		return json.Unmarshal(v, res)
+	case string:
+		if v == "" {
+			return errors.New("not found")
+		}
+		return json.Unmarshal([]byte(v), res)
+	default:
+		b, err := json.Marshal(v)
+		if err != nil {
+			return err
+		}
+		return json.Unmarshal(b, res)
+	}
 }

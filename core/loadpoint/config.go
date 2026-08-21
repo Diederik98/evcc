@@ -32,7 +32,11 @@ type DynamicConfig struct {
 	LimitEnergy              float64   `json:"limitEnergy"`
 	LimitSoc                 int       `json:"limitSoc"`
 
-	PlanStrategy api.PlanStrategy `json:"planStrategy"`
+	PlanStrategy   api.PlanStrategy    `json:"planStrategy"`
+	RepeatingPlans []api.RepeatingPlan `json:"repeatingPlans,omitempty"`
+	HeatingComfort HeatingComfort      `json:"heatingComfort,omitempty"`
+	HeatingBoosts  []HeatingBoost      `json:"heatingBoosts,omitempty"`
+	HeatingPattern HeatingPattern      `json:"heatingPattern,omitempty"`
 
 	Thresholds ThresholdsConfig `json:"thresholds"`
 	Soc        SocConfig        `json:"soc"`
@@ -79,6 +83,18 @@ func (payload DynamicConfig) Apply(lp API) error {
 	// TODO mode warning
 	lp.SetSocConfig(payload.Soc)
 	lp.SetUI(payload.UI)
+
+	if err := lp.SetRepeatingPlans(payload.RepeatingPlans); err != nil {
+		return err
+	}
+	if err := lp.SetHeatingComfort(payload.HeatingComfort); err != nil {
+		return err
+	}
+	if payload.HeatingBoosts != nil || len(payload.HeatingPattern.Bands) > 0 {
+		if err := lp.SetHeatingHistory(payload.HeatingBoosts, payload.HeatingPattern); err != nil {
+			return err
+		}
+	}
 
 	mode, err := api.ChargeModeString(payload.DefaultMode)
 	if err == nil {

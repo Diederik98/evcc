@@ -222,6 +222,8 @@ type API interface {
 	GetHeatingComfort() HeatingComfort
 	// SetHeatingComfort stores heating comfort settings
 	SetHeatingComfort(HeatingComfort) error
+	// SetHeatingHistory stores learned boost episodes and the extra-heat pattern
+	SetHeatingHistory([]HeatingBoost, HeatingPattern) error
 	// GetHeatingStatus returns heating boost and pattern status
 	GetHeatingStatus() HeatingStatus
 

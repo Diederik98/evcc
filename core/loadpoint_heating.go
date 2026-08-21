@@ -34,6 +34,28 @@ func (lp *Loadpoint) SetHeatingComfort(c loadpoint.HeatingComfort) error {
 	return nil
 }
 
+func (lp *Loadpoint) SetHeatingHistory(boosts []loadpoint.HeatingBoost, pattern loadpoint.HeatingPattern) error {
+	lp.Lock()
+	defer lp.Unlock()
+
+	if boosts == nil {
+		boosts = []loadpoint.HeatingBoost{}
+	}
+	if err := lp.settings.SetJson(keys.HeatingBoosts, boosts); err != nil {
+		return err
+	}
+	if pattern.Bands == nil && len(boosts) > 0 {
+		pattern = loadpoint.RebuildHeatingPattern(boosts)
+	}
+	if err := lp.settings.SetJson(keys.HeatingPattern, pattern); err != nil {
+		return err
+	}
+	lp.heatingBoosts = boosts
+	lp.heatingPattern = pattern
+	lp.publishHeatingStatus()
+	return nil
+}
+
 func (lp *Loadpoint) GetHeatingStatus() loadpoint.HeatingStatus {
 	lp.RLock()
 	defer lp.RUnlock()
