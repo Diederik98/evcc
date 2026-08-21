@@ -6,11 +6,13 @@ import (
 )
 
 type RepeatingPlan struct {
-	Weekdays []int  `json:"weekdays"` // 0-6 (Sunday-Saturday)
-	Time     string `json:"time"`     // HH:MM
-	Tz       string `json:"tz"`       // timezone in IANA format
-	Soc      int    `json:"soc"`      // target soc
-	Active   bool   `json:"active"`   // active flag
+	Weekdays []int   `json:"weekdays"` // 0-6 (Sunday-Saturday)
+	Time     string  `json:"time"`     // HH:MM ready-by, or window start when Fixed
+	Tz       string  `json:"tz"`       // timezone in IANA format
+	Soc      int     `json:"soc"`      // target soc (vehicles)
+	Energy   float64 `json:"energy"`   // target energy in kWh (chargers/heaters)
+	Fixed    bool    `json:"fixed"`    // clock window instead of cheapest flex block
+	Active   bool    `json:"active"`   // active flag
 }
 
 type PlanStrategy struct {

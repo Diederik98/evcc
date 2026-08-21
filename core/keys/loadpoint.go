@@ -92,6 +92,10 @@ const (
 
 	// repeating plans
 	RepeatingPlans = "repeatingPlans" // key to access all repeating plans in db
+	HeatingComfort = "heatingComfort" // heating comfort floor and assumed power
+	HeatingBoosts  = "heatingBoosts"  // learned heating boost episodes
+	HeatingPattern = "heatingPattern" // learned heating extra-power pattern
+	HeatingStatus  = "heatingStatus"  // published heating boost/comfort status
 
 	// remote control
 	RemoteDisabled       = "remoteDisabled"       // remote disabled

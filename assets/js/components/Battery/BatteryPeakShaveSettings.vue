@@ -37,6 +37,9 @@
 			:currency="currency"
 			:peak-shave-state="peakShaveState"
 		/>
+		<p class="mb-4">
+			<router-link to="/battery/plan">{{ $t("peakShave.plan.openDetails") }}</router-link>
+		</p>
 
 		<!-- 15-minute average -->
 		<div class="form-check form-switch mb-4">

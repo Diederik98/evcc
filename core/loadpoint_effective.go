@@ -114,10 +114,8 @@ func (lp *Loadpoint) getPlanId() int {
 		_, _, id := lp.nextVehiclePlan()
 		return id
 	}
-	if lp.planEnergy > 0 {
-		return 1
-	}
-	return 0
+	_, _, id, _ := lp.nextEnergyPlan()
+	return id
 }
 
 // EffectivePlanId returns the id for the current plan
@@ -136,7 +134,7 @@ func (lp *Loadpoint) EffectivePlanTime() time.Time {
 		return ts
 	}
 
-	ts, _ := lp.getPlanEnergy()
+	ts, _, _, _ := lp.nextEnergyPlan()
 	return ts
 }
 

@@ -347,6 +347,34 @@ func (mr *MockAPIMockRecorder) GetEnableThreshold() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetEnableThreshold", reflect.TypeOf((*MockAPI)(nil).GetEnableThreshold))
 }
 
+// GetHeatingComfort mocks base method.
+func (m *MockAPI) GetHeatingComfort() HeatingComfort {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetHeatingComfort")
+	ret0, _ := ret[0].(HeatingComfort)
+	return ret0
+}
+
+// GetHeatingComfort indicates an expected call of GetHeatingComfort.
+func (mr *MockAPIMockRecorder) GetHeatingComfort() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetHeatingComfort", reflect.TypeOf((*MockAPI)(nil).GetHeatingComfort))
+}
+
+// GetHeatingStatus mocks base method.
+func (m *MockAPI) GetHeatingStatus() HeatingStatus {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetHeatingStatus")
+	ret0, _ := ret[0].(HeatingStatus)
+	return ret0
+}
+
+// GetHeatingStatus indicates an expected call of GetHeatingStatus.
+func (mr *MockAPIMockRecorder) GetHeatingStatus() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetHeatingStatus", reflect.TypeOf((*MockAPI)(nil).GetHeatingStatus))
+}
+
 // GetLimitEnergy mocks base method.
 func (m *MockAPI) GetLimitEnergy() float64 {
 	m.ctrl.T.Helper()
@@ -585,6 +613,20 @@ func (m *MockAPI) GetRemainingEnergy() float64 {
 func (mr *MockAPIMockRecorder) GetRemainingEnergy() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetRemainingEnergy", reflect.TypeOf((*MockAPI)(nil).GetRemainingEnergy))
+}
+
+// GetRepeatingPlans mocks base method.
+func (m *MockAPI) GetRepeatingPlans() []api.RepeatingPlan {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetRepeatingPlans")
+	ret0, _ := ret[0].([]api.RepeatingPlan)
+	return ret0
+}
+
+// GetRepeatingPlans indicates an expected call of GetRepeatingPlans.
+func (mr *MockAPIMockRecorder) GetRepeatingPlans() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetRepeatingPlans", reflect.TypeOf((*MockAPI)(nil).GetRepeatingPlans))
 }
 
 // GetSmartCostLimit mocks base method.
@@ -875,6 +917,20 @@ func (mr *MockAPIMockRecorder) SetEnableThreshold(threshold any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetEnableThreshold", reflect.TypeOf((*MockAPI)(nil).SetEnableThreshold), threshold)
 }
 
+// SetHeatingComfort mocks base method.
+func (m *MockAPI) SetHeatingComfort(arg0 HeatingComfort) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetHeatingComfort", arg0)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// SetHeatingComfort indicates an expected call of SetHeatingComfort.
+func (mr *MockAPIMockRecorder) SetHeatingComfort(arg0 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetHeatingComfort", reflect.TypeOf((*MockAPI)(nil).SetHeatingComfort), arg0)
+}
+
 // SetLimitEnergy mocks base method.
 func (m *MockAPI) SetLimitEnergy(energy float64) {
 	m.ctrl.T.Helper()
@@ -1003,6 +1059,20 @@ func (m *MockAPI) SetPriority(arg0 int) {
 func (mr *MockAPIMockRecorder) SetPriority(arg0 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetPriority", reflect.TypeOf((*MockAPI)(nil).SetPriority), arg0)
+}
+
+// SetRepeatingPlans mocks base method.
+func (m *MockAPI) SetRepeatingPlans(arg0 []api.RepeatingPlan) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetRepeatingPlans", arg0)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// SetRepeatingPlans indicates an expected call of SetRepeatingPlans.
+func (mr *MockAPIMockRecorder) SetRepeatingPlans(arg0 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetRepeatingPlans", reflect.TypeOf((*MockAPI)(nil).SetRepeatingPlans), arg0)
 }
 
 // SetSmartCostLimit mocks base method.

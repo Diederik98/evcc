@@ -1,6 +1,7 @@
 package server
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -201,5 +202,41 @@ func planStrategyHandler(lp loadpoint.API) http.HandlerFunc {
 		res := lp.GetPlanStrategy()
 
 		jsonWrite(w, res)
+	}
+}
+
+func repeatingPlansHandler(lp loadpoint.API) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var res []api.RepeatingPlan
+		if err := json.NewDecoder(r.Body).Decode(&res); err != nil {
+			jsonError(w, http.StatusBadRequest, err)
+			return
+		}
+		if err := lp.SetRepeatingPlans(res); err != nil {
+			jsonError(w, http.StatusBadRequest, err)
+			return
+		}
+		jsonWrite(w, lp.GetRepeatingPlans())
+	}
+}
+
+func heatingComfortHandler(lp loadpoint.API) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var res loadpoint.HeatingComfort
+		if err := json.NewDecoder(r.Body).Decode(&res); err != nil {
+			jsonError(w, http.StatusBadRequest, err)
+			return
+		}
+		if err := lp.SetHeatingComfort(res); err != nil {
+			jsonError(w, http.StatusBadRequest, err)
+			return
+		}
+		jsonWrite(w, lp.GetHeatingComfort())
+	}
+}
+
+func heatingStatusHandler(lp loadpoint.API) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		jsonWrite(w, lp.GetHeatingStatus())
 	}
 }

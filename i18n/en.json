@@ -123,6 +123,62 @@
       "loadpoints": "Includes {energy} planned charging",
       "loadCap": "Planned charging limited to {power}",
       "forecast": "Next 24 hours",
+      "openDetails": "How this plan was made",
+      "pageTitle": "Battery plan details",
+      "pageIntro": "This page shows the inputs, charger and heat-pump overlays, and why each 15-minute slot was chosen. Live peak shaving can still override the current quarter.",
+      "backToBattery": "Back to battery settings",
+      "howTitle": "How this plan was made",
+      "inputsTitle": "Inputs",
+      "loadsTitle": "Charger and heat-pump blocks",
+      "horizonTitle": "24-hour schedule",
+      "logTitle": "What changed",
+      "estimated": "Estimated",
+      "loadFallback": "Loadpoint",
+      "colTime": "Time",
+      "colAction": "Decision",
+      "loadSummary": "{energy} at {power}, {start}–{end} ({pattern})",
+      "inputSoc": "Battery SoC now: {soc}%",
+      "inputReserve": "Min {min}%, reserve {reserve}%, target for upcoming peaks {target}%",
+      "inputLimit": "Grid limit: {power}",
+      "inputPeak": "Predicted overshoot if the battery stays idle: {energy}",
+      "inputLive": "Live residual import: {power}",
+      "fact": {
+        "home": {
+          "weekday": "House load uses the weekday 15-minute profile.",
+          "fallback": "No house profile yet. Using current household power as a flat forecast."
+        },
+        "prices": {
+          "yes": "Dynamic grid prices are included.",
+          "no": "No grid prices in this window. Peak and solar still apply."
+        },
+        "solar": {
+          "yes": "Solar forecast is included.",
+          "no": "No solar forecast in this window."
+        },
+        "limit": "Grid import limit is {kw} kW.",
+        "peak": "Predicted peak energy {kwh} kWh. Target SoC {soc}%.",
+        "action": {
+          "normal": "This quarter follows solar surplus.",
+          "charge": "This quarter charges from the grid ({reason}).",
+          "hold": "This quarter holds charge ({reason}).",
+          "discharge": "This quarter discharges ({reason})."
+        },
+        "battery": {
+          "coverPeak": "Battery covers a predicted peak. Heat or charging that would exceed the limit is supplied from the battery first.",
+          "holdForLater": "Battery is held for a later peak or expensive hour, not used just to cheapen heat.",
+          "cheapCycle": "Tax-inclusive price spread covers losses and cycle cost."
+        },
+        "load": {
+          "charger": "Charger {title}: {kwh} kWh at {w} W ({pattern}).",
+          "heat": "Heat pump {title}: {kwh} kWh extra at {w} W ({pattern}). Not metered extra is estimated from house load."
+        }
+      },
+      "log": {
+        "created": "Plan created",
+        "replan": "Plan updated",
+        "peak": "Peak coverage changed",
+        "load": "Charger or heat-pump overlay changed"
+      },
       "now": "Now",
       "noPrices": "No grid prices in this window. Peak and solar forecasts still apply.",
       "noForecast": "No 24-hour plan yet. A house profile or prices are needed.",
@@ -1301,6 +1357,39 @@
     "password": "Administrator Password",
     "reset": "Reset password?",
     "title": "Authentication"
+  },
+  "heating": {
+    "estimated": "Estimated extra",
+    "estimatedHelp": "No heat-pump meter. Extra watts are inferred from household residual while the boost is on.",
+    "currentTemp": "Tank {temp}",
+    "reason": {
+      "calendar": "Calendar boost",
+      "comfort": "Comfort floor",
+      "now": "Now",
+      "stop": "Stopped"
+    },
+    "comfort": {
+      "title": "Comfort and assumed power",
+      "help": "Works with a custom on/off boost (including a Daikin API). Disabled means the heat pump runs its own curve. The floor starts a boost if tank temperature drops below the limit.",
+      "minTemp": "Comfort floor",
+      "hysteresis": "Hysteresis",
+      "stopTemp": "Stop temperature",
+      "minOnTime": "Minimum on-time",
+      "minOnNone": "None",
+      "assumedPower": "Assumed extra power",
+      "maxAssumedPower": "Inference cap"
+    },
+    "pattern": {
+      "title": "Learned extra-heat pattern",
+      "band": "From {from} to {to}: about {minutes} min/K, first-slot extra {peak}, {n} boosts"
+    },
+    "boosts": {
+      "title": "Recent boosts",
+      "start": "When",
+      "temps": "Start → end",
+      "energy": "Extra energy",
+      "quality": "Quality"
+    }
   },
   "main": {
     "chargingPlan": {

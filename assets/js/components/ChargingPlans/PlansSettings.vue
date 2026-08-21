@@ -17,7 +17,7 @@
 					@static-plan-removed="removeStaticPlan"
 					@plan-preview="previewStaticPlan"
 				/>
-				<div v-if="socBasedPlanning">
+				<div v-if="socBasedPlanning || heating">
 					<div v-if="multiplePlans" class="d-none d-lg-block">
 						<hr class="mt-5" />
 						<h5>
@@ -31,6 +31,8 @@
 						:id="id"
 						:rangePerSoc="rangePerSoc"
 						:plans="repeatingPlans"
+						:heating="heating"
+						:maxPower="maxPower"
 						@updated="updateRepeatingPlans"
 					/>
 				</div>

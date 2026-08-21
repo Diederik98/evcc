@@ -120,6 +120,11 @@ export default function setupRouter(i18n: VueI18nInstance) {
         props: true,
       },
       {
+        path: "/battery/plan",
+        component: () => import("./views/BatteryPlan.vue"),
+        props: true,
+      },
+      {
         path: "/history",
         component: () => import("./views/History.vue"),
         props: (route) => {

@@ -168,6 +168,51 @@ export interface BatteryPlanSlot {
   peak?: boolean;
 }
 
+export interface BatteryPlanFact {
+  code: string;
+  params?: Record<string, unknown>;
+}
+
+export interface BatteryPlanLoad {
+  title?: string;
+  heating?: boolean;
+  estimated?: boolean;
+  energyWh?: number;
+  powerW?: number;
+  start?: string;
+  end?: string;
+  deadline?: string;
+  mode?: string;
+  pattern?: string;
+}
+
+export interface BatteryPlanLogEntry {
+  time: string;
+  code: string;
+  detail?: string;
+}
+
+export interface BatteryPlanExplain {
+  generated?: string;
+  homeSource?: string;
+  hasPrices?: boolean;
+  hasSolar?: boolean;
+  gridThresholdW?: number;
+  liveResidualW?: number;
+  capacityWh?: number;
+  soc?: number;
+  minSoc?: number;
+  reserveSoc?: number;
+  maxSoc?: number;
+  targetSoc?: number;
+  peakWh?: number;
+  cycleCost?: number;
+  chargeW?: number;
+  dischargeW?: number;
+  facts?: BatteryPlanFact[];
+  loads?: BatteryPlanLoad[];
+}
+
 export interface BatteryPlanStatus {
   action?: string;
   reason?: string;
@@ -179,6 +224,54 @@ export interface BatteryPlanStatus {
   loadWh?: number;
   loadW?: number;
   slots?: BatteryPlanSlot[];
+  explain?: BatteryPlanExplain;
+  log?: BatteryPlanLogEntry[];
+}
+
+export interface HeatingComfort {
+  minTemp?: number;
+  hysteresis?: number;
+  minOnTime?: number;
+  assumedPowerW?: number;
+  maxAssumedPowerW?: number;
+  stopTemp?: number;
+}
+
+export interface HeatingBoost {
+  start?: string;
+  end?: string;
+  startTemp?: number;
+  endTemp?: number;
+  energyWh?: number;
+  peakW?: number;
+  extraW?: number[];
+  quality?: string;
+  reason?: string;
+  estimated?: boolean;
+}
+
+export interface HeatingBand {
+  minStartTemp?: number;
+  maxStartTemp?: number;
+  minutesPerK?: number;
+  whPerK?: number;
+  peakW?: number;
+  shape?: number[];
+  samples?: number;
+}
+
+export interface HeatingPattern {
+  bands?: HeatingBand[];
+}
+
+export interface HeatingStatus {
+  comfort?: HeatingComfort;
+  boosts?: HeatingBoost[];
+  pattern?: HeatingPattern;
+  active?: boolean;
+  estimated?: boolean;
+  reason?: string;
+  startTemp?: number;
 }
 
 export interface ConfigStatus<C, S> {
@@ -425,6 +518,9 @@ export interface Loadpoint {
   vehicleTitle: string;
   vehicleWelcomeActive: boolean;
   batteryBoostLimit: number;
+  repeatingPlans?: RepeatingPlan[] | null;
+  heatingComfort?: HeatingComfort;
+  heatingStatus?: HeatingStatus;
   ui?: LoadpointUi;
 }
 

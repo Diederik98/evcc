@@ -120,11 +120,15 @@ type Site struct {
 	batteryPlanLoadWh        float64                      // Planned charger/heater energy included in the current battery plan
 	batteryPlanLoadCaps      []float64                    // Flattened charger/heater watts for the current slot, per loadpoint
 	batteryPlanForecast      []planner.BatteryHorizonSlot // Simulated 24h battery plan for the UI
-	peakShaveQuarterStart    time.Time                    // Clock-aligned quarter used for average peak control
-	peakShaveQuarterWh       float64                      // Imported grid energy in the current quarter
-	peakShaveQuarterAt       time.Time                    // Last sample time for quarter energy
-	solarOrientation         *solarOrientation            // Cached clear-sky orientation suggestion
-	solarOrientationAt       time.Time                    // Last orientation fit
+	batteryPlanLog           []batteryPlanLogEntry
+	batteryPlanFingerprint   string
+	batteryPlanHomeSource    string
+	batteryPlanLoads         []batteryPlanLoadStatus
+	peakShaveQuarterStart    time.Time         // Clock-aligned quarter used for average peak control
+	peakShaveQuarterWh       float64           // Imported grid energy in the current quarter
+	peakShaveQuarterAt       time.Time         // Last sample time for quarter energy
+	solarOrientation         *solarOrientation // Cached clear-sky orientation suggestion
+	solarOrientationAt       time.Time         // Last orientation fit
 }
 
 // MetersConfig contains the site's meter configuration
@@ -1121,6 +1125,11 @@ func (site *Site) update(lp updater) {
 				greenShareLoadpoints, site.effectivePrice(greenShareLoadpoints), site.effectiveCo2(greenShareLoadpoints),
 				hemsDimmed(site.hems),
 			)
+		}
+
+		homeNow := site.householdPower()
+		for _, hlp := range site.loadpoints {
+			hlp.UpdateHeatingBoost(homeNow)
 		}
 
 		site.publishTariffs(greenShareHome, greenShareLoadpoints)

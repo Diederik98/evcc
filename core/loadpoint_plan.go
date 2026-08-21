@@ -87,7 +87,31 @@ func (lp *Loadpoint) getPlanRequiredDuration(goal, maxPower float64) time.Durati
 		return lp.socEstimator.RemainingChargeDuration(goal, maxPower)
 	}
 
+	if lp.chargerHasFeature(api.Heating) && maxPower > 0 {
+		stop := lp.heatingStopTempLocked()
+		if stop > 0 && lp.vehicleSoc >= stop {
+			return 0
+		}
+		energy := goal
+		if lp.getPlanId() <= 1 {
+			energy = lp.remainingPlanEnergy(goal)
+		}
+		fallback := time.Duration(0)
+		if maxPower > 0 && energy > 0 {
+			fallback = time.Duration(energy*1e3/maxPower) * time.Hour
+		}
+		if d, _, _, learned := lp.heatingPattern.Estimate(lp.vehicleSoc, stop, fallback, maxPower); learned && d > 0 {
+			return d
+		}
+		if fallback > 0 {
+			return fallback
+		}
+	}
+
 	energy := lp.remainingPlanEnergy(goal)
+	if lp.getPlanId() > 1 {
+		energy = goal
+	}
 	return time.Duration(energy * 1e3 / maxPower * float64(time.Hour))
 }
 
@@ -101,8 +125,8 @@ func (lp *Loadpoint) GetPlanGoal() (float64, bool) {
 		return float64(soc), true
 	}
 
-	_, limit := lp.getPlanEnergy()
-	return limit, false
+	_, energy, _, _ := lp.nextEnergyPlan()
+	return energy, false
 }
 
 // GetPlan creates a charging plan for given time and duration
@@ -236,6 +260,9 @@ func (lp *Loadpoint) plannerActive() (active bool) {
 			return true
 		case lp.clock.Until(planStart) < tariff.SlotDuration-time.Minute:
 			lp.log.DEBUG.Printf("plan: avoid re-start within %v, continuing for remaining %v", tariff.SlotDuration, lp.clock.Until(planStart).Round(time.Second))
+			return true
+		case lp.heatingMinOnRemaining() > 0:
+			lp.log.DEBUG.Printf("plan: heating min on-time remaining %v", lp.heatingMinOnRemaining().Round(time.Second))
 			return true
 		case strategy.Continuous && requiredDuration > strategy.Precondition:
 			lp.log.DEBUG.Printf("plan: ignoring restart at %s for continuous charging", planStart.Round(time.Second).Local())

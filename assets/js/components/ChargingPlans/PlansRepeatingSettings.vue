@@ -8,6 +8,8 @@
 				:formIdPrefix="formIdPrefix"
 				v-bind="plan"
 				:rangePerSoc="rangePerSoc"
+				:heating="heating"
+				:maxPower="maxPower"
 				@updated="updatePlan(index, $event)"
 				@removed="removePlan(index)"
 			/>
@@ -33,6 +35,7 @@ import deepEqual from "@/utils/deepEqual";
 import formatter from "@/mixins/formatter";
 import { defineComponent, type PropType } from "vue";
 import type { RepeatingPlan } from "./types";
+import { DEFAULT_HEATING_PLAN_HOURS, energyFromHours } from "@/utils/energyOptions.ts";
 
 const DEFAULT_WEEKDAYS = [1, 2, 3, 4, 5];
 const DEFAULT_TARGET_TIME = "07:00";
@@ -48,6 +51,8 @@ export default defineComponent({
 		id: [Number, String],
 		rangePerSoc: Number,
 		plans: { type: Array as PropType<RepeatingPlan[]>, default: () => [] },
+		heating: Boolean,
+		maxPower: Number,
 	},
 	emits: ["updated"],
 	computed: {
@@ -58,16 +63,19 @@ export default defineComponent({
 	methods: {
 		deepEqual,
 		addPlan(): void {
-			const newPlan = {
+			const newPlan: RepeatingPlan = {
 				weekdays: DEFAULT_WEEKDAYS,
 				time: DEFAULT_TARGET_TIME,
 				soc: DEFAULT_TARGET_SOC,
 				active: false,
 				tz: this.timezone(),
 			};
+			if (this.heating && this.maxPower) {
+				newPlan.energy = energyFromHours(DEFAULT_HEATING_PLAN_HOURS, this.maxPower);
+				newPlan.soc = 0;
+			}
 
-			// update the plan without storing non-applied changes from other plans
-			const plans = [...this.plans]; // clone array
+			const plans = [...this.plans];
 			plans.push(newPlan);
 			this.updatePlans(plans);
 		},

@@ -92,8 +92,11 @@ export default defineComponent({
 			return (this.battery?.devices?.length ?? 0) > 0;
 		},
 		moreActive() {
-			const mainTabs = ["/", "/battery", "/forecast", "/sessions"];
-			return !mainTabs.includes(this.$route.path);
+			const path = this.$route.path;
+			if (path === "/" || path.startsWith("/battery") || path === "/forecast" || path === "/sessions") {
+				return false;
+			}
+			return true;
 		},
 	},
 });

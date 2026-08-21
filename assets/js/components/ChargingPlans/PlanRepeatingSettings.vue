@@ -77,6 +77,19 @@
 			</div>
 			<div class="col-7 col-lg-3 mb-2 mb-lg-0">
 				<select
+					v-if="heating"
+					:id="formId('goal')"
+					v-model.number="selectedEnergy"
+					class="form-select mx-0"
+					data-testid="repeating-plan-energy"
+					@change="update()"
+				>
+					<option v-for="opt in energyOptions" :key="opt.energy" :value="opt.energy">
+						{{ opt.name }}
+					</option>
+				</select>
+				<select
+					v-else
 					:id="formId('goal')"
 					v-model="selectedSoc"
 					class="form-select mx-0"
@@ -141,10 +154,15 @@ import "@h2d2/shopicons/es/regular/trash";
 import "@h2d2/shopicons/es/regular/checkmark";
 import { distanceUnit } from "@/units";
 import MultiSelect from "../Helper/MultiSelect.vue";
-import formatter from "@/mixins/formatter";
+import formatter, { POWER_UNIT } from "@/mixins/formatter";
 import deepEqual from "@/utils/deepEqual";
 import type { SelectOption } from "@/types/evcc";
 import { defineComponent, type PropType } from "vue";
+import {
+	HEATING_PLAN_HOURS,
+	energyFromHours,
+	hoursFromEnergy,
+} from "@/utils/energyOptions.ts";
 
 export default defineComponent({
 	name: "ChargingPlanRepeatingSettings",
@@ -156,10 +174,14 @@ export default defineComponent({
 		time: String,
 		tz: String,
 		soc: Number,
+		energy: Number,
+		fixed: Boolean,
 		showHeader: Boolean,
 		active: Boolean,
 		rangePerSoc: Number,
 		formIdPrefix: String,
+		heating: Boolean,
+		maxPower: Number,
 	},
 	emits: ["updated", "removed"],
 	data() {
@@ -167,6 +189,7 @@ export default defineComponent({
 			selectedWeekdays: this.weekdays,
 			selectedTime: this.time,
 			selectedSoc: this.soc,
+			selectedEnergy: this.energy,
 			selectedActive: this.active,
 		};
 	},
@@ -176,6 +199,7 @@ export default defineComponent({
 				!deepEqual(this.weekdays, this.selectedWeekdays) ||
 				this.time !== this.selectedTime ||
 				this.soc !== this.selectedSoc ||
+				this.energy !== this.selectedEnergy ||
 				this.active !== this.selectedActive
 			);
 		},
@@ -186,10 +210,27 @@ export default defineComponent({
 			return this.fmtWeekdaysRange(this.selectedWeekdays);
 		},
 		socOptions(): SelectOption<number>[] {
-			// a list of entries from 5 to 100 with a step of 5
 			return Array.from(Array(20).keys())
 				.map((i) => 5 + i * 5)
 				.map(this.socOption);
+		},
+		energyOptions(): { energy: number; name: string }[] {
+			if (!this.maxPower) {
+				return [];
+			}
+			const options = HEATING_PLAN_HOURS.map((hours) => {
+				const energy = energyFromHours(hours, this.maxPower || 0);
+				return { energy, name: this.heatingDurationLabel(hours, energy) };
+			});
+			if (this.selectedEnergy && !options.find((o) => o.energy === this.selectedEnergy)) {
+				const hours = hoursFromEnergy(this.selectedEnergy, this.maxPower);
+				options.push({
+					energy: this.selectedEnergy,
+					name: this.heatingDurationLabel(hours, this.selectedEnergy),
+				});
+				options.sort((a, b) => a.energy - b.energy);
+			}
+			return options;
 		},
 		dayOptions(): SelectOption<number>[] {
 			return this.getWeekdaysList("long");
@@ -206,6 +247,9 @@ export default defineComponent({
 		},
 		soc(newValue: number) {
 			this.selectedSoc = newValue;
+		},
+		energy(newValue: number) {
+			this.selectedEnergy = newValue;
 		},
 		active(newValue: boolean) {
 			this.selectedActive = newValue;
@@ -226,11 +270,20 @@ export default defineComponent({
 			const name = this.fmtSocOption(value, this.rangePerSoc, distanceUnit());
 			return { value, name };
 		},
+		heatingDurationLabel(hours: number, energy: number): string {
+			const digits = Number.isInteger(energy) ? 0 : 1;
+			return this.$t("main.chargingPlan.duration.option", {
+				duration: this.fmtDurationLong(hours * 3600, "short"),
+				energy: this.fmtWh(energy * 1e3, POWER_UNIT.KW, true, digits),
+			});
+		},
 		update(forceSave = false): void {
 			const plan = {
 				weekdays: this.selectedWeekdays,
 				time: this.selectedTime,
 				soc: this.selectedSoc,
+				energy: this.selectedEnergy,
+				fixed: this.fixed,
 				tz: this.tz,
 				active: this.selectedActive,
 			};

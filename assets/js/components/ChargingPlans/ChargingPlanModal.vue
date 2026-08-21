@@ -62,6 +62,14 @@
 						@repeating-plans-updated="updateRepeatingPlans"
 						@plan-strategy-updated="updatePlanStrategy"
 					/>
+					<HeatingComfortSettings
+						v-if="departureTabActive && heating"
+						class="mt-4"
+						:id="id"
+						:comfort="loadpoint?.heatingComfort"
+						:status="loadpoint?.heatingStatus"
+						:vehicleSoc="loadpoint?.vehicleSoc"
+					/>
 					<Arrival
 						v-if="arrivalTabActive"
 						:id="id"
@@ -85,6 +93,7 @@ import { defineComponent, type PropType } from "vue";
 import GenericModal from "../Helper/GenericModal.vue";
 import PlansSettings from "./PlansSettings.vue";
 import Arrival from "./Arrival.vue";
+import HeatingComfortSettings from "../Loadpoints/HeatingComfortSettings.vue";
 import api from "@/api";
 import type {
 	PlanStrategy,
@@ -101,6 +110,7 @@ export default defineComponent({
 		GenericModal,
 		PlansSettings,
 		Arrival,
+		HeatingComfortSettings,
 	},
 	props: {
 		loadpoints: { type: Array as PropType<UiLoadpoint[]>, default: () => [] },
@@ -166,6 +176,9 @@ export default defineComponent({
 			return `loadpoints/${this.id}/`;
 		},
 		repeatingPlans(): RepeatingPlan[] {
+			if (this.heating) {
+				return this.loadpoint?.repeatingPlans || [];
+			}
 			if (
 				this.vehicle &&
 				this.vehicle.repeatingPlans &&
@@ -221,6 +234,10 @@ export default defineComponent({
 			}
 		},
 		updateRepeatingPlans(plans: RepeatingPlan[]): void {
+			if (this.heating || !this.loadpoint?.socBasedPlanning) {
+				api.post(`${this.apiLoadpoint}plan/repeating`, plans);
+				return;
+			}
 			api.post(`${this.apiVehicle}plan/repeating`, plans);
 		},
 		updatePlanStrategy(strategy: PlanStrategy): void {

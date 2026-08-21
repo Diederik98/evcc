@@ -123,6 +123,62 @@
       "loadpoints": "Enthält {energy} geplante Ladung",
       "loadCap": "Geplante Ladung begrenzt auf {power}",
       "forecast": "Nächste 24 Stunden",
+      "openDetails": "So ist dieser Plan entstanden",
+      "pageTitle": "Batterieplan im Detail",
+      "pageIntro": "Diese Seite zeigt die Eingaben, Überlagerungen von Ladepunkt und Wärmepumpe und warum jedes 15-Minuten-Fenster gewählt wurde. Aktive Lastspitzenkappung kann das aktuelle Viertel trotzdem überschreiben.",
+      "backToBattery": "Zurück zu den Batterieeinstellungen",
+      "howTitle": "So ist dieser Plan entstanden",
+      "inputsTitle": "Eingaben",
+      "loadsTitle": "Blöcke von Ladepunkt und Wärmepumpe",
+      "horizonTitle": "24-Stunden-Plan",
+      "logTitle": "Was sich geändert hat",
+      "estimated": "Geschätzt",
+      "loadFallback": "Ladepunkt",
+      "colTime": "Zeit",
+      "colAction": "Entscheidung",
+      "loadSummary": "{energy} bei {power}, {start}–{end} ({pattern})",
+      "inputSoc": "Batterie-SoC jetzt: {soc} %",
+      "inputReserve": "Min. {min} %, Reserve {reserve} %, Ziel für kommende Spitzen {target} %",
+      "inputLimit": "Netzgrenze: {power}",
+      "inputPeak": "Prognostizierte Überschreitung ohne Batterie: {energy}",
+      "inputLive": "Aktueller Restbezug: {power}",
+      "fact": {
+        "home": {
+          "weekday": "Der Hausverbrauch nutzt das Wochentagsprofil in 15-Minuten-Schritten.",
+          "fallback": "Noch kein Haushaltsprofil. Es gilt die aktuelle Haushaltsleistung als flache Prognose."
+        },
+        "prices": {
+          "yes": "Dynamische Strompreise sind enthalten.",
+          "no": "Keine Strompreise in diesem Fenster. Last und Solar gelten trotzdem."
+        },
+        "solar": {
+          "yes": "Solarprognose ist enthalten.",
+          "no": "Keine Solarprognose in diesem Fenster."
+        },
+        "limit": "Die Netzbezugsgrenze liegt bei {kw} kW.",
+        "peak": "Prognostizierte Spitzenenergie {kwh} kWh. Ziel-SoC {soc} %.",
+        "action": {
+          "normal": "Dieses Viertel folgt dem Solarüberschuss.",
+          "charge": "Dieses Viertel lädt aus dem Netz ({reason}).",
+          "hold": "Dieses Viertel hält den Speicher ({reason}).",
+          "discharge": "Dieses Viertel entlädt ({reason})."
+        },
+        "battery": {
+          "coverPeak": "Die Batterie deckt eine prognostizierte Spitze. Wärme oder Laden über der Grenze kommt zuerst aus dem Speicher.",
+          "holdForLater": "Die Batterie wird für eine spätere Spitze oder teure Stunde gehalten, nicht nur um Wärme zu verbilligen.",
+          "cheapCycle": "Die preisliche Spreizung deckt Verluste und Zykluskosten."
+        },
+        "load": {
+          "charger": "Ladepunkt {title}: {kwh} kWh bei {w} W ({pattern}).",
+          "heat": "Wärmepumpe {title}: {kwh} kWh extra bei {w} W ({pattern}). Nicht gemessene Extra-Leistung wird aus dem Hausverbrauch geschätzt."
+        }
+      },
+      "log": {
+        "created": "Plan erstellt",
+        "replan": "Plan aktualisiert",
+        "peak": "Spitzenabdeckung geändert",
+        "load": "Überlagerung von Ladepunkt oder Wärmepumpe geändert"
+      },
       "now": "Jetzt",
       "noPrices": "Keine Strompreise in diesem Fenster. Last- und Solarprognose gelten trotzdem.",
       "noForecast": "Noch kein 24-Stunden-Plan. Dafür braucht es ein Haushaltsprofil oder Preise.",
@@ -1301,6 +1357,39 @@
     "password": "Administrator Passwort",
     "reset": "Passwort zurücksetzen?",
     "title": "Authentifizierung"
+  },
+  "heating": {
+    "estimated": "Geschätzte Extra-Leistung",
+    "estimatedHelp": "Kein Wärmepumpenzähler. Extra-Watt werden aus dem Haushaltsrest abgeleitet, solange der Boost an ist.",
+    "currentTemp": "Speicher {temp}",
+    "reason": {
+      "calendar": "Kalender-Boost",
+      "comfort": "Komfortgrenze",
+      "now": "Sofort",
+      "stop": "Gestoppt"
+    },
+    "comfort": {
+      "title": "Komfort und angenommene Leistung",
+      "help": "Funktioniert mit einem eigenen Ein/Aus-Boost, auch über eine Daikin-API. Aus bedeutet: die Wärmepumpe läuft nach eigener Kennlinie. Die Komfortgrenze startet einen Boost, wenn die Speichertemperatur unter die Grenze fällt.",
+      "minTemp": "Komfortgrenze",
+      "hysteresis": "Hysterese",
+      "stopTemp": "Stopptemperatur",
+      "minOnTime": "Mindestlaufzeit",
+      "minOnNone": "Keine",
+      "assumedPower": "Angenommene Extra-Leistung",
+      "maxAssumedPower": "Obergrenze für die Schätzung"
+    },
+    "pattern": {
+      "title": "Gelerntes Extra-Wärme-Muster",
+      "band": "Von {from} bis {to}: etwa {minutes} min/K, Extra im ersten Slot {peak}, {n} Boosts"
+    },
+    "boosts": {
+      "title": "Letzte Boosts",
+      "start": "Wann",
+      "temps": "Start → Ende",
+      "energy": "Extra-Energie",
+      "quality": "Qualität"
+    }
   },
   "main": {
     "chargingPlan": {

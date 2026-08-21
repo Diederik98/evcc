@@ -214,6 +214,17 @@ type API interface {
 	// GetRemainingEnergy is the remaining charge energy in kWh
 	GetRemainingEnergy() float64
 
+	// GetRepeatingPlans returns loadpoint repeating energy plans
+	GetRepeatingPlans() []api.RepeatingPlan
+	// SetRepeatingPlans stores loadpoint repeating energy plans
+	SetRepeatingPlans([]api.RepeatingPlan) error
+	// GetHeatingComfort returns heating comfort settings
+	GetHeatingComfort() HeatingComfort
+	// SetHeatingComfort stores heating comfort settings
+	SetHeatingComfort(HeatingComfort) error
+	// GetHeatingStatus returns heating boost and pattern status
+	GetHeatingStatus() HeatingStatus
+
 	//
 	// vehicles
 	//

@@ -5,6 +5,8 @@ export interface RepeatingPlan {
   time: string;
   tz: string; // timezone like "Europe/Berlin"
   soc: number;
+  energy?: number;
+  fixed?: boolean;
   active: boolean;
 }
 
