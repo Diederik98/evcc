@@ -1,6 +1,6 @@
 <template>
 	<div class="battery-plan-forecast mb-4">
-		<p class="fw-bold mb-1">{{ $t("peakShave.plan.forecast") }}</p>
+		<p class="fw-bold mb-1">{{ forecastTitle }}</p>
 		<p v-if="liveOverride" class="text-muted small mb-2">
 			{{ $t("peakShave.plan.liveOverride") }}
 		</p>
@@ -13,17 +13,30 @@
 				<span class="legend-swatch" :class="`action-${key}`"></span>
 				{{ $t("peakShave.plan.action." + key) }}
 			</span>
+			<template v-if="hasChargerPlan">
+				<span class="legend-item">
+					<span class="legend-swatch action-charger"></span>
+					{{ $t("peakShave.plan.chargerAction.charging") }}
+				</span>
+				<span class="legend-item">
+					<span class="legend-swatch action-charger-idle"></span>
+					{{ $t("peakShave.plan.chargerAction.idle") }}
+				</span>
+			</template>
 		</div>
 
+		<p v-if="parsedSlots.length" class="text-muted small mb-1">
+			{{ $t("peakShave.plan.batteryStrip") }}
+		</p>
 		<div
 			v-if="parsedSlots.length"
 			class="schedule"
 			role="list"
-			:aria-label="$t('peakShave.plan.forecast')"
+			:aria-label="$t('peakShave.plan.batteryStrip')"
 		>
 			<button
 				v-for="(slot, index) in parsedSlots"
-				:key="slot.start.getTime()"
+				:key="'b-' + slot.start.getTime()"
 				type="button"
 				class="schedule-slot"
 				:class="[
@@ -36,6 +49,35 @@
 				]"
 				role="listitem"
 				:aria-label="slotLabel(slot, index)"
+				:aria-pressed="activeIndex === index"
+				@mouseenter="activeIndex = index"
+				@mouseleave="activeIndex = null"
+				@focus="activeIndex = index"
+				@click="activeIndex = index"
+			></button>
+		</div>
+		<p v-if="hasChargerPlan" class="text-muted small mb-1 mt-2">
+			{{ $t("peakShave.plan.chargerStrip") }}
+		</p>
+		<div
+			v-if="hasChargerPlan"
+			class="schedule"
+			role="list"
+			:aria-label="$t('peakShave.plan.chargerStrip')"
+		>
+			<button
+				v-for="(slot, index) in parsedSlots"
+				:key="'c-' + slot.start.getTime()"
+				type="button"
+				class="schedule-slot"
+				:class="{
+					'action-charger': chargerActive(slot),
+					'action-charger-idle': !chargerActive(slot),
+					now: index === 0,
+					active: activeIndex === index,
+				}"
+				role="listitem"
+				:aria-label="chargerLabel(slot, index)"
 				:aria-pressed="activeIndex === index"
 				@mouseenter="activeIndex = index"
 				@mouseleave="activeIndex = null"
@@ -149,6 +191,25 @@ export default defineComponent({
 		liveOverride(): boolean {
 			return ["shaving", "critical", "shedding", "lockout"].includes(this.peakShaveState);
 		},
+		hasChargerPlan(): boolean {
+			return this.parsedSlots.some((s) => this.chargerActive(s));
+		},
+		forecastHours(): number {
+			const slots = this.parsedSlots;
+			if (slots.length < 2) {
+				return slots.length ? 1 : 0;
+			}
+			return Math.max(
+				1,
+				Math.round((slots[slots.length - 1].end.getTime() - slots[0].start.getTime()) / 3600000)
+			);
+		},
+		forecastTitle(): string {
+			if (!this.forecastHours) {
+				return this.$t("peakShave.plan.forecast");
+			}
+			return this.$t("peakShave.plan.forecastHours", { hours: this.forecastHours });
+		},
 		activeSlot(): ParsedSlot | null {
 			if (!this.parsedSlots.length) {
 				return null;
@@ -193,13 +254,7 @@ export default defineComponent({
 						color: muted,
 						fontSize: 11,
 						fontFamily: FONT_FAMILY,
-						formatter: (value: number) => {
-							const d = new Date(value);
-							if (d.getMinutes() !== 0 || d.getHours() % 4 !== 0) {
-								return "";
-							}
-							return String(d.getHours());
-						},
+						formatter: (value: number) => this.axisLabel(value),
 					},
 				},
 				yAxis: [
@@ -320,6 +375,28 @@ export default defineComponent({
 			}
 			this.chart.setOption(this.chartOption, { notMerge: true });
 		},
+		chargerActive(slot: ParsedSlot) {
+			return (slot.loadW || 0) > 50;
+		},
+		axisLabel(value: number) {
+			const d = new Date(value);
+			if (d.getMinutes() !== 0) {
+				return "";
+			}
+			if (this.forecastHours > 26) {
+				if (d.getHours() === 0) {
+					return d.toLocaleDateString(undefined, { weekday: "short" });
+				}
+				if (d.getHours() % 6 !== 0) {
+					return "";
+				}
+				return String(d.getHours());
+			}
+			if (d.getHours() % 4 !== 0) {
+				return "";
+			}
+			return String(d.getHours());
+		},
 		slotRange(slot: ParsedSlot) {
 			return this.fmtTimeSlot(slot.start, slot.end.getTime() - slot.start.getTime());
 		},
@@ -327,6 +404,16 @@ export default defineComponent({
 			const action = this.$t("peakShave.plan.action." + (slot.action || "normal"));
 			const now = index === 0 ? `${this.$t("peakShave.plan.now")}: ` : "";
 			return `${now}${this.slotRange(slot)}: ${action}`;
+		},
+		chargerLabel(slot: ParsedSlot, index: number) {
+			const key = this.chargerActive(slot)
+				? "peakShave.plan.chargerAction.charging"
+				: "peakShave.plan.chargerAction.idle";
+			const now = index === 0 ? `${this.$t("peakShave.plan.now")}: ` : "";
+			const power = this.chargerActive(slot)
+				? ` ${this.fmtW(slot.loadW || 0, POWER_UNIT.KW, true, 1)}`
+				: "";
+			return `${now}${this.slotRange(slot)}: ${this.$t(key)}${power}`;
 		},
 		tooltipHtml(params: { dataIndex: number }[]) {
 			const idx = params?.[0]?.dataIndex ?? 0;
@@ -428,8 +515,16 @@ export default defineComponent({
 .schedule-slot.peak:not(.action-charge) {
 	box-shadow: inset 0 3px 0 var(--evcc-red);
 }
+.action-charger,
+.schedule-slot.action-charger {
+	background: #7c3aed;
+}
+.action-charger-idle,
+.schedule-slot.action-charger-idle {
+	background: #e2e8f0;
+}
 .forecast-chart {
-	height: 220px;
+	height: 240px;
 	width: 100%;
 }
 </style>

@@ -166,6 +166,44 @@ func (site *Site) batteryPowerLimits() (chargeW, dischargeW float64) {
 	return chargeW, dischargeW
 }
 
+const (
+	batteryPlanMinSlots = 96
+	batteryPlanMaxSlots = 96 * 7
+)
+
+func batteryPlanSlotCount(nGrid, nSolar, nFeedIn, nHome int) int {
+	n := max(batteryPlanMinSlots, nHome, nGrid, nSolar, nFeedIn)
+	return min(n, batteryPlanMaxSlots)
+}
+
+func extendProfile(home []float64, n int) []float64 {
+	if n <= 0 {
+		return nil
+	}
+	if len(home) >= n {
+		return home[:n]
+	}
+	out := make([]float64, n)
+	if len(home) == 0 {
+		return out
+	}
+	for i := range out {
+		out[i] = home[i%len(home)]
+	}
+	return out
+}
+
+func rateValueAt(rr api.Rates, ts time.Time) float64 {
+	if len(rr) == 0 {
+		return 0
+	}
+	r, err := rr.At(ts)
+	if err != nil {
+		return 0
+	}
+	return r.Value
+}
+
 func (site *Site) batteryPlanSlots() []planner.BatterySlot {
 	var grid, solar, feedIn api.Rates
 	if site.tariffs != nil {
@@ -173,24 +211,24 @@ func (site *Site) batteryPlanSlots() []planner.BatterySlot {
 		solar = currentRates(site.GetTariff(api.TariffUsageSolar))
 		feedIn = currentRates(site.GetTariff(api.TariffUsageFeedIn))
 	}
+	grid.Sort()
+	solar.Sort()
+	feedIn.Sort()
+
+	n := batteryPlanSlotCount(len(grid), len(solar), len(feedIn), batteryPlanMinSlots)
 
 	var home []float64
 	site.batteryPlanHomeSource = "fallback"
 	if site.collectors != nil && site.collectors[metrics.Home] != nil {
-		if p, err := site.homeProfile(96); err == nil {
+		if p, err := site.homeProfile(n); err == nil {
 			home = p
 			site.batteryPlanHomeSource = "weekday"
 		}
 	}
 	if len(home) == 0 {
-		home = site.fallbackHomeProfile(96)
+		home = site.fallbackHomeProfile(n)
 	}
-
-	n := len(home)
-	if len(grid) > 0 {
-		n = min(n, len(grid))
-	}
-	n = min(n, 96)
+	home = extendProfile(home, n)
 	if n == 0 {
 		return nil
 	}
@@ -207,20 +245,16 @@ func (site *Site) batteryPlanSlots() []planner.BatterySlot {
 			Start:  start,
 			End:    start.Add(tariff.SlotDuration),
 			HomeWh: home[i],
+			Price:  rateValueAt(grid, start),
+			FeedIn: rateValueAt(feedIn, start),
 		}
 		if i == 0 && liveHomeWh > s.HomeWh {
 			s.HomeWh = liveHomeWh
 		}
 		if i == 0 {
 			s.SolarWh = liveSolarWh
-		} else if len(solar) > 0 {
+		} else {
 			s.SolarWh = max(0, solarEnergy(solar, s.Start, s.End))
-		}
-		if i < len(grid) {
-			s.Price = grid[i].Value
-		}
-		if i < len(feedIn) {
-			s.FeedIn = feedIn[i].Value
 		}
 		slots[i] = s
 	}
@@ -489,6 +523,12 @@ func (site *Site) batteryPlanExplanation(plan planner.BatteryPlan) *batteryPlanE
 	}
 	if plan.Reason == planner.BatteryReasonCheap {
 		facts = append(facts, batteryPlanFact{Code: "battery.cheapCycle"})
+	}
+	if site.PeakShaveReserveSoc > 0 {
+		facts = append(facts, batteryPlanFact{
+			Code:   "battery.reserveFloor",
+			Params: map[string]any{"soc": site.PeakShaveReserveSoc},
+		})
 	}
 	for _, load := range site.batteryPlanLoads {
 		code := "load.charger"

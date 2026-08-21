@@ -122,15 +122,24 @@
       "targetSoc": "Ziel-SoC für kommende Lastspitzen: {soc} %",
       "loadpoints": "Enthält {energy} geplante Ladung",
       "loadCap": "Geplante Ladung begrenzt auf {power}",
-      "forecast": "Nächste 24 Stunden",
+      "forecast": "Prognose",
+      "forecastHours": "Nächste {hours} Stunden",
       "openDetails": "So ist dieser Plan entstanden",
       "pageTitle": "Batterieplan im Detail",
       "pageIntro": "Diese Seite zeigt die Eingaben, Überlagerungen von Ladepunkt und Wärmepumpe und warum jedes 15-Minuten-Fenster gewählt wurde. Aktive Lastspitzenkappung kann das aktuelle Viertel trotzdem überschreiben.",
       "backToBattery": "Zurück zu den Batterieeinstellungen",
       "howTitle": "So ist dieser Plan entstanden",
       "inputsTitle": "Eingaben",
+      "pricesTitle": "Preise, Netzentgelte und Steuern",
+      "pricesHelp": "Der Planer verwendet die tarifierten Preise inklusive Aufschlag und Steuer. Trage kWh-Netzentgelte und Verbrauchsteuern unter charges ein, die Mehrwertsteuer unter tax, beim Netzbezugstarif. Der Kapazitätstarif wird je kW-Spitze abgerechnet, nicht je kWh, und gehört nicht in charges. Einspeisung ist meist nur der Einspeisepreis: Haushalte zahlen typischerweise kein Netznutzungsentgelt und keine MwSt. auf die Gutschrift.",
       "loadsTitle": "Blöcke von Ladepunkt und Wärmepumpe",
-      "horizonTitle": "24-Stunden-Plan",
+      "horizonTitle": "Zeitplan",
+      "batteryStrip": "Batterie",
+      "chargerStrip": "Ladepunkte",
+      "chargerAction": {
+        "charging": "Geplante Ladung",
+        "idle": "Keine Ladung"
+      },
       "logTitle": "Was sich geändert hat",
       "estimated": "Geschätzt",
       "loadFallback": "Ladepunkt",
@@ -166,7 +175,8 @@
         "battery": {
           "coverPeak": "Die Batterie deckt eine prognostizierte Spitze. Wärme oder Laden über der Grenze kommt zuerst aus dem Speicher.",
           "holdForLater": "Die Batterie wird für eine spätere Spitze oder teure Stunde gehalten, nicht nur um Wärme zu verbilligen.",
-          "cheapCycle": "Die preisliche Spreizung deckt Verluste und Zykluskosten."
+          "cheapCycle": "Die preisliche Spreizung deckt Verluste und Zykluskosten.",
+          "reserveFloor": "Die Spitzenentladung stoppt beim Reserve-SoC ({soc} %). Der Plan leert die Batterie nicht."
         },
         "load": {
           "charger": "Ladepunkt {title}: {kwh} kWh bei {w} W ({pattern}).",
@@ -181,7 +191,7 @@
       },
       "now": "Jetzt",
       "noPrices": "Keine Strompreise in diesem Fenster. Last- und Solarprognose gelten trotzdem.",
-      "noForecast": "Noch kein 24-Stunden-Plan. Dafür braucht es ein Haushaltsprofil oder Preise.",
+      "noForecast": "Noch kein Plan. Dafür braucht es ein Haushaltsprofil oder Preise.",
       "liveOverride": "Aktive Lastspitzenkappung kann das aktuelle Viertel überschreiben.",
       "house": "Haus",
       "solar": "Solar",

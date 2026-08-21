@@ -62,6 +62,11 @@
 						</p>
 					</section>
 
+					<section class="mb-5">
+						<h3 class="fw-normal mb-3">{{ $t("peakShave.plan.pricesTitle") }}</h3>
+						<p class="mb-0">{{ $t("peakShave.plan.pricesHelp") }}</p>
+					</section>
+
 					<section v-if="loads.length" class="mb-5">
 						<h3 class="fw-normal mb-3">{{ $t("peakShave.plan.loadsTitle") }}</h3>
 						<div v-for="(load, i) in loads" :key="i" class="mb-3">
@@ -178,7 +183,7 @@ export default defineComponent({
 			return [...(this.batteryPlan?.log || [])].reverse();
 		},
 		tableSlots(): BatteryPlanSlot[] {
-			return (this.batteryPlan?.slots || []).filter((_, i) => i % 2 === 0).slice(0, 24);
+			return (this.batteryPlan?.slots || []).filter((_, i) => i % 4 === 0);
 		},
 	},
 	methods: {
@@ -211,7 +216,12 @@ export default defineComponent({
 			if (Number.isNaN(d.getTime())) {
 				return "";
 			}
-			return d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+			const time = d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+			const now = new Date();
+			if (d.toDateString() === now.toDateString()) {
+				return time;
+			}
+			return `${d.toLocaleDateString(undefined, { weekday: "short" })} ${time}`;
 		},
 	},
 });
