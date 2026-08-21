@@ -31,6 +31,13 @@
 			</p>
 		</div>
 
+		<BatteryPlanForecast
+			:slots="batteryPlan?.slots || []"
+			:grid-threshold="gridThreshold"
+			:currency="currency"
+			:peak-shave-state="peakShaveState"
+		/>
+
 		<!-- 15-minute average -->
 		<div class="form-check form-switch mb-4">
 			<input
@@ -156,10 +163,12 @@
 import { defineComponent, type PropType } from "vue";
 import api from "@/api";
 import formatter, { POWER_UNIT } from "@/mixins/formatter";
-import type { PeakShaveState, BatteryPlanStatus } from "@/types/evcc";
+import { CURRENCY, type PeakShaveState, type BatteryPlanStatus } from "@/types/evcc";
+import BatteryPlanForecast from "./BatteryPlanForecast.vue";
 
 export default defineComponent({
 	name: "BatteryPeakShaveSettings",
+	components: { BatteryPlanForecast },
 	mixins: [formatter],
 	props: {
 		peakShaveReserveSoc: { type: Number, default: 40 },
@@ -171,6 +180,8 @@ export default defineComponent({
 		limitControllerAvailable: { type: Boolean, default: true },
 		batteryCycleCost: { type: Number, default: 0.05 },
 		batteryPlan: { type: Object as PropType<BatteryPlanStatus | null>, default: null },
+		gridThreshold: { type: Number, default: 0 },
+		currency: { type: String as PropType<CURRENCY>, default: CURRENCY.EUR },
 	},
 	data() {
 		return {

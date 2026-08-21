@@ -32,6 +32,7 @@ type BatterySlot struct {
 	End     time.Time
 	HomeWh  float64
 	SolarWh float64
+	LoadWh  float64 // planned charger/heater energy included in HomeWh
 	Price   float64 // grid price including charges and tax, per kWh
 	FeedIn  float64
 }
@@ -58,6 +59,24 @@ type BatteryPlan struct {
 	PeakWh         float64
 	DischargeFloor float64
 	ChargeCeiling  float64
+}
+
+// BatteryHorizonSlot is the planned action and forecasts for one interval.
+type BatteryHorizonSlot struct {
+	Start      time.Time
+	End        time.Time
+	Action     string
+	Reason     string
+	ChargeW    int
+	DischargeW int
+	HomeW      float64
+	SolarW     float64
+	LoadW      float64
+	ResidualW  float64
+	Price      float64
+	FeedIn     float64
+	Soc        float64
+	Peak       bool
 }
 
 // PlanBattery decides charge, hold, discharge or export for the current slot.
@@ -385,4 +404,108 @@ func percentile(sorted []float64, p float64) float64 {
 
 func clamp(v, lo, hi float64) float64 {
 	return min(hi, max(lo, v))
+}
+
+// PlanBatteryHorizon returns the current-slot plan and a simulated 24h schedule.
+func PlanBatteryHorizon(cfg BatteryConfig, slots []BatterySlot) (BatteryPlan, []BatteryHorizonSlot) {
+	if cfg.CapacityWh <= 0 || len(slots) == 0 {
+		return PlanBattery(cfg, slots), nil
+	}
+
+	minWh := cfg.CapacityWh * cfg.MinSoc / 100
+	maxWh := cfg.CapacityWh * cfg.MaxSoc / 100
+	socWh := clamp(cfg.CapacityWh*cfg.Soc/100, minWh, maxWh)
+
+	liveHeadroom := cfg.HeadroomW
+	liveResidual := cfg.LiveResidualW
+	out := make([]BatteryHorizonSlot, len(slots))
+	var first BatteryPlan
+
+	for i := range slots {
+		step := cfg
+		step.Soc = 100 * socWh / cfg.CapacityWh
+		h := slotHours(slots[i])
+		profile := residualW(slots[i], h)
+		if i == 0 {
+			step.HeadroomW = liveHeadroom
+			step.LiveResidualW = liveResidual
+		} else {
+			step.LiveResidualW = profile
+			step.HeadroomW = max(0, cfg.GridThresholdW-profile)
+		}
+
+		p := PlanBattery(step, slots[i:])
+		if i == 0 {
+			first = p
+		}
+
+		socWh = applyHorizonStep(step, slots[i], p, socWh)
+		houseWh := max(0, slots[i].HomeWh-slots[i].LoadWh)
+		out[i] = BatteryHorizonSlot{
+			Start:      slots[i].Start,
+			End:        slots[i].End,
+			Action:     p.Action,
+			Reason:     p.Reason,
+			ChargeW:    p.ChargeW,
+			DischargeW: p.DischargeW,
+			HomeW:      watts(houseWh, h),
+			SolarW:     watts(slots[i].SolarWh, h),
+			LoadW:      watts(slots[i].LoadWh, h),
+			ResidualW:  profile,
+			Price:      slots[i].Price,
+			FeedIn:     slots[i].FeedIn,
+			Soc:        100 * socWh / cfg.CapacityWh,
+			Peak:       cfg.GridThresholdW > 0 && profile > cfg.GridThresholdW,
+		}
+	}
+
+	return first, out
+}
+
+func watts(wh, hours float64) float64 {
+	if hours <= 0 {
+		return 0
+	}
+	return wh / hours
+}
+
+func applyHorizonStep(cfg BatteryConfig, s BatterySlot, plan BatteryPlan, socWh float64) float64 {
+	hours := slotHours(s)
+	if hours <= 0 || cfg.CapacityWh <= 0 {
+		return socWh
+	}
+
+	minWh := cfg.CapacityWh * cfg.MinSoc / 100
+	maxWh := cfg.CapacityWh * cfg.MaxSoc / 100
+	residual := residualW(s, hours)
+	etaC, etaD := cfg.EtaC, cfg.EtaD
+	if etaC <= 0 {
+		etaC = batteryEta
+	}
+	if etaD <= 0 {
+		etaD = batteryEta
+	}
+
+	switch plan.Action {
+	case BatteryActionCharge:
+		socWh += float64(plan.ChargeW) * hours * etaC
+		if residual < 0 {
+			socWh += min(-residual, cfg.ChargeW) * hours * etaC
+		}
+	case BatteryActionDischarge:
+		socWh -= float64(plan.DischargeW) * hours / etaD
+	case BatteryActionHold:
+		if residual < 0 {
+			socWh += min(-residual, cfg.ChargeW) * hours * etaC
+		}
+	default:
+		if residual < 0 {
+			socWh += min(-residual, cfg.ChargeW) * hours * etaC
+		} else if residual > 0 && socWh > minWh+1 {
+			cover := min(residual, cfg.DischargeW, (socWh-minWh)/hours*etaD)
+			socWh -= cover * hours / etaD
+		}
+	}
+
+	return clamp(socWh, minWh, maxWh)
 }

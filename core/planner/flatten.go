@@ -47,6 +47,7 @@ func FlattenChargeDemands(slots []BatterySlot, demands []ChargeDemand, gridThres
 		alloc = flattenDemand(slots, d, gridThresholdW)
 		for j, wh := range alloc {
 			slots[j].HomeWh += wh
+			slots[j].LoadWh += wh
 			addedWh += wh
 		}
 		if hours0 > 0 {
@@ -152,6 +153,7 @@ func applyChargePlan(slots []BatterySlot, plan api.Rates, powerW float64) float6
 			}
 			wh := powerW * h
 			slots[i].HomeWh += wh
+			slots[i].LoadWh += wh
 			added += wh
 		}
 	}

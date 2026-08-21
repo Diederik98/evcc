@@ -43,6 +43,8 @@
 					:limit-controller-available="peakShaveLimitControllerAvailable"
 					:battery-cycle-cost="state.batteryCycleCost ?? 0.05"
 					:battery-plan="state.batteryPlan"
+					:grid-threshold="state.gridThreshold"
+					:currency="state.currency"
 				/>
 			</Card>
 		</template>

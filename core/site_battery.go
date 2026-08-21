@@ -507,6 +507,11 @@ func (site *Site) peakShaveLoadShedDue(now time.Time) bool {
 // ManageGridLimits executes the state machine for active peak shaving and recovery
 func (site *Site) ManageGridLimits(batteryGridChargeActive bool) {
 	plan, planned := site.evaluateBatteryPlan()
+	if planned {
+		site.publishBatteryPlan(plan)
+	} else {
+		site.publishIdleBatteryPlan()
+	}
 
 	if !site.peakShaveEnabled() {
 		site.Lock()

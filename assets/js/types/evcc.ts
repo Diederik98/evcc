@@ -151,6 +151,23 @@ export type PeakShaveState =
   | "recovery"
   | "lockout";
 
+export interface BatteryPlanSlot {
+  start: string;
+  end: string;
+  action?: string;
+  reason?: string;
+  chargeW?: number;
+  dischargeW?: number;
+  homeW?: number;
+  solarW?: number;
+  loadW?: number;
+  residualW?: number;
+  price?: number;
+  feedIn?: number;
+  soc?: number;
+  peak?: boolean;
+}
+
 export interface BatteryPlanStatus {
   action?: string;
   reason?: string;
@@ -161,6 +178,7 @@ export interface BatteryPlanStatus {
   dischargeFloor?: number;
   loadWh?: number;
   loadW?: number;
+  slots?: BatteryPlanSlot[];
 }
 
 export interface ConfigStatus<C, S> {

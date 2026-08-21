@@ -15,15 +15,33 @@ import (
 const defaultBatteryCycleCost = 0.05 // €/kWh throughput
 
 type batteryPlanStatus struct {
-	Action         string  `json:"action"`
-	Reason         string  `json:"reason"`
-	ChargeW        int     `json:"chargeW"`
-	DischargeW     int     `json:"dischargeW"`
-	TargetSoc      float64 `json:"targetSoc"`
-	PeakWh         float64 `json:"peakWh"`
-	DischargeFloor float64 `json:"dischargeFloor"`
-	LoadWh         float64 `json:"loadWh,omitempty"`
-	LoadW          float64 `json:"loadW,omitempty"`
+	Action         string                  `json:"action"`
+	Reason         string                  `json:"reason"`
+	ChargeW        int                     `json:"chargeW"`
+	DischargeW     int                     `json:"dischargeW"`
+	TargetSoc      float64                 `json:"targetSoc"`
+	PeakWh         float64                 `json:"peakWh"`
+	DischargeFloor float64                 `json:"dischargeFloor"`
+	LoadWh         float64                 `json:"loadWh,omitempty"`
+	LoadW          float64                 `json:"loadW,omitempty"`
+	Slots          []batteryPlanSlotStatus `json:"slots,omitempty"`
+}
+
+type batteryPlanSlotStatus struct {
+	Start      time.Time `json:"start"`
+	End        time.Time `json:"end"`
+	Action     string    `json:"action"`
+	Reason     string    `json:"reason"`
+	ChargeW    int       `json:"chargeW,omitempty"`
+	DischargeW int       `json:"dischargeW,omitempty"`
+	HomeW      float64   `json:"homeW"`
+	SolarW     float64   `json:"solarW"`
+	LoadW      float64   `json:"loadW,omitempty"`
+	ResidualW  float64   `json:"residualW"`
+	Price      float64   `json:"price,omitempty"`
+	FeedIn     float64   `json:"feedIn,omitempty"`
+	Soc        float64   `json:"soc"`
+	Peak       bool      `json:"peak,omitempty"`
 }
 
 var _ api.BytesMarshaler = (*batteryPlanStatus)(nil)
@@ -35,6 +53,7 @@ func (s batteryPlanStatus) MarshalBytes() ([]byte, error) {
 func (site *Site) evaluateBatteryPlan() (planner.BatteryPlan, bool) {
 	site.batteryPlanLoadWh = 0
 	site.batteryPlanLoadCaps = nil
+	site.batteryPlanForecast = nil
 	if !site.batteryConfigured() || site.battery.Capacity <= 0 {
 		return planner.BatteryPlan{}, false
 	}
@@ -61,7 +80,9 @@ func (site *Site) evaluateBatteryPlan() (planner.BatteryPlan, bool) {
 		LiveResidualW:  max(0, site.gridPower-site.battery.Power),
 	}
 
-	return planner.PlanBattery(cfg, slots), true
+	plan, slotsOut := planner.PlanBatteryHorizon(cfg, slots)
+	site.batteryPlanForecast = slotsOut
+	return plan, true
 }
 
 func (site *Site) batteryPlanMaxSoc() float64 {
@@ -244,18 +265,6 @@ func loadpointChargePlan(lp loadpoint.API) (api.Rates, float64) {
 func (site *Site) applyBatteryPlan(plan planner.BatteryPlan) {
 	site.batteryPlanHold = false
 
-	site.publish(keys.BatteryPlan, batteryPlanStatus{
-		Action:         plan.Action,
-		Reason:         plan.Reason,
-		ChargeW:        plan.ChargeW,
-		DischargeW:     plan.DischargeW,
-		TargetSoc:      plan.TargetSoc,
-		PeakWh:         plan.PeakWh,
-		DischargeFloor: plan.DischargeFloor,
-		LoadWh:         site.batteryPlanLoadWh,
-		LoadW:          site.batteryPlanLoadW(),
-	})
-
 	switch plan.Action {
 	case planner.BatteryActionCharge:
 		site.log.DEBUG.Printf("battery plan: charge %dW (reason %s, target soc %.0f%%, peak %.0fWh)", plan.ChargeW, plan.Reason, plan.TargetSoc, plan.PeakWh)
@@ -309,7 +318,49 @@ func (site *Site) batteryPlanLoadW() float64 {
 	return sum
 }
 
+func (site *Site) publishBatteryPlan(plan planner.BatteryPlan) {
+	site.publish(keys.BatteryPlan, batteryPlanStatus{
+		Action:         plan.Action,
+		Reason:         plan.Reason,
+		ChargeW:        plan.ChargeW,
+		DischargeW:     plan.DischargeW,
+		TargetSoc:      plan.TargetSoc,
+		PeakWh:         plan.PeakWh,
+		DischargeFloor: plan.DischargeFloor,
+		LoadWh:         site.batteryPlanLoadWh,
+		LoadW:          site.batteryPlanLoadW(),
+		Slots:          batteryPlanSlotStatuses(site.batteryPlanForecast),
+	})
+}
+
+func batteryPlanSlotStatuses(slots []planner.BatteryHorizonSlot) []batteryPlanSlotStatus {
+	if len(slots) == 0 {
+		return nil
+	}
+	out := make([]batteryPlanSlotStatus, len(slots))
+	for i, s := range slots {
+		out[i] = batteryPlanSlotStatus{
+			Start:      s.Start,
+			End:        s.End,
+			Action:     s.Action,
+			Reason:     s.Reason,
+			ChargeW:    s.ChargeW,
+			DischargeW: s.DischargeW,
+			HomeW:      s.HomeW,
+			SolarW:     s.SolarW,
+			LoadW:      s.LoadW,
+			ResidualW:  s.ResidualW,
+			Price:      s.Price,
+			FeedIn:     s.FeedIn,
+			Soc:        s.Soc,
+			Peak:       s.Peak,
+		}
+	}
+	return out
+}
+
 func (site *Site) publishIdleBatteryPlan() {
+	site.batteryPlanForecast = nil
 	site.publish(keys.BatteryPlan, batteryPlanStatus{Action: planner.BatteryActionNormal, Reason: planner.BatteryReasonIdle})
 }
 

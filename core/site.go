@@ -98,32 +98,33 @@ type Site struct {
 	collectors map[string]*metrics.Collector // keyed by meter ref
 
 	// cached state
-	gridPower                float64            // Grid power
-	gridPowerValid           bool               // Grid meter last read succeeded
-	pvPower                  float64            // PV power
-	excessDCPower            float64            // PV excess DC charge power (hybrid only)
-	auxPower                 float64            // Aux power
-	battery                  types.BatteryState // Battery cached and published state
-	batteryMode              api.BatteryMode    // Battery mode (runtime only, not persisted)
-	batteryModeExternal      api.BatteryMode    // Battery mode (external, runtime only, not persisted)
-	batteryModeExternalTimer time.Time          // Battery mode timer for external control
-	peakShaveState           string             // Peak shaving state machine state
-	peakShaveOverloadSince   time.Time          // Overload start time for load shed delay
-	peakShaveBatteryLimited  bool               // Battery limit controller writes active
-	batteryPlanHold          bool               // Planner requested hold for later peaks or expensive hours
-	batteryDischargeLocked   bool               // Discharge control: do not feed the charger from the battery
-	batteryPlanChargeW       int                // Last planned grid-charge setpoint, capped live on the fast loop
-	lastBatteryChargeW       int                // Last written charge limit
-	lastBatteryDischargeW    int                // Last written discharge limit
-	batteryLimitSet          bool               // Whether a limit has been written this session
-	batteryPlanDischargeW    int                // Planned export discharge, kept on the fast loop
-	batteryPlanLoadWh        float64            // Planned charger/heater energy included in the current battery plan
-	batteryPlanLoadCaps      []float64          // Flattened charger/heater watts for the current slot, per loadpoint
-	peakShaveQuarterStart    time.Time          // Clock-aligned quarter used for average peak control
-	peakShaveQuarterWh       float64            // Imported grid energy in the current quarter
-	peakShaveQuarterAt       time.Time          // Last sample time for quarter energy
-	solarOrientation         *solarOrientation  // Cached clear-sky orientation suggestion
-	solarOrientationAt       time.Time          // Last orientation fit
+	gridPower                float64                      // Grid power
+	gridPowerValid           bool                         // Grid meter last read succeeded
+	pvPower                  float64                      // PV power
+	excessDCPower            float64                      // PV excess DC charge power (hybrid only)
+	auxPower                 float64                      // Aux power
+	battery                  types.BatteryState           // Battery cached and published state
+	batteryMode              api.BatteryMode              // Battery mode (runtime only, not persisted)
+	batteryModeExternal      api.BatteryMode              // Battery mode (external, runtime only, not persisted)
+	batteryModeExternalTimer time.Time                    // Battery mode timer for external control
+	peakShaveState           string                       // Peak shaving state machine state
+	peakShaveOverloadSince   time.Time                    // Overload start time for load shed delay
+	peakShaveBatteryLimited  bool                         // Battery limit controller writes active
+	batteryPlanHold          bool                         // Planner requested hold for later peaks or expensive hours
+	batteryDischargeLocked   bool                         // Discharge control: do not feed the charger from the battery
+	batteryPlanChargeW       int                          // Last planned grid-charge setpoint, capped live on the fast loop
+	lastBatteryChargeW       int                          // Last written charge limit
+	lastBatteryDischargeW    int                          // Last written discharge limit
+	batteryLimitSet          bool                         // Whether a limit has been written this session
+	batteryPlanDischargeW    int                          // Planned export discharge, kept on the fast loop
+	batteryPlanLoadWh        float64                      // Planned charger/heater energy included in the current battery plan
+	batteryPlanLoadCaps      []float64                    // Flattened charger/heater watts for the current slot, per loadpoint
+	batteryPlanForecast      []planner.BatteryHorizonSlot // Simulated 24h battery plan for the UI
+	peakShaveQuarterStart    time.Time                    // Clock-aligned quarter used for average peak control
+	peakShaveQuarterWh       float64                      // Imported grid energy in the current quarter
+	peakShaveQuarterAt       time.Time                    // Last sample time for quarter energy
+	solarOrientation         *solarOrientation            // Cached clear-sky orientation suggestion
+	solarOrientationAt       time.Time                    // Last orientation fit
 }
 
 // MetersConfig contains the site's meter configuration
