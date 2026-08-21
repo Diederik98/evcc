@@ -6,7 +6,6 @@ on:
     branches:
       - cursor/battery-planner-peaks-4d1f
     paths-ignore:
-      - "hassio/**"
       - "docs/**"
       - "**/*.md"
 

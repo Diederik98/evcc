@@ -19,8 +19,6 @@ testdata/**/*
 !package*.json
 !evcc.dist.yaml
 !.coderabbit.yaml
-!hassio/**/*.yaml
-!hassio/**/*.json
 !tests/**/*.evcc.yaml
 !tests/**/*.tpl.yaml
 !tsconfig.json
