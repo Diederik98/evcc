@@ -610,17 +610,21 @@ func (site *Site) ManageGridLimits(batteryGridChargeActive bool) {
 		site.batteryPlanHold = false
 		site.batteryPlanChargeW = 0
 		site.batteryPlanDischargeW = 0
-		site.log.DEBUG.Printf("critical peak shaving: gridPower (%.0fW) > threshold (%.0fW), targetDischarge: %.0fW, soc: %.0f%%", site.gridPower, gridThresholdW, targetDischarge, soc)
+		site.log.DEBUG.Printf("critical peak shaving: gridPower (%.0fW) > threshold (%.0fW), soc: %.0f%% at reserve, holding", site.gridPower, gridThresholdW, soc)
 		site.clearPeakShaveLoadShedding()
-		site.setBatteryLimitLimits(0, int(targetDischarge))
+		site.setBatteryLimitLimits(0, 0)
 		site.peakShaveBatteryLimited = true
 
 	case PeakShaveShedding:
 		site.batteryPlanHold = false
 		site.batteryPlanChargeW = 0
 		site.batteryPlanDischargeW = 0
-		site.log.DEBUG.Printf("peak shaving load shedding: gridPower (%.0fW) > threshold (%.0fW), targetDischarge: %.0fW, soc: %.0f%%", site.gridPower, gridThresholdW, targetDischarge, soc)
-		site.setBatteryLimitLimits(0, int(targetDischarge))
+		discharge := 0
+		if soc > reserveSoc {
+			discharge = int(targetDischarge)
+		}
+		site.log.DEBUG.Printf("peak shaving load shedding: gridPower (%.0fW) > threshold (%.0fW), targetDischarge: %dW, soc: %.0f%%", site.gridPower, gridThresholdW, discharge, soc)
+		site.setBatteryLimitLimits(0, discharge)
 		site.applyPeakShaveLoadShedding()
 		site.peakShaveBatteryLimited = true
 
@@ -772,12 +776,19 @@ func (site *Site) applyLiveBatteryPowerLimits() {
 	}
 	soc := site.battery.Soc
 	minSoc := site.peakShaveEffectiveMinSoc()
+	reserveSoc := site.PeakShaveReserveSoc
 	headroom := site.peakShaveGridHeadroom()
 
 	switch {
 	case overshoot > 0 && soc <= minSoc:
 		site.setBatteryLimitLimits(0, 0)
 		site.peakShaveBatteryLimited = true
+		site.batteryPlanChargeW = 0
+
+	case overshoot > 0 && reserveSoc > 0 && soc <= reserveSoc:
+		site.setBatteryLimitLimits(0, 0)
+		site.peakShaveBatteryLimited = true
+		site.batteryPlanHold = false
 		site.batteryPlanChargeW = 0
 
 	case overshoot > 0:

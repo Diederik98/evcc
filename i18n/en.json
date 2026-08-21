@@ -104,7 +104,7 @@
     "noLimitController": "Peak shaving requires a battery that supports charge and discharge power limits. Configure chargelimit and dischargelimit on your battery meter.",
     "socInvalid": "Reserve SoC must not be below the battery minimum SoC.",
     "reserveSoc": "Reserve SoC",
-    "reserveSocHelp": "Target battery level to maintain as a buffer. Recovery charging starts when SoC drops below this. Must be at or above the battery minimum SoC from device configuration.",
+    "reserveSocHelp": "Target battery level to keep as a buffer. Peak shaving discharges down to this level, not to empty. Recovery charging starts when SoC drops below this. Must be at or above the battery minimum SoC from device configuration.",
     "reserveSocLabel": "Reserve",
     "minSocFromBattery": "Min (battery): {soc}%",
     "minSocTooltip": "Minimum SoC: {soc}%. Set in battery device configuration.",

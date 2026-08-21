@@ -104,7 +104,7 @@
     "noLimitController": "Die Lastspitzenkappung erfordert eine Batterie mit Lade- und Entladeleistungsgrenzen. Konfiguriere chargelimit und dischargelimit am Batteriezähler.",
     "socInvalid": "Der Reserve-SoC darf nicht unter dem Mindest-SoC der Batterie liegen.",
     "reserveSoc": "Reserve-SoC",
-    "reserveSocHelp": "Ziel-Ladestand der Batterie als Puffer. Wiederaufladung beginnt, wenn der SoC darunter fällt. Muss mindestens dem Mindest-SoC der Batterie in der Gerätekonfiguration entsprechen.",
+    "reserveSocHelp": "Ziel-Ladestand der Batterie als Puffer. Die Lastspitzenkappung entlädt bis zu diesem Stand, nicht bis leer. Wiederaufladung beginnt, wenn der SoC darunter fällt. Muss mindestens dem Mindest-SoC der Batterie in der Gerätekonfiguration entsprechen.",
     "reserveSocLabel": "Reserve",
     "minSocFromBattery": "Min. (Batterie): {soc} %",
     "minSocTooltip": "Mindest-SoC: {soc} %. In der Batteriegerätekonfiguration festgelegt.",
