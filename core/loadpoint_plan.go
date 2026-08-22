@@ -88,18 +88,12 @@ func (lp *Loadpoint) getPlanRequiredDuration(goal, maxPower float64) time.Durati
 	}
 
 	if lp.chargerHasFeature(api.Heating) && maxPower > 0 {
-		stop := lp.heatingStopTempLocked()
-		if stop > 0 && lp.vehicleSoc >= stop {
-			return 0
-		}
-		energy := goal
-		if lp.getPlanId() <= 1 {
-			energy = lp.remainingPlanEnergy(goal)
-		}
+		energy := lp.energyPlanGoalWh(goal) / 1e3
 		fallback := time.Duration(0)
 		if maxPower > 0 && energy > 0 {
-			fallback = time.Duration(energy*1e3/maxPower) * time.Hour
+			fallback = time.Duration(energy * 1e3 / maxPower * float64(time.Hour))
 		}
+		stop := lp.heatingStopTempLocked()
 		if d, _, _, learned := lp.heatingPattern.Estimate(lp.vehicleSoc, stop, fallback, maxPower); learned && d > 0 {
 			return d
 		}
@@ -108,11 +102,18 @@ func (lp *Loadpoint) getPlanRequiredDuration(goal, maxPower float64) time.Durati
 		}
 	}
 
-	energy := lp.remainingPlanEnergy(goal)
-	if lp.getPlanId() > 1 {
-		energy = goal
-	}
+	energy := lp.energyPlanGoalWh(goal) / 1e3
 	return time.Duration(energy * 1e3 / maxPower * float64(time.Hour))
+}
+
+// energyPlanGoalWh is the remaining energy goal in Wh for the active plan.
+// Repeating plans always target the full configured kWh; static plans subtract
+// energy already delivered since the plan was set.
+func (lp *Loadpoint) energyPlanGoalWh(planEnergyKWh float64) float64 {
+	if lp.getPlanId() > 1 {
+		return planEnergyKWh * 1e3
+	}
+	return lp.remainingPlanEnergy(planEnergyKWh) * 1e3
 }
 
 // GetPlanGoal returns the plan goal in %, true or kWh, false

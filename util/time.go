@@ -8,6 +8,9 @@ import (
 
 // GetNextOccurrence returns the next occurrence of the given time on the specified weekdays.
 func GetNextOccurrence(weekdays []int, timeStr string, tz string) (time.Time, error) {
+	if tz == "" {
+		tz = "Local"
+	}
 	loc, err := time.LoadLocation(tz)
 	if err != nil {
 		return time.Time{}, fmt.Errorf("invalid timezone: %w", err)
@@ -46,6 +49,9 @@ func GetNextOccurrence(weekdays []int, timeStr string, tz string) (time.Time, er
 
 // GetOccurrences returns matching weekday times in [from, to).
 func GetOccurrences(weekdays []int, timeStr, tz string, from, to time.Time) ([]time.Time, error) {
+	if tz == "" {
+		tz = "Local"
+	}
 	loc, err := time.LoadLocation(tz)
 	if err != nil {
 		return nil, fmt.Errorf("invalid timezone: %w", err)
