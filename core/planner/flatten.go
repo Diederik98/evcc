@@ -58,6 +58,25 @@ func FlattenChargeDemands(slots []BatterySlot, demands []ChargeDemand, gridThres
 	return addedWh, currentW
 }
 
+// DemandSlotWh returns planned energy per slot for one demand (Wh).
+func DemandSlotWh(slots []BatterySlot, d ChargeDemand, gridThresholdW float64) []float64 {
+	if d.RequiredWh <= 0 || d.MaxW <= 0 || len(slots) == 0 {
+		return nil
+	}
+	if d.Continuous || gridThresholdW <= 0 || d.Deadline.IsZero() {
+		alloc := make([]float64, len(slots))
+		for i, s := range slots {
+			for _, r := range d.Preferred {
+				if h := overlapHours(s.Start, s.End, r.Start, r.End); h > 0 {
+					alloc[i] += d.MaxW * h
+				}
+			}
+		}
+		return alloc
+	}
+	return flattenDemand(slots, d, gridThresholdW)
+}
+
 func flattenDemand(slots []BatterySlot, d ChargeDemand, gridThresholdW float64) []float64 {
 	alloc := make([]float64, len(slots))
 	remaining := d.RequiredWh

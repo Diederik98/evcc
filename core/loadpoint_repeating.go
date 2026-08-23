@@ -49,7 +49,7 @@ func (lp *Loadpoint) nextEnergyPlan() (time.Time, float64, int, bool) {
 		if !rp.Active || rp.Energy <= 0 || len(rp.Weekdays) == 0 {
 			continue
 		}
-		t, err := util.GetNextOccurrence(rp.Weekdays, rp.Time, rp.Tz)
+		t, err := util.GetNextOccurrenceFrom(lp.clock.Now(), rp.Weekdays, rp.Time, rp.Tz)
 		if err != nil {
 			lp.log.DEBUG.Printf("invalid repeating plan: weekdays=%v, time=%s, tz=%s, error=%v", rp.Weekdays, rp.Time, rp.Tz, err)
 			continue
@@ -131,7 +131,7 @@ func (lp *Loadpoint) chargeDemand(deadline time.Time, energy float64, fixed bool
 	} else {
 		preferred = lp.GetPlan(deadline, required, lp.getEffectivePlanStrategy().Precondition, continuous)
 		if len(preferred) == 0 {
-			now := time.Now()
+			now := lp.clock.Now()
 			start := deadline.Add(-required)
 			if start.Before(now) {
 				start = now

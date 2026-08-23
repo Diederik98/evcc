@@ -151,6 +151,11 @@ export type PeakShaveState =
   | "recovery"
   | "lockout";
 
+export interface BatteryPlanSlotLoad {
+  title?: string;
+  loadW?: number;
+}
+
 export interface BatteryPlanSlot {
   start: string;
   end: string;
@@ -161,11 +166,15 @@ export interface BatteryPlanSlot {
   homeW?: number;
   solarW?: number;
   loadW?: number;
+  loads?: BatteryPlanSlotLoad[];
   residualW?: number;
   price?: number;
+  hasPrice?: boolean;
   feedIn?: number;
+  hasFeedIn?: boolean;
   soc?: number;
   peak?: boolean;
+  measured?: boolean;
 }
 
 export interface BatteryPlanFact {
@@ -518,6 +527,7 @@ export interface Loadpoint {
   vehicleTitle: string;
   vehicleWelcomeActive: boolean;
   batteryBoostLimit: number;
+  batteryDischargeExclude?: boolean;
   repeatingPlans?: RepeatingPlan[] | null;
   heatingComfort?: HeatingComfort;
   heatingStatus?: HeatingStatus;

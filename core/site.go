@@ -124,6 +124,7 @@ type Site struct {
 	batteryPlanFingerprint   string
 	batteryPlanHomeSource    string
 	batteryPlanLoads         []batteryPlanLoadStatus
+	batteryPlanSlotLoads     [][]batteryPlanSlotLoad // per-slot charger breakdown for UI
 	peakShaveQuarterStart    time.Time         // Clock-aligned quarter used for average peak control
 	peakShaveQuarterWh       float64           // Imported grid energy in the current quarter
 	peakShaveQuarterAt       time.Time         // Last sample time for quarter energy

@@ -67,6 +67,7 @@ func expectApplyBase(lp *MockAPI) {
 	lp.EXPECT().SetPlanEnergy(gomock.Any(), 0.0)
 	lp.EXPECT().SetPlanStrategy(api.PlanStrategy{})
 	lp.EXPECT().SetBatteryBoostLimit(0)
+	lp.EXPECT().SetBatteryDischargeExclude(false)
 	lp.EXPECT().SetLimitEnergy(0.0)
 	lp.EXPECT().SetLimitSoc(0)
 	lp.EXPECT().SetSocConfig(SocConfig{})

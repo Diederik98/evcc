@@ -65,6 +65,7 @@
 				:gridConfigured="gridConfigured"
 				:pvConfigured="pvConfigured"
 				:batteryConfigured="batteryConfigured"
+				:batteryDischargeControl="batteryDischargeControl"
 				:batterySoc="batterySoc"
 				:batteryMode="batteryMode"
 				:forecast="forecast"

@@ -81,6 +81,7 @@
 				:smartCostAvailable="smartCostAvailable"
 				:smartCostType="smartCostType"
 				:battery-configured="batteryConfigured"
+				:battery-discharge-control="batteryDischargeControl"
 				:forecast="forecast"
 			/>
 		</div>
@@ -123,6 +124,7 @@ export default defineComponent({
 		gridConfigured: Boolean,
 		pvConfigured: Boolean,
 		batteryConfigured: Boolean,
+		batteryDischargeControl: Boolean,
 		batterySoc: Number,
 		batteryMode: String as PropType<BATTERY_MODE>,
 		forecast: Object as PropType<Forecast>,

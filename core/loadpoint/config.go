@@ -28,7 +28,8 @@ type DynamicConfig struct {
 	PlanEnergy               float64   `json:"planEnergy"`
 	PlanTime                 time.Time `json:"planTime"`
 	PlanPrecondition_        int64     `json:"planPrecondition" mapstructure:"planPrecondition"` // TODO deprecated, keep for compatibility
-	BatteryBoostLimit        int       `json:"batteryBoostLimit"`
+	BatteryBoostLimit          int  `json:"batteryBoostLimit"`
+	BatteryDischargeExclude    bool `json:"batteryDischargeExclude,omitempty"`
 	LimitEnergy              float64   `json:"limitEnergy"`
 	LimitSoc                 int       `json:"limitSoc"`
 
@@ -77,6 +78,7 @@ func (payload DynamicConfig) Apply(lp API) error {
 	lp.SetPlanEnergy(payload.PlanTime, payload.PlanEnergy)
 	lp.SetPlanStrategy(payload.PlanStrategy)
 	lp.SetBatteryBoostLimit(payload.BatteryBoostLimit)
+	lp.SetBatteryDischargeExclude(payload.BatteryDischargeExclude)
 	lp.SetLimitEnergy(payload.LimitEnergy)
 	lp.SetLimitSoc(payload.LimitSoc)
 

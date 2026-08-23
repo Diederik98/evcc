@@ -8,6 +8,11 @@ import (
 
 // GetNextOccurrence returns the next occurrence of the given time on the specified weekdays.
 func GetNextOccurrence(weekdays []int, timeStr string, tz string) (time.Time, error) {
+	return GetNextOccurrenceFrom(time.Now(), weekdays, timeStr, tz)
+}
+
+// GetNextOccurrenceFrom is like GetNextOccurrence but uses the given reference time.
+func GetNextOccurrenceFrom(now time.Time, weekdays []int, timeStr string, tz string) (time.Time, error) {
 	if tz == "" {
 		tz = "Local"
 	}
@@ -23,7 +28,7 @@ func GetNextOccurrence(weekdays []int, timeStr string, tz string) (time.Time, er
 
 	hour, minute := parsedTime.Hour(), parsedTime.Minute()
 
-	now := time.Now().In(loc)
+	now = now.In(loc)
 
 	target := time.Date(
 		now.Year(), now.Month(), now.Day(),

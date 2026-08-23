@@ -122,7 +122,8 @@ type Loadpoint struct {
 	smartCostLimit           *float64 // always charge if consumption cost is below this value
 	smartFeedInPriorityLimit *float64 // prevent charging if feed-in cost is above this value
 	batteryBoost             int      // battery boost state
-	batteryBoostLimit        int      // battery boost soc limit (0-100, 100=disabled)
+	batteryBoostLimit          int  // battery boost soc limit (0-100, 100=disabled)
+	batteryDischargeExclude    bool // exempt from site discharge control (battery may feed this loadpoint)
 
 	mode                api.ChargeMode
 	enabled             bool      // Charger enabled state
@@ -390,6 +391,9 @@ func (lp *Loadpoint) restoreSettings() {
 	}
 	if v, err := lp.settings.Int(keys.BatteryBoostLimit); err == nil {
 		lp.SetBatteryBoostLimit(int(v))
+	}
+	if v, err := lp.settings.Bool(keys.BatteryDischargeExclude); err == nil {
+		lp.SetBatteryDischargeExclude(v)
 	}
 
 	var thresholds loadpoint.ThresholdsConfig
@@ -779,6 +783,7 @@ func (lp *Loadpoint) Prepare(site site.API, uiChan chan<- util.Param, pushChan c
 	// battery boost
 	lp.publish(keys.BatteryBoost, lp.batteryBoost != boostDisabled)
 	lp.publish(keys.BatteryBoostLimit, lp.batteryBoostLimit)
+	lp.publish(keys.BatteryDischargeExclude, lp.batteryDischargeExclude)
 
 	// read initial charger state to prevent immediately disabling charger
 	if enabled, err := lp.charger.Enabled(); err == nil {

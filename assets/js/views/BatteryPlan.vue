@@ -89,6 +89,8 @@
 							:grid-threshold="state.gridThreshold"
 							:currency="state.currency"
 							:peak-shave-state="state.peakShaveState ?? 'idle'"
+							:has-prices-hint="explain?.hasPrices"
+							:plan-loads="loads"
 						/>
 						<div class="table-responsive">
 							<table class="table table-sm small">
@@ -195,23 +197,32 @@ export default defineComponent({
 			return fact.code;
 		},
 		loadSummary(load: BatteryPlanLoad): string {
-			const start = load.start ? this.fmtTime(load.start) : "";
-			const end = load.end ? this.fmtTime(load.end) : "";
+			const start = load.start ? this.fmtPlanTime(load.start) : "";
+			const end = load.end ? this.fmtPlanTime(load.end) : "";
+			const deadline = load.deadline ? this.fmtPlanTime(load.deadline) : "";
+			const span =
+				load.start && load.end && this.isDifferentDay(load.start, load.end)
+					? this.$t("peakShave.plan.loadSpanDays")
+					: "";
+			const deadlinePart =
+				deadline && deadline !== end
+					? this.$t("peakShave.plan.loadSummaryDeadline", { deadline })
+					: "";
 			return this.$t("peakShave.plan.loadSummary", {
 				energy: this.fmtWh(load.energyWh || 0, POWER_UNIT.KW, true, 1),
 				power: this.fmtW(load.powerW || 0, POWER_UNIT.KW, true, 1),
 				start,
-				end,
+				end: end + deadlinePart,
 				pattern: load.pattern || "",
+				span,
 			});
 		},
-		slotRange(slot: BatteryPlanSlot): string {
-			if (!slot.start) {
-				return "";
-			}
-			return this.fmtTime(slot.start);
+		isDifferentDay(a: string, b: string): boolean {
+			const da = new Date(a);
+			const db = new Date(b);
+			return !Number.isNaN(da.getTime()) && !Number.isNaN(db.getTime()) && da.toDateString() !== db.toDateString();
 		},
-		fmtTime(value: string): string {
+		fmtPlanTime(value: string): string {
 			const d = new Date(value);
 			if (Number.isNaN(d.getTime())) {
 				return "";
@@ -221,7 +232,16 @@ export default defineComponent({
 			if (d.toDateString() === now.toDateString()) {
 				return time;
 			}
-			return `${d.toLocaleDateString(undefined, { weekday: "short" })} ${time}`;
+			return `${d.toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" })} ${time}`;
+		},
+		slotRange(slot: BatteryPlanSlot): string {
+			if (!slot.start) {
+				return "";
+			}
+			return this.fmtPlanTime(slot.start);
+		},
+		fmtTime(value: string): string {
+			return this.fmtPlanTime(value);
 		},
 	},
 });

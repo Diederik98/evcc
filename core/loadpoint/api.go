@@ -176,6 +176,10 @@ type API interface {
 	GetBatteryBoostLimit() int
 	// SetBatteryBoostLimit sets the battery boost soc limit
 	SetBatteryBoostLimit(int)
+	// GetBatteryDischargeExclude reports whether site discharge control is skipped for this loadpoint
+	GetBatteryDischargeExclude() bool
+	// SetBatteryDischargeExclude sets whether the home battery may feed this loadpoint during fast/planned charging
+	SetBatteryDischargeExclude(bool)
 
 	//
 	// smart grid charging

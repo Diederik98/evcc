@@ -36,6 +36,8 @@
 			:grid-threshold="gridThreshold"
 			:currency="currency"
 			:peak-shave-state="peakShaveState"
+			:has-prices-hint="batteryPlan?.explain?.hasPrices"
+			:plan-loads="batteryPlan?.explain?.loads || []"
 		/>
 		<p class="mb-4">
 			<router-link to="/battery/plan">{{ $t("peakShave.plan.openDetails") }}</router-link>

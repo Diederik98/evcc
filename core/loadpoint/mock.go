@@ -193,6 +193,20 @@ func (mr *MockAPIMockRecorder) GetBatteryBoostLimit() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetBatteryBoostLimit", reflect.TypeOf((*MockAPI)(nil).GetBatteryBoostLimit))
 }
 
+// GetBatteryDischargeExclude mocks base method.
+func (m *MockAPI) GetBatteryDischargeExclude() bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetBatteryDischargeExclude")
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// GetBatteryDischargeExclude indicates an expected call of GetBatteryDischargeExclude.
+func (mr *MockAPIMockRecorder) GetBatteryDischargeExclude() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetBatteryDischargeExclude", reflect.TypeOf((*MockAPI)(nil).GetBatteryDischargeExclude))
+}
+
 // GetChargePower mocks base method.
 func (m *MockAPI) GetChargePower() float64 {
 	m.ctrl.T.Helper()
@@ -819,6 +833,18 @@ func (m *MockAPI) SetBatteryBoostLimit(arg0 int) {
 func (mr *MockAPIMockRecorder) SetBatteryBoostLimit(arg0 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetBatteryBoostLimit", reflect.TypeOf((*MockAPI)(nil).SetBatteryBoostLimit), arg0)
+}
+
+// SetBatteryDischargeExclude mocks base method.
+func (m *MockAPI) SetBatteryDischargeExclude(arg0 bool) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "SetBatteryDischargeExclude", arg0)
+}
+
+// SetBatteryDischargeExclude indicates an expected call of SetBatteryDischargeExclude.
+func (mr *MockAPIMockRecorder) SetBatteryDischargeExclude(arg0 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetBatteryDischargeExclude", reflect.TypeOf((*MockAPI)(nil).SetBatteryDischargeExclude), arg0)
 }
 
 // SetChargerRef mocks base method.

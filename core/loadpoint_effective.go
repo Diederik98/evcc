@@ -83,7 +83,7 @@ func (lp *Loadpoint) nextVehiclePlan() (time.Time, int, int) {
 				continue
 			}
 
-			planTime, err := util.GetNextOccurrence(rp.Weekdays, rp.Time, rp.Tz)
+			planTime, err := util.GetNextOccurrenceFrom(lp.clock.Now(), rp.Weekdays, rp.Time, rp.Tz)
 			if err != nil {
 				lp.log.DEBUG.Printf("invalid repeating plan: weekdays=%v, time=%s, tz=%s, error=%v", rp.Weekdays, rp.Time, rp.Tz, err)
 				continue

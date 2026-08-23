@@ -75,6 +75,11 @@ type batteryPlanLogEntry struct {
 	Detail string    `json:"detail,omitempty"`
 }
 
+type batteryPlanSlotLoad struct {
+	Title string  `json:"title"`
+	LoadW float64 `json:"loadW"`
+}
+
 type batteryPlanSlotStatus struct {
 	Start      time.Time `json:"start"`
 	End        time.Time `json:"end"`
@@ -85,11 +90,15 @@ type batteryPlanSlotStatus struct {
 	HomeW      float64   `json:"homeW"`
 	SolarW     float64   `json:"solarW"`
 	LoadW      float64   `json:"loadW,omitempty"`
+	Loads      []batteryPlanSlotLoad `json:"loads,omitempty"`
 	ResidualW  float64   `json:"residualW"`
 	Price      float64   `json:"price,omitempty"`
+	HasPrice   bool      `json:"hasPrice,omitempty"`
 	FeedIn     float64   `json:"feedIn,omitempty"`
+	HasFeedIn  bool      `json:"hasFeedIn,omitempty"`
 	Soc        float64   `json:"soc"`
 	Peak       bool      `json:"peak,omitempty"`
+	Measured   bool      `json:"measured,omitempty"`
 }
 
 var _ api.BytesMarshaler = (*batteryPlanStatus)(nil)
@@ -101,6 +110,7 @@ func (s batteryPlanStatus) MarshalBytes() ([]byte, error) {
 func (site *Site) evaluateBatteryPlan() (planner.BatteryPlan, bool) {
 	site.batteryPlanLoadWh = 0
 	site.batteryPlanLoadCaps = nil
+	site.batteryPlanSlotLoads = nil
 	site.batteryPlanForecast = nil
 	if !site.batteryConfigured() || site.battery.Capacity <= 0 {
 		return planner.BatteryPlan{}, false
@@ -167,8 +177,9 @@ func (site *Site) batteryPowerLimits() (chargeW, dischargeW float64) {
 }
 
 const (
-	batteryPlanMinSlots = 96
-	batteryPlanMaxSlots = 96 * 7
+	batteryPlanHistorySlots = 96 // 24h measured history shown before forecast
+	batteryPlanMinSlots     = 96 // 24h forecast horizon
+	batteryPlanMaxSlots     = 96 * 7
 )
 
 func batteryPlanSlotCount(nGrid, nSolar, nFeedIn, nHome int) int {
@@ -193,15 +204,15 @@ func extendProfile(home []float64, n int) []float64 {
 	return out
 }
 
-func rateValueAt(rr api.Rates, ts time.Time) float64 {
+func rateValueAt(rr api.Rates, ts time.Time) (float64, bool) {
 	if len(rr) == 0 {
-		return 0
+		return 0, false
 	}
 	r, err := rr.At(ts)
 	if err != nil {
-		return 0
+		return 0, false
 	}
-	return r.Value
+	return r.Value, true
 }
 
 func (site *Site) batteryPlanSlots() []planner.BatterySlot {
@@ -250,8 +261,12 @@ func (site *Site) batteryPlanSlots() []planner.BatterySlot {
 			Start:  start,
 			End:    start.Add(tariff.SlotDuration),
 			HomeWh: home[i],
-			Price:  rateValueAt(grid, start),
-			FeedIn: rateValueAt(feedIn, start),
+		}
+		if price, ok := rateValueAt(grid, start); ok {
+			s.Price = price
+		}
+		if feedIn, ok := rateValueAt(feedIn, start); ok {
+			s.FeedIn = feedIn
 		}
 		if i == 0 && liveHomeWh > s.HomeWh {
 			s.HomeWh = liveHomeWh
@@ -264,7 +279,7 @@ func (site *Site) batteryPlanSlots() []planner.BatterySlot {
 		slots[i] = s
 	}
 
-	site.batteryPlanLoadWh, site.batteryPlanLoadCaps, site.batteryPlanLoads = applyLoadpointPlans(site.Loadpoints(), slots, site.GridThreshold*1000)
+	site.batteryPlanLoadWh, site.batteryPlanLoadCaps, site.batteryPlanLoads, site.batteryPlanSlotLoads = applyLoadpointPlans(site.Loadpoints(), slots, site.GridThreshold*1000)
 	return slots
 }
 
@@ -291,10 +306,29 @@ func (site *Site) fallbackHomeProfile(minLen int) []float64 {
 
 // applyLoadpointPlans adds planned charger/heater energy onto household slots,
 // flattening under the grid limit when there is enough time before the deadline.
-func applyLoadpointPlans(loadpoints []loadpoint.API, slots []planner.BatterySlot, gridThresholdW float64) (float64, []float64, []batteryPlanLoadStatus) {
+func applyLoadpointPlans(loadpoints []loadpoint.API, slots []planner.BatterySlot, gridThresholdW float64) (float64, []float64, []batteryPlanLoadStatus, [][]batteryPlanSlotLoad) {
 	caps := make([]float64, len(loadpoints))
+	slotLoads := make([][]batteryPlanSlotLoad, len(slots))
 	var loads []batteryPlanLoadStatus
 	var addedWh float64
+
+	addSlotLoad := func(slotIdx int, title string, wh float64) {
+		if slotIdx < 0 || slotIdx >= len(slots) || wh <= 0 {
+			return
+		}
+		h := slots[slotIdx].End.Sub(slots[slotIdx].Start).Hours()
+		if h <= 0 {
+			return
+		}
+		w := wh / h
+		for k := range slotLoads[slotIdx] {
+			if slotLoads[slotIdx][k].Title == title {
+				slotLoads[slotIdx][k].LoadW += w
+				return
+			}
+		}
+		slotLoads[slotIdx] = append(slotLoads[slotIdx], batteryPlanSlotLoad{Title: title, LoadW: w})
+	}
 
 	for i, lp := range loadpoints {
 		var demands []planner.ChargeDemand
@@ -344,6 +378,9 @@ func applyLoadpointPlans(loadpoints []loadpoint.API, slots []planner.BatterySlot
 			}
 		}
 		for _, d := range demands {
+			for slotIdx, wh := range planner.DemandSlotWh(slots, d, gridThresholdW) {
+				addSlotLoad(slotIdx, title, wh)
+			}
 			start, end := planner.Start(d.Preferred), planner.End(d.Preferred)
 			mode := "flex"
 			if d.Continuous {
@@ -364,7 +401,7 @@ func applyLoadpointPlans(loadpoints []loadpoint.API, slots []planner.BatterySlot
 		}
 	}
 
-	return addedWh, caps, loads
+	return addedWh, caps, loads, slotLoads
 }
 
 func loadpointChargePlan(lp loadpoint.API) (api.Rates, float64) {
@@ -463,6 +500,13 @@ func (site *Site) batteryPlanLoadW() float64 {
 
 func (site *Site) publishBatteryPlan(plan planner.BatteryPlan) {
 	site.recordBatteryPlanLog(plan)
+	history := site.batteryPlanMeasuredSlots(batteryPlanHistorySlots)
+	var grid api.Rates
+	if site.tariffs != nil {
+		grid = currentRates(site.GetTariff(api.TariffUsageGrid))
+	}
+	forecast := batteryPlanSlotStatuses(site.batteryPlanForecast, site.batteryPlanSlotLoads, false, grid)
+	slots := append(history, forecast...)
 	site.publish(keys.BatteryPlan, batteryPlanStatus{
 		Action:         plan.Action,
 		Reason:         plan.Reason,
@@ -473,7 +517,7 @@ func (site *Site) publishBatteryPlan(plan planner.BatteryPlan) {
 		DischargeFloor: plan.DischargeFloor,
 		LoadWh:         site.batteryPlanLoadWh,
 		LoadW:          site.batteryPlanLoadW(),
-		Slots:          batteryPlanSlotStatuses(site.batteryPlanForecast),
+		Slots:          slots,
 		Explain:        site.batteryPlanExplanation(plan),
 		Log:            append([]batteryPlanLogEntry(nil), site.batteryPlanLog...),
 	})
@@ -482,9 +526,15 @@ func (site *Site) publishBatteryPlan(plan planner.BatteryPlan) {
 func (site *Site) batteryPlanExplanation(plan planner.BatteryPlan) *batteryPlanExplain {
 	chargeW, dischargeW := site.batteryPowerLimits()
 	var hasPrices, hasSolar bool
+	var grid api.Rates
+	if site.tariffs != nil {
+		grid = currentRates(site.GetTariff(api.TariffUsageGrid))
+		grid.Sort()
+	}
 	for _, s := range site.batteryPlanForecast {
-		if s.Price > 0 {
+		if price, ok := rateValueAt(grid, s.Start); ok {
 			hasPrices = true
+			_ = price
 		}
 		if s.SolarW > 0 {
 			hasSolar = true
@@ -614,13 +664,13 @@ func (site *Site) recordBatteryPlanLog(plan planner.BatteryPlan) {
 	}
 }
 
-func batteryPlanSlotStatuses(slots []planner.BatteryHorizonSlot) []batteryPlanSlotStatus {
+func batteryPlanSlotStatuses(slots []planner.BatteryHorizonSlot, slotLoads [][]batteryPlanSlotLoad, measured bool, grid api.Rates) []batteryPlanSlotStatus {
 	if len(slots) == 0 {
 		return nil
 	}
 	out := make([]batteryPlanSlotStatus, len(slots))
 	for i, s := range slots {
-		out[i] = batteryPlanSlotStatus{
+		st := batteryPlanSlotStatus{
 			Start:      s.Start,
 			End:        s.End,
 			Action:     s.Action,
@@ -631,11 +681,92 @@ func batteryPlanSlotStatuses(slots []planner.BatteryHorizonSlot) []batteryPlanSl
 			SolarW:     s.SolarW,
 			LoadW:      s.LoadW,
 			ResidualW:  s.ResidualW,
-			Price:      s.Price,
-			FeedIn:     s.FeedIn,
 			Soc:        s.Soc,
 			Peak:       s.Peak,
+			Measured:   measured,
 		}
+		if price, ok := rateValueAt(grid, s.Start); ok {
+			st.Price = price
+			st.HasPrice = true
+		}
+		if s.FeedIn > 0 {
+			st.FeedIn = s.FeedIn
+			st.HasFeedIn = true
+		}
+		if !measured && i < len(slotLoads) {
+			st.Loads = slotLoads[i]
+		}
+		out[i] = st
+	}
+	return out
+}
+
+func (site *Site) batteryPlanMeasuredSlots(n int) []batteryPlanSlotStatus {
+	if n <= 0 {
+		return nil
+	}
+	now := time.Now().Truncate(tariff.SlotDuration)
+	from := now.Add(-time.Duration(n) * tariff.SlotDuration)
+
+	homeByStart := map[int64]float64{}
+	pvByStart := map[int64]float64{}
+	socByStart := map[int64]float64{}
+
+	if series, err := metrics.QueryEnergy(from, now, "15m", false, metrics.EnergyFilter{Group: metrics.Home}); err == nil {
+		for _, s := range series {
+			for _, slot := range s.Data {
+				homeByStart[slot.Start.Unix()] = slot.Energy * 1e3 / tariff.SlotDuration.Hours()
+			}
+		}
+	}
+	if series, err := metrics.QueryEnergy(from, now, "15m", false, metrics.EnergyFilter{Group: metrics.PV}); err == nil {
+		for _, s := range series {
+			for _, slot := range s.Data {
+				pvByStart[slot.Start.Unix()] = slot.Energy * 1e3 / tariff.SlotDuration.Hours()
+			}
+		}
+	}
+	if series, err := metrics.QueryEnergy(from, now, "15m", false, metrics.EnergyFilter{Group: metrics.Battery}); err == nil {
+		for _, s := range series {
+			for _, slot := range s.Data {
+				if slot.SocTemp != nil {
+					socByStart[slot.Start.Unix()] = *slot.SocTemp
+				}
+			}
+		}
+	}
+
+	var grid api.Rates
+	if site.tariffs != nil {
+		grid = currentRates(site.GetTariff(api.TariffUsageGrid))
+		grid.Sort()
+	}
+
+	out := make([]batteryPlanSlotStatus, 0, n)
+	for i := range n {
+		start := from.Add(time.Duration(i) * tariff.SlotDuration)
+		end := start.Add(tariff.SlotDuration)
+		if !start.Before(now) {
+			break
+		}
+		st := batteryPlanSlotStatus{
+			Start:    start,
+			End:      end,
+			Action:   "normal",
+			Reason:   "idle",
+			HomeW:    homeByStart[start.Unix()],
+			SolarW:   pvByStart[start.Unix()],
+			Soc:      socByStart[start.Unix()],
+			Measured: true,
+		}
+		if st.Soc == 0 && site.batteryConfigured() {
+			st.Soc = site.battery.Soc
+		}
+		if price, ok := rateValueAt(grid, start); ok {
+			st.Price = price
+			st.HasPrice = true
+		}
+		out = append(out, st)
 	}
 	return out
 }

@@ -666,6 +666,25 @@ func (lp *Loadpoint) SetBatteryBoostLimit(limit int) {
 	}
 }
 
+// GetBatteryDischargeExclude reports whether this loadpoint is exempt from site discharge control.
+func (lp *Loadpoint) GetBatteryDischargeExclude() bool {
+	lp.RLock()
+	defer lp.RUnlock()
+	return lp.batteryDischargeExclude
+}
+
+// SetBatteryDischargeExclude sets whether the home battery may feed this loadpoint during fast/planned charging.
+func (lp *Loadpoint) SetBatteryDischargeExclude(exclude bool) {
+	lp.Lock()
+	defer lp.Unlock()
+
+	if lp.batteryDischargeExclude != exclude {
+		lp.batteryDischargeExclude = exclude
+		lp.settings.SetBool(keys.BatteryDischargeExclude, exclude)
+		lp.publish(keys.BatteryDischargeExclude, exclude)
+	}
+}
+
 // HasChargeMeter determines if a physical charge meter is attached
 func (lp *Loadpoint) HasChargeMeter() bool {
 	_, isWrapped := lp.chargeMeter.(*wrapper.ChargeMeter)
