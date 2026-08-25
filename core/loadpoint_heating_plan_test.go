@@ -84,6 +84,10 @@ func repeatingEveningPlan(energy float64) []api.RepeatingPlan {
 	}}
 }
 
+func heatingWouldStayOn(lp *Loadpoint) bool {
+	return lp.heatingComfortHeating() || lp.plannerActive()
+}
+
 func TestHeatingComfortActivatesBelowMinTemp(t *testing.T) {
 	clk, _ := brusselsMorning(t, 6, 30)
 	lp := heatingPlanLoadpoint(t, clk, defaultComfort(1150))
@@ -238,16 +242,27 @@ func TestHorizonChargeDemandsIncludesRepeatingPlanWhileComfortCouldRun(t *testin
 	assert.Equal(t, 18, demands[0].Deadline.In(loc).Hour())
 }
 
-func TestWarmTankDoesNotCancelRepeatingPlanExecution(t *testing.T) {
-	// Regression: stop temp reached must not zero the calendar plan or block slot execution.
-	clk, _ := brusselsMorning(t, 16, 0)
+func TestWarmTankDoesNotCancelRepeatingPlanDemand(t *testing.T) {
+	// Battery overlay still sees the kWh goal when the tank is already warm.
+	// The heater itself must not stay on at stop temp.
+	clk, loc := brusselsMorning(t, 16, 0)
 	lp := heatingPlanLoadpoint(t, clk, defaultComfort(1150))
 	lp.vehicleSoc = 52 // above stop temp
 	lp.repeatingPlans = repeatingEveningPlan(2.3)
 
 	require.False(t, lp.heatingComfortActive())
+	require.True(t, lp.LimitSocReached())
 	assert.Greater(t, lp.getPlanRequiredDuration(2.3, 1150), 30*time.Minute)
-	assert.True(t, lp.plannerActive())
+	assert.False(t, lp.plannerActive(), "stop temp must turn the heater off even inside the slot")
+	assert.False(t, heatingWouldStayOn(lp))
+
+	start := clk.Now().Truncate(tariff.SlotDuration)
+	demands := lp.HorizonChargeDemands([]planner.BatterySlot{{
+		Start: start,
+		End:   time.Date(start.Year(), start.Month(), start.Day(), 23, 59, 0, 0, loc),
+	}})
+	require.Len(t, demands, 1)
+	assert.InDelta(t, 2300, demands[0].RequiredWh, 1)
 }
 
 func TestComfortThenRepeatingPlanExecutesSameDay(t *testing.T) {
@@ -272,6 +287,13 @@ func TestComfortThenRepeatingPlanExecutesSameDay(t *testing.T) {
 	require.True(t, lp.plannerActive())
 	assert.True(t, lp.planActive)
 	assert.Equal(t, 18, lp.EffectivePlanTime().In(loc).Hour())
+
+	// After the deadline the heater must stop even if the kWh goal is unmet.
+	clk.Set(time.Date(2026, 8, 22, 18, 5, 0, 0, loc))
+	assert.False(t, lp.plannerActive())
+	assert.False(t, lp.heatingComfortActive())
+	assert.False(t, heatingWouldStayOn(lp))
+	assert.True(t, lp.heatingPlanExclusive(), "tomorrow's occurrence still owns PV surplus")
 }
 
 func TestComfortDuringPlanSlotBothAllowFastCharge(t *testing.T) {
@@ -303,4 +325,96 @@ func TestGetNextOccurrenceFromUsesReferenceTime(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 18, got.Hour())
 	assert.Equal(t, 22, got.Day())
+}
+
+func TestHeatingComfortStopTempWinsOverMinOn(t *testing.T) {
+	clk, _ := brusselsMorning(t, 6, 0)
+	lp := heatingPlanLoadpoint(t, clk, defaultComfort(1150))
+	lp.vehicleSoc = 38
+	require.True(t, lp.heatingComfortActive())
+
+	clk.Add(time.Minute)
+	lp.vehicleSoc = 51
+	assert.False(t, lp.heatingComfortActive())
+	assert.True(t, lp.LimitSocReached())
+	assert.False(t, heatingWouldStayOn(lp))
+}
+
+func TestHeatingComfortHysteresisStopsAndRestartsBelowMin(t *testing.T) {
+	clk, _ := brusselsMorning(t, 6, 0)
+	lp := heatingPlanLoadpoint(t, clk, defaultComfort(1150))
+	lp.repeatingPlans = repeatingEveningPlan(2.3)
+	lp.vehicleSoc = 38
+	require.True(t, heatingWouldStayOn(lp))
+
+	clk.Add(16 * time.Minute)
+	lp.vehicleSoc = 42 // min 40 + hysteresis 1.5
+	assert.False(t, lp.heatingComfortActive())
+	assert.False(t, lp.plannerActive(), "calendar must not keep the heater on at 06:16")
+	assert.False(t, heatingWouldStayOn(lp))
+
+	lp.vehicleSoc = 39
+	assert.True(t, lp.heatingComfortActive())
+	assert.True(t, heatingWouldStayOn(lp))
+}
+
+func TestRepeatingHeatingPlanStopsAfterDeadline(t *testing.T) {
+	clk, loc := brusselsMorning(t, 17, 0)
+	lp := heatingPlanLoadpoint(t, clk, defaultComfort(1150))
+	lp.vehicleSoc = 45
+	lp.repeatingPlans = repeatingEveningPlan(2.3)
+
+	require.True(t, lp.plannerActive())
+	require.True(t, heatingWouldStayOn(lp))
+
+	clk.Set(time.Date(2026, 8, 22, 18, 5, 0, 0, loc))
+	assert.False(t, lp.plannerActive())
+	assert.False(t, lp.heatingComfortActive())
+	assert.False(t, lp.LimitSocReached())
+	assert.False(t, heatingWouldStayOn(lp))
+}
+
+func TestRepeatingHeatingPlanStopsAtStopTempDuringSlot(t *testing.T) {
+	clk, _ := brusselsMorning(t, 17, 0)
+	lp := heatingPlanLoadpoint(t, clk, defaultComfort(1150))
+	lp.vehicleSoc = 45
+	lp.repeatingPlans = repeatingEveningPlan(2.3)
+	require.True(t, lp.plannerActive())
+
+	lp.vehicleSoc = 50
+	assert.True(t, lp.LimitSocReached())
+	assert.False(t, lp.plannerActive())
+	assert.False(t, lp.heatingComfortActive())
+	assert.False(t, heatingWouldStayOn(lp))
+}
+
+func TestRepeatingHeatingPlanHonorsMinOnAfterSlot(t *testing.T) {
+	clk, loc := brusselsMorning(t, 17, 50)
+	lp := heatingPlanLoadpoint(t, clk, defaultComfort(1150))
+	lp.vehicleSoc = 45
+	lp.repeatingPlans = repeatingEveningPlan(2.3)
+	require.True(t, lp.plannerActive())
+	lp.heatingBoostStart = clk.Now()
+
+	clk.Set(time.Date(2026, 8, 22, 18, 2, 0, 0, loc))
+	assert.True(t, lp.plannerActive(), "min on-time may briefly extend past the deadline")
+	assert.True(t, heatingWouldStayOn(lp))
+
+	clk.Set(time.Date(2026, 8, 22, 18, 10, 0, 0, loc))
+	assert.False(t, lp.plannerActive())
+	assert.False(t, heatingWouldStayOn(lp))
+}
+
+func TestRepeatingHeatingPlanDoesNotRestartNextCycleAfterDeadline(t *testing.T) {
+	clk, loc := brusselsMorning(t, 17, 0)
+	lp := heatingPlanLoadpoint(t, clk, defaultComfort(1150))
+	lp.vehicleSoc = 45
+	lp.repeatingPlans = repeatingEveningPlan(2.3)
+	require.True(t, lp.plannerActive())
+
+	clk.Set(time.Date(2026, 8, 22, 18, 5, 0, 0, loc))
+	require.False(t, lp.plannerActive())
+	assert.False(t, lp.planActive)
+	assert.False(t, lp.plannerActive(), "a later cycle must not resume continuous heating")
+	assert.False(t, heatingWouldStayOn(lp))
 }

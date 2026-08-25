@@ -230,6 +230,13 @@ func (lp *Loadpoint) plannerActive() (active bool) {
 	activeSlot := planner.SlotAt(lp.clock.Now(), plan)
 	active = !activeSlot.End.IsZero()
 
+	if lp.chargerHasFeature(api.Heating) {
+		if stop := lp.heatingStopTempLocked(); stop > 0 && lp.vehicleSoc >= stop {
+			lp.log.DEBUG.Printf("plan: heating stop temp reached (%.1f°C >= %.1f°C)", lp.vehicleSoc, stop)
+			return false
+		}
+	}
+
 	if active {
 		// ignore short plans if not already active
 		if slotRemaining := lp.clock.Until(activeSlot.End); !lp.planActive && slotRemaining < tariff.SlotDuration-time.Minute && !planner.SlotHasSuccessor(activeSlot, plan) {
@@ -245,6 +252,14 @@ func (lp *Loadpoint) plannerActive() (active bool) {
 		// remember last active plan's slot end time
 		lp.planSlotEnd = activeSlot.End
 	} else if lp.planActive {
+		if lp.chargerHasFeature(api.Heating) {
+			if left := lp.heatingMinOnRemaining(); left > 0 {
+				lp.log.DEBUG.Printf("plan: heating min on-time remaining %v", left.Round(time.Second))
+				return true
+			}
+			return false
+		}
+
 		// planner was active (any slot, not necessarily previous slot) and charge goal has not yet been met
 		switch {
 		case lp.clock.Now().After(planTime) && !planTime.IsZero():
@@ -261,9 +276,6 @@ func (lp *Loadpoint) plannerActive() (active bool) {
 			return true
 		case lp.clock.Until(planStart) < tariff.SlotDuration-time.Minute:
 			lp.log.DEBUG.Printf("plan: avoid re-start within %v, continuing for remaining %v", tariff.SlotDuration, lp.clock.Until(planStart).Round(time.Second))
-			return true
-		case lp.heatingMinOnRemaining() > 0:
-			lp.log.DEBUG.Printf("plan: heating min on-time remaining %v", lp.heatingMinOnRemaining().Round(time.Second))
 			return true
 		case strategy.Continuous && requiredDuration > strategy.Precondition:
 			lp.log.DEBUG.Printf("plan: ignoring restart at %s for continuous charging", planStart.Round(time.Second).Local())

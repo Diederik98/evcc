@@ -222,3 +222,65 @@ func TestSyncChargerPhasesByMeasurement(t *testing.T) {
 		assert.Equal(t, tc.outPhases, lp.phases)
 	}
 }
+
+func TestSyncChargerHeatingRetriesDisable(t *testing.T) {
+	type featureDecorator struct {
+		api.Charger
+		api.FeatureDescriber
+	}
+
+	for _, tc := range []struct {
+		name           string
+		status         api.ChargeStatus
+		chargerEnabled bool
+	}{
+		{"charging while reported off", api.StatusC, false},
+		{"charging while reported on", api.StatusC, true},
+		{"enabled while idle", api.StatusB, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			charger := api.NewMockCharger(ctrl)
+			fd := api.NewMockFeatureDescriber(ctrl)
+			fd.EXPECT().Features().AnyTimes().Return([]api.Feature{api.Heating, api.IntegratedDevice})
+			charger.EXPECT().Enabled().Return(tc.chargerEnabled, nil)
+			charger.EXPECT().Enable(false).Return(nil)
+
+			lp := &Loadpoint{
+				log:     util.NewLogger("foo"),
+				clock:   clock.New(),
+				charger: &featureDecorator{Charger: charger, FeatureDescriber: fd},
+				status:  tc.status,
+				enabled: false,
+			}
+
+			require.NoError(t, lp.syncCharger())
+			assert.False(t, lp.enabled)
+		})
+	}
+}
+
+func TestSyncChargerHeatingRetriesDisableAfterError(t *testing.T) {
+	type featureDecorator struct {
+		api.Charger
+		api.FeatureDescriber
+	}
+
+	ctrl := gomock.NewController(t)
+	charger := api.NewMockCharger(ctrl)
+	fd := api.NewMockFeatureDescriber(ctrl)
+	fd.EXPECT().Features().AnyTimes().Return([]api.Feature{api.Heating})
+	charger.EXPECT().Enabled().Return(true, nil)
+	charger.EXPECT().Enable(false).Return(assert.AnError)
+
+	lp := &Loadpoint{
+		log:     util.NewLogger("foo"),
+		clock:   clock.New(),
+		charger: &featureDecorator{Charger: charger, FeatureDescriber: fd},
+		status:  api.StatusC,
+		enabled: false,
+	}
+
+	require.Error(t, lp.syncCharger())
+	assert.False(t, lp.enabled)
+}

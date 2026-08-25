@@ -122,8 +122,8 @@ type Loadpoint struct {
 	smartCostLimit           *float64 // always charge if consumption cost is below this value
 	smartFeedInPriorityLimit *float64 // prevent charging if feed-in cost is above this value
 	batteryBoost             int      // battery boost state
-	batteryBoostLimit          int  // battery boost soc limit (0-100, 100=disabled)
-	batteryDischargeExclude    bool // exempt from site discharge control (battery may feed this loadpoint)
+	batteryBoostLimit        int      // battery boost soc limit (0-100, 100=disabled)
+	batteryDischargeExclude  bool     // exempt from site discharge control (battery may feed this loadpoint)
 
 	mode                api.ChargeMode
 	enabled             bool      // Charger enabled state
@@ -827,6 +827,17 @@ func (lp *Loadpoint) syncCharger() error {
 		defer func() {
 			lp.setAndPublishEnabled(enabled)
 		}()
+	}
+
+	// heat pumps often lag or ignore a single disable; retry instead of treating running-while-disabled as a logic error
+	if lp.chargerHasFeature(api.Heating) && !lp.enabled && (enabled || lp.charging()) {
+		lp.log.WARN.Println("heater still on after disable, retrying")
+		if err := lp.charger.Enable(false); err != nil {
+			enabled = false
+			return fmt.Errorf("charger disable: %w", err)
+		}
+		enabled = false
+		return nil
 	}
 
 	// #1: check charger logic, fix charger state if necessary (for chargers that start charging while being disabled)
