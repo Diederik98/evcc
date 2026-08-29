@@ -134,3 +134,13 @@ func TestEmbedDecodeChargesZones(t *testing.T) {
 	assert.Equal(t, "Jan-Mar", cc.ChargesZones_[0].Months)
 	assert.Len(t, cc.chargesZones, 2)
 }
+
+func TestEnergyPriceRoundtrip(t *testing.T) {
+	e := embed{Charges: 0.15, Tax: 0.06}
+	require.NoError(t, e.init())
+
+	energy := 0.05
+	total := e.totalFromEnergy(energy)
+	assert.InDelta(t, (0.05+0.15)*1.06, total, 1e-9)
+	assert.InDelta(t, energy, e.energyPrice(total), 1e-9)
+}

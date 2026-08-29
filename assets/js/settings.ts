@@ -23,6 +23,7 @@ const BATTERY_UNIT = "battery_unit";
 const SETTINGS_SOLAR_ADJUSTED = "settings_solar_adjusted";
 const SETTINGS_PRICE_ZOOM = "settings_price_zoom";
 const SETTINGS_HIDE_FEEDIN = "settings_hide_feedin";
+const SETTINGS_SHOW_ENERGY_PRICE = "settings_show_energy_price";
 const LAST_BATTERY_SMART_COST_LIMIT = "last_battery_smart_cost_limit";
 const LAST_TARGET_TIME = "last_target_time";
 const LAST_SOC_GOAL = "last_soc_goal";
@@ -50,6 +51,14 @@ function save(key: string) {
 
 function readBool(key: string) {
   return read(key) === "true";
+}
+
+function readBoolDefault(key: string, defaultValue: boolean) {
+  const value = read(key);
+  if (value === undefined) {
+    return defaultValue;
+  }
+  return value === "true";
 }
 
 function saveBool(key: string) {
@@ -129,6 +138,7 @@ export interface Settings {
   solarAdjusted: boolean;
   priceZoom: boolean;
   hideFeedin: boolean;
+  showEnergyPrice: boolean;
   loadpoints: Record<string, LoadpointSettings>;
   lastBatterySmartCostLimit: number | undefined;
   lastTargetTime: string | null;
@@ -159,6 +169,7 @@ const settings: Settings = reactive({
   solarAdjusted: readBool(SETTINGS_SOLAR_ADJUSTED),
   priceZoom: readBool(SETTINGS_PRICE_ZOOM),
   hideFeedin: readBool(SETTINGS_HIDE_FEEDIN),
+  showEnergyPrice: readBoolDefault(SETTINGS_SHOW_ENERGY_PRICE, true),
   loadpoints: readJSON(LOADPOINTS),
   lastBatterySmartCostLimit: readNumber(LAST_BATTERY_SMART_COST_LIMIT),
   lastTargetTime: read(LAST_TARGET_TIME),
@@ -188,6 +199,7 @@ watch(() => settings.batteryUnit, save(BATTERY_UNIT));
 watch(() => settings.solarAdjusted, saveBool(SETTINGS_SOLAR_ADJUSTED));
 watch(() => settings.priceZoom, saveBool(SETTINGS_PRICE_ZOOM));
 watch(() => settings.hideFeedin, saveBool(SETTINGS_HIDE_FEEDIN));
+watch(() => settings.showEnergyPrice, saveBool(SETTINGS_SHOW_ENERGY_PRICE));
 watch(() => settings.loadpoints, saveJSON(LOADPOINTS), { deep: true });
 watch(() => settings.lastBatterySmartCostLimit, saveNumber(LAST_BATTERY_SMART_COST_LIMIT));
 watch(() => settings.lastTargetTime, save(LAST_TARGET_TIME));

@@ -96,6 +96,9 @@ export interface State {
   ext?: Meter[];
   tariffs?: ConfigStatus<unknown, unknown>;
   tariffGrid?: number;
+  tariffCharges?: number;
+  tariffTax?: number;
+  tariffFormula?: boolean;
   tariffFeedIn?: number;
   tariffCo2?: number;
   tariffSolar?: number;

@@ -1253,6 +1253,7 @@
       "range": "Bereich"
     },
     "priceZoom": "vergrößern",
+    "showEnergyPrice": "ohne Abgaben und Steuern",
     "showLine": "Linie anzeigen",
     "solar": {
       "dayAfterTomorrow": "Übermorgen",
@@ -1892,7 +1893,9 @@
     "priceLimit": "Preisgrenze",
     "resetAction": "Grenze löschen",
     "resetWarning": "Es ist kein dynamischer Netzpreis und keine CO₂-Quelle konfiguriert. Dennoch ist eine Grenze von {limit} eingerichtet. Konfiguration aufräumen?",
-    "saved": "Gepeichert."
+    "saved": "Gepeichert.",
+    "showEnergyPrice": "Ohne Abgaben und Steuern",
+    "showEnergyPriceHelp": "Grenze als Energiepreis festlegen. Abgaben und Steuern werden weiterhin berücksichtigt."
   },
   "smartFeedInPriority": {
     "activeHoursLabel": "Pausierte Zeit",

@@ -1253,6 +1253,7 @@
       "range": "Range"
     },
     "priceZoom": "zoom in",
+    "showEnergyPrice": "without charges or tax",
     "showLine": "show line",
     "solar": {
       "dayAfterTomorrow": "Day after tomorrow",
@@ -1892,7 +1893,9 @@
     "priceLimit": "Price limit",
     "resetAction": "Remove limit",
     "resetWarning": "There is no dynamic grid price or CO₂-source configured. However, there is still a limit of {limit}. Clean up your configuration?",
-    "saved": "Saved."
+    "saved": "Saved.",
+    "showEnergyPrice": "Without charges or tax",
+    "showEnergyPriceHelp": "Set the limit as energy price. Charges and tax are still applied underneath."
   },
   "smartFeedInPriority": {
     "activeHoursLabel": "Paused time",

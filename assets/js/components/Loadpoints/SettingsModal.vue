@@ -19,6 +19,9 @@
 				:multiple-loadpoints="multipleLoadpoints"
 				:possible="smartCostAvailable"
 				:tariff="forecast?.planner"
+				:tariff-charges="tariffCharges"
+				:tariff-tax="tariffTax"
+				:tariff-formula="tariffFormula"
 				class="mt-2 mb-4"
 			/>
 			<SmartFeedInPriority
@@ -188,6 +191,9 @@ export default defineComponent({
 		smartCostAvailable: Boolean,
 		smartFeedInPriorityAvailable: Boolean,
 		tariffGrid: Number,
+		tariffCharges: { type: Number, default: 0 },
+		tariffTax: { type: Number, default: 0 },
+		tariffFormula: Boolean,
 		currency: String as PropType<CURRENCY>,
 		multipleLoadpoints: Boolean,
 		forecast: Object as PropType<Forecast>,

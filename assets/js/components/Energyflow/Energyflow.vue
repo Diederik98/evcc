@@ -164,7 +164,7 @@
 								icon="powersupply"
 								:power="gridImport"
 								:powerUnit="powerUnit"
-								:details="detailsValue(tariffGrid, tariffCo2)"
+								:details="detailsValue(displayTariffGrid, tariffCo2)"
 								:detailsFmt="detailsFmt"
 								:detailsClickable="hasPriceAndCo2"
 								data-testid="energyflow-entry-gridimport"
@@ -348,6 +348,7 @@ import ForecastMessage from "./ForecastMessage.vue";
 import settings from "@/settings";
 import collector from "@/mixins/collector.js";
 import { defineComponent, type PropType } from "vue";
+import { displayGridPrice } from "@/utils/tariffPrice";
 import {
 	SMART_COST_TYPE,
 	type Battery,
@@ -386,6 +387,9 @@ export default defineComponent({
 		batteryGridChargeActive: { type: Boolean },
 		batteryMode: { type: String },
 		tariffGrid: { type: Number },
+		tariffCharges: { type: Number, default: 0 },
+		tariffTax: { type: Number, default: 0 },
+		tariffFormula: Boolean,
 		tariffFeedIn: { type: Number, default: 0 },
 		tariffCo2: { type: Number },
 		tariffPriceHome: { type: Number },
@@ -415,6 +419,17 @@ export default defineComponent({
 		},
 		hasPrice() {
 			return this.tariffGrid !== undefined;
+		},
+		displayTariffGrid() {
+			if (this.tariffGrid === undefined) {
+				return this.tariffGrid;
+			}
+			return displayGridPrice(
+				this.tariffGrid,
+				this.tariffCharges,
+				this.tariffTax,
+				this.tariffFormula
+			);
 		},
 		hasCo2() {
 			return this.tariffCo2 !== undefined;
@@ -535,7 +550,7 @@ export default defineComponent({
 			if (this.smartCostCo2) {
 				return this.fmtCo2Short(this.tariffCo2);
 			}
-			return this.fmtPricePerKWh(this.tariffGrid, this.currency, true);
+			return this.fmtPricePerKWh(this.displayTariffGrid, this.currency, true);
 		},
 		batteryGridChargeLimitSet() {
 			return (
@@ -549,7 +564,16 @@ export default defineComponent({
 			if (this.smartCostCo2) {
 				return this.fmtCo2Short(this.batteryGridChargeLimit);
 			}
-			return this.fmtPricePerKWh(this.batteryGridChargeLimit, this.currency, true);
+			return this.fmtPricePerKWh(
+				displayGridPrice(
+					this.batteryGridChargeLimit,
+					this.tariffCharges,
+					this.tariffTax,
+					this.tariffFormula
+				),
+				this.currency,
+				true
+			);
 		},
 		solarForecastExists() {
 			return !!this.forecast?.solar;

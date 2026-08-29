@@ -28,7 +28,9 @@
 					<section v-if="explain" class="mb-5">
 						<h3 class="fw-normal mb-3">{{ $t("peakShave.plan.inputsTitle") }}</h3>
 						<p class="mb-1">
-							{{ $t("peakShave.plan.inputSoc", { soc: Math.round(explain.soc || 0) }) }}
+							{{
+								$t("peakShave.plan.inputSoc", { soc: Math.round(explain.soc || 0) })
+							}}
 						</p>
 						<p class="mb-1">
 							{{
@@ -91,6 +93,9 @@
 							:peak-shave-state="state.peakShaveState ?? 'idle'"
 							:has-prices-hint="explain?.hasPrices"
 							:plan-loads="loads"
+							:tariff-charges="state.tariffCharges || 0"
+							:tariff-tax="state.tariffTax || 0"
+							:tariff-formula="!!state.tariffFormula"
 						/>
 						<div class="table-responsive">
 							<table class="table table-sm small">
@@ -107,31 +112,50 @@
 									</tr>
 								</thead>
 								<tbody>
-									<tr v-for="(slot, i) in tableSlots" :key="i" :class="{ 'table-warning': slot.peak }">
+									<tr
+										v-for="(slot, i) in tableSlots"
+										:key="i"
+										:class="{ 'table-warning': slot.peak }"
+									>
 										<td>{{ slotRange(slot) }}</td>
 										<td>
 											<template v-if="slot.measured">
 												{{ $t("peakShave.plan.measured") }}
 											</template>
 											<template v-else>
-												{{ $t("peakShave.plan.action." + (slot.action || "normal")) }}
+												{{
+													$t(
+														"peakShave.plan.action." +
+															(slot.action || "normal")
+													)
+												}}
 												<span v-if="slot.reason" class="text-muted">
-													· {{ $t("peakShave.plan.reason." + slot.reason) }}
+													·
+													{{ $t("peakShave.plan.reason." + slot.reason) }}
 												</span>
 											</template>
 										</td>
 										<td>{{ fmtW(slot.homeW || 0, POWER_UNIT.KW, true, 1) }}</td>
 										<td>{{ fmtW(slot.loadW || 0, POWER_UNIT.KW, true, 1) }}</td>
-										<td>{{ fmtW(slot.solarW || 0, POWER_UNIT.KW, true, 1) }}</td>
+										<td>
+											{{ fmtW(slot.solarW || 0, POWER_UNIT.KW, true, 1) }}
+										</td>
 										<td>{{ Math.round(slot.soc || 0) }}%</td>
 										<td>
-											<template v-if="!slot.measured && (slot.coverSoc || 0) > 0">
+											<template
+												v-if="!slot.measured && (slot.coverSoc || 0) > 0"
+											>
 												{{ Math.round(slot.coverSoc || 0) }}%
 											</template>
 										</td>
 										<td>
 											<template v-if="slot.hasPrice && slot.price">
-												{{ fmtPricePerKWh(slot.price, state.currency) }}
+												{{
+													fmtPricePerKWh(
+														displaySlotPrice(slot.price),
+														state.currency
+													)
+												}}
 											</template>
 										</td>
 									</tr>
@@ -146,7 +170,9 @@
 							<li v-for="(entry, i) in log" :key="i" class="mb-2 small">
 								<span class="text-muted">{{ fmtTime(entry.time) }}</span>
 								· {{ $t("peakShave.plan.log." + entry.code) }}
-								<span v-if="entry.detail" class="text-muted"> ({{ entry.detail }})</span>
+								<span v-if="entry.detail" class="text-muted">
+									({{ entry.detail }})</span
+								>
 							</li>
 						</ul>
 					</section>
@@ -168,6 +194,7 @@ import type {
 	BatteryPlanLogEntry,
 	BatteryPlanSlot,
 } from "../types/evcc";
+import { displayGridPrice } from "../utils/tariffPrice";
 
 export default defineComponent({
 	name: "BatteryPlan",
@@ -246,7 +273,11 @@ export default defineComponent({
 		isDifferentDay(a: string, b: string): boolean {
 			const da = new Date(a);
 			const db = new Date(b);
-			return !Number.isNaN(da.getTime()) && !Number.isNaN(db.getTime()) && da.toDateString() !== db.toDateString();
+			return (
+				!Number.isNaN(da.getTime()) &&
+				!Number.isNaN(db.getTime()) &&
+				da.toDateString() !== db.toDateString()
+			);
 		},
 		fmtPlanTime(value: string): string {
 			const d = new Date(value);
@@ -265,6 +296,14 @@ export default defineComponent({
 				return "";
 			}
 			return this.fmtPlanTime(slot.start);
+		},
+		displaySlotPrice(price: number): number {
+			return displayGridPrice(
+				price,
+				this.state.tariffCharges || 0,
+				this.state.tariffTax || 0,
+				!!this.state.tariffFormula
+			);
 		},
 		fmtTime(value: string): string {
 			return this.fmtPlanTime(value);

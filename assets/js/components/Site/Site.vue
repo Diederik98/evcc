@@ -59,6 +59,9 @@
 				:smartCostAvailable="smartCostAvailable"
 				:smartFeedInPriorityAvailable="smartFeedInPriorityAvailable"
 				:tariffGrid="tariffGrid"
+				:tariffCharges="tariffCharges"
+				:tariffTax="tariffTax"
+				:tariffFormula="tariffFormula"
 				:tariffCo2="tariffCo2"
 				:tariffFeedIn="tariffFeedIn"
 				:currency="currency"
@@ -145,6 +148,9 @@ export default defineComponent({
 		currency: { type: String as PropType<CURRENCY> },
 		tariffFeedIn: Number,
 		tariffGrid: Number,
+		tariffCharges: { type: Number, default: 0 },
+		tariffTax: { type: Number, default: 0 },
+		tariffFormula: Boolean,
 		tariffCo2: Number,
 		tariffPriceHome: Number,
 		tariffCo2Home: Number,

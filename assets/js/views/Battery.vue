@@ -42,7 +42,9 @@
 						<BatteryPeakShaveSettings
 							:peak-shave-reserve-soc="state.peakShaveReserveSoc"
 							:peak-shave-min-soc="state.peakShaveMinSoc"
-							:peak-shave-maintain-soc-charge-power="state.peakShaveMaintainSocChargePower"
+							:peak-shave-maintain-soc-charge-power="
+								state.peakShaveMaintainSocChargePower
+							"
 							:peak-shave-load-shed-delay="state.peakShaveLoadShedDelay"
 							:peak-shave-average="state.peakShaveAverage ?? false"
 							:peak-shave-state="state.peakShaveState ?? 'idle'"
@@ -52,6 +54,9 @@
 							:battery-plan="state.batteryPlan"
 							:grid-threshold="state.gridThreshold"
 							:currency="state.currency"
+							:tariff-charges="state.tariffCharges || 0"
+							:tariff-tax="state.tariffTax || 0"
+							:tariff-formula="!!state.tariffFormula"
 						/>
 					</template>
 					<p v-else class="my-4 text-muted">
@@ -129,6 +134,9 @@ export default defineComponent({
 				currency: this.state.currency,
 				tariff: this.gridChargeTariff,
 				possible: this.gridChargePossible,
+				tariffCharges: this.state.tariffCharges || 0,
+				tariffTax: this.state.tariffTax || 0,
+				tariffFormula: !!this.state.tariffFormula,
 			};
 		},
 	},

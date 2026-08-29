@@ -1,10 +1,6 @@
 <template>
 	<div class="peak-shave-settings">
-		<div
-			v-if="!limitControllerAvailable"
-			class="alert alert-warning mb-4"
-			role="alert"
-		>
+		<div v-if="!limitControllerAvailable" class="alert alert-warning mb-4" role="alert">
 			{{ $t("peakShave.noLimitController") }}
 		</div>
 
@@ -38,6 +34,9 @@
 			:peak-shave-state="peakShaveState"
 			:has-prices-hint="batteryPlan?.explain?.hasPrices"
 			:plan-loads="batteryPlan?.explain?.loads || []"
+			:tariff-charges="tariffCharges"
+			:tariff-tax="tariffTax"
+			:tariff-formula="tariffFormula"
 		/>
 		<p class="mb-4">
 			<router-link to="/battery/plan">{{ $t("peakShave.plan.openDetails") }}</router-link>
@@ -204,6 +203,9 @@ export default defineComponent({
 		batteryPlan: { type: Object as PropType<BatteryPlanStatus | null>, default: null },
 		gridThreshold: { type: Number, default: 0 },
 		currency: { type: String as PropType<CURRENCY>, default: CURRENCY.EUR },
+		tariffCharges: { type: Number, default: 0 },
+		tariffTax: { type: Number, default: 0 },
+		tariffFormula: Boolean,
 	},
 	data() {
 		return {

@@ -22,6 +22,9 @@
 					:smartCostAvailable="smartCostAvailable"
 					:smartFeedInPriorityAvailable="smartFeedInPriorityAvailable"
 					:tariffGrid="tariffGrid"
+					:tariffCharges="tariffCharges"
+					:tariffTax="tariffTax"
+					:tariffFormula="tariffFormula"
 					:tariffCo2="tariffCo2"
 					:tariffFeedIn="tariffFeedIn"
 					:currency="currency"
@@ -77,6 +80,9 @@
 				:multipleLoadpoints="multipleLoadpoints"
 				:currency="currency"
 				:tariffGrid="tariffGrid"
+				:tariffCharges="tariffCharges"
+				:tariffTax="tariffTax"
+				:tariffFormula="tariffFormula"
 				:smartFeedInPriorityAvailable="smartFeedInPriorityAvailable"
 				:smartCostAvailable="smartCostAvailable"
 				:smartCostType="smartCostType"
@@ -117,6 +123,9 @@ export default defineComponent({
 		smartCostAvailable: Boolean,
 		smartFeedInPriorityAvailable: Boolean,
 		tariffGrid: Number,
+		tariffCharges: { type: Number, default: 0 },
+		tariffTax: { type: Number, default: 0 },
+		tariffFormula: Boolean,
 		tariffCo2: Number,
 		tariffFeedIn: Number,
 		currency: String as PropType<CURRENCY>,

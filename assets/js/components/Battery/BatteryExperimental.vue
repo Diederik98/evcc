@@ -28,7 +28,11 @@
 				:battery="state.battery"
 			/>
 
-			<Card v-if="gridChargeVisible" class="mb-4" :title="$t('batterySettings.gridChargeTab')">
+			<Card
+				v-if="gridChargeVisible"
+				class="mb-4"
+				:title="$t('batterySettings.gridChargeTab')"
+			>
 				<SmartCostLimit v-bind="smartCostLimitProps" />
 			</Card>
 
@@ -46,6 +50,9 @@
 					:battery-plan="state.batteryPlan"
 					:grid-threshold="state.gridThreshold"
 					:currency="state.currency"
+					:tariff-charges="state.tariffCharges || 0"
+					:tariff-tax="state.tariffTax || 0"
+					:tariff-formula="!!state.tariffFormula"
 				/>
 			</Card>
 		</template>
@@ -155,6 +162,9 @@ export default defineComponent({
 				currency: this.state.currency || CURRENCY.EUR,
 				tariff: this.gridChargeTariff,
 				possible: this.gridChargePossible,
+				tariffCharges: this.state.tariffCharges || 0,
+				tariffTax: this.state.tariffTax || 0,
+				tariffFormula: !!this.state.tariffFormula,
 			};
 		},
 	},

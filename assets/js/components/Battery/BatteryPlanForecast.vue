@@ -118,6 +118,7 @@ import {
 	type BatteryPlanSlotLoad,
 	type PeakShaveState,
 } from "@/types/evcc";
+import { displayGridPrice } from "@/utils/tariffPrice";
 
 type EChartsType = ReturnType<typeof echarts.init>;
 
@@ -163,6 +164,9 @@ export default defineComponent({
 		peakShaveState: { type: String as PropType<PeakShaveState>, default: "idle" },
 		hasPricesHint: { type: Boolean, default: undefined },
 		planLoads: { type: Array as PropType<BatteryPlanLoad[]>, default: () => [] },
+		tariffCharges: { type: Number, default: 0 },
+		tariffTax: { type: Number, default: 0 },
+		tariffFormula: Boolean,
 	},
 	data() {
 		return {
@@ -189,6 +193,15 @@ export default defineComponent({
 						end,
 						action: measured ? "normal" : s.action || "normal",
 						hasPrice: s.hasPrice ?? (s.price || 0) > 0,
+						price:
+							s.price != null
+								? displayGridPrice(
+										s.price,
+										this.tariffCharges,
+										this.tariffTax,
+										this.tariffFormula
+									)
+								: s.price,
 						measured,
 					};
 				})
@@ -230,7 +243,10 @@ export default defineComponent({
 			return this.nowMs >= this.windowStartMs && this.nowMs <= this.windowEndMs;
 		},
 		forecastHours(): number {
-			const futureMs = Math.max(0, this.windowEndMs - Math.max(this.nowMs, this.windowStartMs));
+			const futureMs = Math.max(
+				0,
+				this.windowEndMs - Math.max(this.nowMs, this.windowStartMs)
+			);
 			const pastMs = Math.max(0, Math.min(this.nowMs, this.windowEndMs) - this.windowStartMs);
 			const span = futureMs > 0 ? pastMs + futureMs : this.windowSpanMs;
 			return Math.max(1, Math.round(span / 3600000));
@@ -276,17 +292,23 @@ export default defineComponent({
 			const hasPrices = this.hasPrices;
 			const threshold = this.gridThreshold > 0 ? this.gridThreshold : undefined;
 
-			const house: { value: [number, number]; itemStyle: { color: string; opacity: number } }[] =
-				[];
+			const house: {
+				value: [number, number];
+				itemStyle: { color: string; opacity: number };
+			}[] = [];
 			const load: [number, number][] = [];
 			const solar: [number, number][] = [];
 			const soc: [number, number][] = [];
 			const cover: [number, number][] = [];
 			const price: [number, number | null][] = [];
-			const batteryStrip: { value: [number, number]; itemStyle: { color: string; opacity: number } }[] =
-				[];
-			const chargerStrip: { value: [number, number]; itemStyle: { color: string; opacity: number } }[] =
-				[];
+			const batteryStrip: {
+				value: [number, number];
+				itemStyle: { color: string; opacity: number };
+			}[] = [];
+			const chargerStrip: {
+				value: [number, number];
+				itemStyle: { color: string; opacity: number };
+			}[] = [];
 
 			for (const s of slots) {
 				const t = s.start.getTime();
