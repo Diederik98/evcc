@@ -115,11 +115,13 @@
     "maintainSocChargePower": "Recovery charge power",
     "maintainSocChargePowerHelp": "Power limit used to restore the battery to the reserve SoC level after peak shaving.",
     "cycleCost": "Cycle cost",
-    "cycleCostHelp": "Wear cost per kWh discharged. Grid charging only happens when the tax-inclusive price spread covers losses and this cost. Set 0 to ignore wear.",
+    "cycleCostHelp": "Wear cost per kWh discharged. Grid charging for later house use happens when the tax-inclusive spread covers losses and this cost. Set 0 to ignore wear.",
     "cycleCostUnit": "€/kWh",
+    "trade": "Trade leftover",
+    "tradeHelp": "Off: charge only what the house (minus predicted solar) will need later, when the spread pays. On: also fill toward full and sell when feed-in beats later self-use. Peak shaving still wins.",
     "plan": {
       "title": "Battery plan",
-      "targetSoc": "Target SoC for upcoming peaks: {soc}%",
+      "targetSoc": "Target SoC for later use: {soc}%",
       "loadpoints": "Includes {energy} planned charging",
       "loadCap": "Planned charging limited to {power}",
       "forecast": "Forecast",
@@ -154,7 +156,7 @@
       "measuredSolar": "Solar (measured)",
       "measuredSoc": "SoC (measured)",
       "inputSoc": "Battery SoC now: {soc}%",
-      "inputReserve": "Min {min}%, reserve {reserve}%, target for upcoming peaks {target}%",
+      "inputReserve": "Min {min}%, reserve {reserve}%, target for later use {target}%",
       "inputLimit": "Grid limit: {power}",
       "inputPeak": "Predicted overshoot if the battery stays idle: {energy}",
       "inputLive": "Live residual import: {power}",
@@ -181,6 +183,10 @@
         },
         "battery": {
           "coverPeak": "Battery covers a predicted peak. Heat or charging that would exceed the limit is supplied from the battery first.",
+          "cover": "Cover for later house import and peaks is {kwh} kWh ({soc}%).",
+          "solarRoom": "Predicted solar leftover {kwh} kWh is left empty so afternoon surplus is not clipped.",
+          "tradeOn": "Trade is on: leftover above cover may be filled or sold when the spread pays.",
+          "tradeOff": "Trade is off: stop at cover. No extra fill, no sell.",
           "holdForLater": "Battery is held for a later peak or expensive hour, not used just to cheapen heat.",
           "cheapCycle": "Tax-inclusive price spread covers losses and cycle cost.",
           "reserveFloor": "Peak discharge stops at the reserve SoC ({soc}%). The plan does not empty the battery."
@@ -216,11 +222,11 @@
       "reason": {
         "idle": "No action required",
         "peak": "Covering a predicted peak",
-        "charge": "Charging enough energy to cover later peaks",
-        "cheap": "Tax-inclusive price is low enough to cycle",
+        "charge": "Charging enough energy to cover later use",
+        "cheap": "Tax-inclusive price is low enough to cover later import",
         "hold": "Saving energy for later expensive or peak hours",
         "recovery": "Restoring reserve SoC",
-        "export": "Selling leftover energy while feed-in is expensive"
+        "export": "Selling leftover energy because feed-in beats later self-use"
       }
     },
     "batteryTabTitle": "Battery protection",

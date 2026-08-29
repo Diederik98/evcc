@@ -123,7 +123,7 @@ func TestPlanBatteryHoldCheapNightForMorningPeak(t *testing.T) {
 
 func TestPlanBatteryTaxesWidenSpreadNeededToCycle(t *testing.T) {
 	cfg := BatteryConfig{
-		Soc:            50,
+		Soc:            20,
 		MinSoc:         10,
 		MaxSoc:         90,
 		ReserveSoc:     20,
@@ -140,7 +140,7 @@ func TestPlanBatteryTaxesWidenSpreadNeededToCycle(t *testing.T) {
 
 	// wholesale 0.10 vs 0.20 is worth a cycle. The same spot prices plus 0.15
 	// levies and 21% VAT make lost energy too expensive to cycle.
-	wholesaleCheap := testSlots([]float64{0.10, 0.10, 0.20, 0.20}, 500, 0)
+	wholesaleCheap := testSlots([]float64{0.10, 0.19, 0.19, 0.19, 0.19, 0.19, 0.19, 0.19}, 500, 0)
 	taxed := make([]BatterySlot, len(wholesaleCheap))
 	copy(taxed, wholesaleCheap)
 	for i := range taxed {
@@ -192,6 +192,7 @@ func exportCfg() BatteryConfig {
 		EtaC:           0.9,
 		EtaD:           0.9,
 		CycleCost:      0.05,
+		Trade:          true,
 		GridThresholdW: 10000,
 		HeadroomW:      8000,
 		LiveResidualW:  1000,

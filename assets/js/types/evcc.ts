@@ -140,6 +140,7 @@ export interface State {
   peakShaveAverage?: boolean;
   peakShaveState?: PeakShaveState;
   batteryCycleCost?: number;
+  batteryTrade?: boolean;
   batteryPlan?: BatteryPlanStatus;
 }
 
@@ -215,7 +216,10 @@ export interface BatteryPlanExplain {
   maxSoc?: number;
   targetSoc?: number;
   peakWh?: number;
+  coverWh?: number;
+  solarRoomWh?: number;
   cycleCost?: number;
+  trade?: boolean;
   chargeW?: number;
   dischargeW?: number;
   facts?: BatteryPlanFact[];
@@ -229,6 +233,8 @@ export interface BatteryPlanStatus {
   dischargeW?: number;
   targetSoc?: number;
   peakWh?: number;
+  coverWh?: number;
+  solarRoomWh?: number;
   dischargeFloor?: number;
   loadWh?: number;
   loadW?: number;

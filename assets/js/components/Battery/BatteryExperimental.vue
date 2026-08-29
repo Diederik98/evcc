@@ -42,6 +42,7 @@
 					:peak-shave-state="state.peakShaveState ?? 'idle'"
 					:limit-controller-available="peakShaveLimitControllerAvailable"
 					:battery-cycle-cost="state.batteryCycleCost ?? 0.05"
+					:battery-trade="state.batteryTrade ?? false"
 					:battery-plan="state.batteryPlan"
 					:grid-threshold="state.gridThreshold"
 					:currency="state.currency"

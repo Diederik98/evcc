@@ -22,6 +22,8 @@ type batteryPlanStatus struct {
 	DischargeW     int                     `json:"dischargeW"`
 	TargetSoc      float64                 `json:"targetSoc"`
 	PeakWh         float64                 `json:"peakWh"`
+	CoverWh        float64                 `json:"coverWh,omitempty"`
+	SolarRoomWh    float64                 `json:"solarRoomWh,omitempty"`
 	DischargeFloor float64                 `json:"dischargeFloor"`
 	LoadWh         float64                 `json:"loadWh,omitempty"`
 	LoadW          float64                 `json:"loadW,omitempty"`
@@ -44,7 +46,10 @@ type batteryPlanExplain struct {
 	MaxSoc         float64                 `json:"maxSoc"`
 	TargetSoc      float64                 `json:"targetSoc"`
 	PeakWh         float64                 `json:"peakWh"`
+	CoverWh        float64                 `json:"coverWh,omitempty"`
+	SolarRoomWh    float64                 `json:"solarRoomWh,omitempty"`
 	CycleCost      float64                 `json:"cycleCost"`
+	Trade          bool                    `json:"trade,omitempty"`
 	ChargeW        float64                 `json:"chargeW"`
 	DischargeW     float64                 `json:"dischargeW"`
 	Facts          []batteryPlanFact       `json:"facts,omitempty"`
@@ -81,24 +86,24 @@ type batteryPlanSlotLoad struct {
 }
 
 type batteryPlanSlotStatus struct {
-	Start      time.Time `json:"start"`
-	End        time.Time `json:"end"`
-	Action     string    `json:"action"`
-	Reason     string    `json:"reason"`
-	ChargeW    int       `json:"chargeW,omitempty"`
-	DischargeW int       `json:"dischargeW,omitempty"`
-	HomeW      float64   `json:"homeW"`
-	SolarW     float64   `json:"solarW"`
-	LoadW      float64   `json:"loadW,omitempty"`
+	Start      time.Time             `json:"start"`
+	End        time.Time             `json:"end"`
+	Action     string                `json:"action"`
+	Reason     string                `json:"reason"`
+	ChargeW    int                   `json:"chargeW,omitempty"`
+	DischargeW int                   `json:"dischargeW,omitempty"`
+	HomeW      float64               `json:"homeW"`
+	SolarW     float64               `json:"solarW"`
+	LoadW      float64               `json:"loadW,omitempty"`
 	Loads      []batteryPlanSlotLoad `json:"loads,omitempty"`
-	ResidualW  float64   `json:"residualW"`
-	Price      float64   `json:"price,omitempty"`
-	HasPrice   bool      `json:"hasPrice,omitempty"`
-	FeedIn     float64   `json:"feedIn,omitempty"`
-	HasFeedIn  bool      `json:"hasFeedIn,omitempty"`
-	Soc        float64   `json:"soc"`
-	Peak       bool      `json:"peak,omitempty"`
-	Measured   bool      `json:"measured,omitempty"`
+	ResidualW  float64               `json:"residualW"`
+	Price      float64               `json:"price,omitempty"`
+	HasPrice   bool                  `json:"hasPrice,omitempty"`
+	FeedIn     float64               `json:"feedIn,omitempty"`
+	HasFeedIn  bool                  `json:"hasFeedIn,omitempty"`
+	Soc        float64               `json:"soc"`
+	Peak       bool                  `json:"peak,omitempty"`
+	Measured   bool                  `json:"measured,omitempty"`
 }
 
 var _ api.BytesMarshaler = (*batteryPlanStatus)(nil)
@@ -133,6 +138,7 @@ func (site *Site) evaluateBatteryPlan() (planner.BatteryPlan, bool) {
 		EtaC:           0.9,
 		EtaD:           0.9,
 		CycleCost:      site.BatteryCycleCost,
+		Trade:          site.BatteryTrade,
 		GridThresholdW: site.GridThreshold * 1000,
 		HeadroomW:      site.peakShaveGridHeadroom(),
 		LiveResidualW:  max(0, site.gridPower-site.battery.Power),
@@ -509,6 +515,8 @@ func (site *Site) publishBatteryPlan(plan planner.BatteryPlan) {
 		DischargeW:     plan.DischargeW,
 		TargetSoc:      plan.TargetSoc,
 		PeakWh:         plan.PeakWh,
+		CoverWh:        plan.CoverWh,
+		SolarRoomWh:    plan.SolarRoomWh,
 		DischargeFloor: plan.DischargeFloor,
 		LoadWh:         site.batteryPlanLoadWh,
 		LoadW:          site.batteryPlanLoadW(),
@@ -561,6 +569,23 @@ func (site *Site) batteryPlanExplanation(plan planner.BatteryPlan) *batteryPlanE
 			Params: map[string]any{"kwh": plan.PeakWh / 1000, "soc": plan.TargetSoc},
 		})
 	}
+	if plan.CoverWh > 0 {
+		facts = append(facts, batteryPlanFact{
+			Code:   "battery.cover",
+			Params: map[string]any{"kwh": plan.CoverWh / 1000, "soc": plan.TargetSoc},
+		})
+	}
+	if plan.SolarRoomWh > 50 {
+		facts = append(facts, batteryPlanFact{
+			Code:   "battery.solarRoom",
+			Params: map[string]any{"kwh": plan.SolarRoomWh / 1000},
+		})
+	}
+	if site.BatteryTrade {
+		facts = append(facts, batteryPlanFact{Code: "battery.tradeOn"})
+	} else {
+		facts = append(facts, batteryPlanFact{Code: "battery.tradeOff"})
+	}
 	facts = append(facts, batteryPlanFact{
 		Code:   "action." + plan.Action,
 		Params: map[string]any{"reason": plan.Reason, "chargeW": plan.ChargeW, "dischargeW": plan.DischargeW},
@@ -611,7 +636,10 @@ func (site *Site) batteryPlanExplanation(plan planner.BatteryPlan) *batteryPlanE
 		MaxSoc:         site.batteryPlanMaxSoc(),
 		TargetSoc:      plan.TargetSoc,
 		PeakWh:         plan.PeakWh,
+		CoverWh:        plan.CoverWh,
+		SolarRoomWh:    plan.SolarRoomWh,
 		CycleCost:      site.BatteryCycleCost,
+		Trade:          site.BatteryTrade,
 		ChargeW:        chargeW,
 		DischargeW:     dischargeW,
 		Facts:          facts,

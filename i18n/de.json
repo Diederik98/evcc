@@ -115,11 +115,13 @@
     "maintainSocChargePower": "Wiederherstellungsladeleistung",
     "maintainSocChargePowerHelp": "Ladeleistungsgrenze zum Wiederherstellen des Reserve-SoC nach der Lastspitzenkappung.",
     "cycleCost": "Zykluskosten",
-    "cycleCostHelp": "Verschleißkosten je entladener kWh. Netzladung nur, wenn die preisliche Spreizung inkl. Steuern Verluste und diese Kosten deckt. 0 ignoriert den Verschleiß.",
+    "cycleCostHelp": "Verschleißkosten je entladener kWh. Netzladung für späteren Hausverbrauch nur, wenn die Spreizung inkl. Steuern Verluste und diese Kosten deckt. 0 ignoriert den Verschleiß.",
     "cycleCostUnit": "€/kWh",
+    "trade": "Restenergie handeln",
+    "tradeHelp": "Aus: nur laden, was das Haus (abzüglich prognostizierter Solar) später braucht, wenn die Spreizung das trägt. Ein: zusätzlich Richtung voll laden und verkaufen, wenn die Einspeisung späteren Eigenverbrauch schlägt. Lastspitzenkappung hat Vorrang.",
     "plan": {
       "title": "Batterieplanung",
-      "targetSoc": "Ziel-SoC für kommende Lastspitzen: {soc} %",
+      "targetSoc": "Ziel-SoC für späteren Verbrauch: {soc} %",
       "loadpoints": "Enthält {energy} geplante Ladung",
       "loadCap": "Geplante Ladung begrenzt auf {power}",
       "forecast": "Prognose",
@@ -154,7 +156,7 @@
       "measuredSolar": "Solar (gemessen)",
       "measuredSoc": "SoC (gemessen)",
       "inputSoc": "Batterie-SoC jetzt: {soc} %",
-      "inputReserve": "Min. {min} %, Reserve {reserve} %, Ziel für kommende Spitzen {target} %",
+      "inputReserve": "Min. {min} %, Reserve {reserve} %, Ziel für späteren Verbrauch {target} %",
       "inputLimit": "Netzgrenze: {power}",
       "inputPeak": "Prognostizierte Überschreitung ohne Batterie: {energy}",
       "inputLive": "Aktueller Restbezug: {power}",
@@ -181,6 +183,10 @@
         },
         "battery": {
           "coverPeak": "Die Batterie deckt eine prognostizierte Spitze. Wärme oder Laden über der Grenze kommt zuerst aus dem Speicher.",
+          "cover": "Die Deckung für späteren Hausbezug und Spitzen beträgt {kwh} kWh ({soc} %).",
+          "solarRoom": "Prognostizierter Solarüberschuss von {kwh} kWh bleibt frei, damit Nachmittagsüberschuss nicht abgeregelt wird.",
+          "tradeOn": "Handel ist an: Restenergie über der Deckung darf nachgeladen oder verkauft werden, wenn die Spreizung das trägt.",
+          "tradeOff": "Handel ist aus: beim Deckungsziel stoppen. Kein Extra-Laden, kein Verkauf.",
           "holdForLater": "Die Batterie wird für eine spätere Spitze oder teure Stunde gehalten, nicht nur um Wärme zu verbilligen.",
           "cheapCycle": "Die preisliche Spreizung deckt Verluste und Zykluskosten.",
           "reserveFloor": "Die Spitzenentladung stoppt beim Reserve-SoC ({soc} %). Der Plan leert die Batterie nicht."
@@ -216,11 +222,11 @@
       "reason": {
         "idle": "Keine Aktion nötig",
         "peak": "Deckt eine vorhergesagte Lastspitze",
-        "charge": "Lädt genug Energie für spätere Lastspitzen",
-        "cheap": "Der Preis inkl. Steuern ist niedrig genug zum Zyklieren",
+        "charge": "Lädt genug Energie für späteren Verbrauch",
+        "cheap": "Der Preis inkl. Steuern ist niedrig genug für späteren Netzbezug",
         "hold": "Spart Energie für teure oder laststarke Stunden",
         "recovery": "Stellt den Reserve-SoC wieder her",
-        "export": "Verkauft überschüssige Energie bei teurer Einspeisung"
+        "export": "Verkauft Restenergie, weil Einspeisung späteren Eigenverbrauch schlägt"
       }
     },
     "batteryTabTitle": "Batterieschutz",

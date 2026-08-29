@@ -126,4 +126,8 @@ type API interface {
 	GetBatteryCycleCost() float64
 	// SetBatteryCycleCost sets wear cost per kWh discharged
 	SetBatteryCycleCost(float64) error
+	// GetBatteryTrade returns whether leftover above cover may be filled or sold
+	GetBatteryTrade() bool
+	// SetBatteryTrade sets whether leftover above cover may be filled or sold
+	SetBatteryTrade(bool) error
 }

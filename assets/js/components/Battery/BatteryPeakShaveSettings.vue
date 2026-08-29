@@ -79,6 +79,22 @@
 			</div>
 		</div>
 
+		<!-- Trade leftover -->
+		<div class="form-check form-switch mb-4">
+			<input
+				id="batteryTrade"
+				class="form-check-input"
+				type="checkbox"
+				role="switch"
+				:checked="localTrade"
+				@change="saveTrade"
+			/>
+			<label class="form-check-label" for="batteryTrade">
+				<span class="fw-bold">{{ $t("peakShave.trade") }}</span>
+				<p class="text-muted small mb-0">{{ $t("peakShave.tradeHelp") }}</p>
+			</label>
+		</div>
+
 		<!-- Load shed delay -->
 		<div class="mb-4">
 			<label for="peakShaveLoadShedDelay" class="form-label fw-bold">
@@ -184,6 +200,7 @@ export default defineComponent({
 		peakShaveState: { type: String as PropType<PeakShaveState>, default: "idle" },
 		limitControllerAvailable: { type: Boolean, default: true },
 		batteryCycleCost: { type: Number, default: 0.05 },
+		batteryTrade: { type: Boolean, default: false },
 		batteryPlan: { type: Object as PropType<BatteryPlanStatus | null>, default: null },
 		gridThreshold: { type: Number, default: 0 },
 		currency: { type: String as PropType<CURRENCY>, default: CURRENCY.EUR },
@@ -195,6 +212,7 @@ export default defineComponent({
 			localLoadShedDelay: this.peakShaveLoadShedDelay,
 			localAverage: this.peakShaveAverage,
 			localCycleCost: this.batteryCycleCost,
+			localTrade: this.batteryTrade,
 			dragging: false,
 		};
 	},
@@ -246,6 +264,9 @@ export default defineComponent({
 		},
 		batteryCycleCost(v: number) {
 			this.localCycleCost = v;
+		},
+		batteryTrade(v: boolean) {
+			this.localTrade = v;
 		},
 	},
 	beforeUnmount() {
@@ -355,6 +376,16 @@ export default defineComponent({
 				await api.post(`batterycyclecost/${encodeURIComponent(this.localCycleCost)}`);
 			} catch (err) {
 				console.error(err);
+			}
+		},
+		async saveTrade(event: Event) {
+			const checked = (event.target as HTMLInputElement).checked;
+			this.localTrade = checked;
+			try {
+				await api.post(`batterytrade/${encodeURIComponent(String(checked))}`);
+			} catch (err) {
+				console.error(err);
+				this.localTrade = this.batteryTrade;
 			}
 		},
 	},

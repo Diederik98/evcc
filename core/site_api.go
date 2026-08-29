@@ -522,6 +522,29 @@ func (site *Site) SetBatteryCycleCost(cost float64) error {
 	return nil
 }
 
+// GetBatteryTrade returns whether leftover above cover may be filled or sold
+func (site *Site) GetBatteryTrade() bool {
+	site.RLock()
+	defer site.RUnlock()
+	return site.BatteryTrade
+}
+
+// SetBatteryTrade sets whether leftover above cover may be filled or sold
+func (site *Site) SetBatteryTrade(trade bool) error {
+	site.Lock()
+	defer site.Unlock()
+
+	site.log.DEBUG.Println("set battery trade:", trade)
+
+	if site.BatteryTrade != trade {
+		site.BatteryTrade = trade
+		settings.SetBool(keys.BatteryTrade, site.BatteryTrade)
+		site.publish(keys.BatteryTrade, site.BatteryTrade)
+	}
+
+	return nil
+}
+
 // GetGridPower returns the most recent grid power reading in W (positive = import)
 func (site *Site) GetGridPower() float64 {
 	site.RLock()

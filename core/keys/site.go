@@ -54,6 +54,7 @@ const (
 	PeakShaveAverage                = "peakShaveAverage"
 	PeakShaveState                  = "peakShaveState"
 	BatteryCycleCost                = "batteryCycleCost"
+	BatteryTrade                    = "batteryTrade"
 	BatteryPlan                     = "batteryPlan"
 
 	// optimizer

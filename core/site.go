@@ -70,6 +70,7 @@ type Site struct {
 	PeakShaveLoadShedDelay          float64                    `mapstructure:"peakShaveLoadShedDelay"`          // Grace period before EV load shedding in s
 	PeakShaveAverage                bool                       `mapstructure:"peakShaveAverage"`                // Control clock-aligned 15-minute average instead of instantaneous watts
 	BatteryCycleCost                float64                    `mapstructure:"batteryCycleCost"`                // Wear cost in currency per kWh discharged
+	BatteryTrade                    bool                       `mapstructure:"batteryTrade"`                    // After cover, fill toward max and sell when feed-in beats later self-use
 	circuit                         api.Circuit                // Circuit
 	hems                            api.HEMS                   // HEMS (set by configureHEMS at boot)
 	gridMeter                       api.Meter                  // Grid usage meter
@@ -125,11 +126,11 @@ type Site struct {
 	batteryPlanHomeSource    string
 	batteryPlanLoads         []batteryPlanLoadStatus
 	batteryPlanSlotLoads     [][]batteryPlanSlotLoad // per-slot charger breakdown for UI
-	peakShaveQuarterStart    time.Time         // Clock-aligned quarter used for average peak control
-	peakShaveQuarterWh       float64           // Imported grid energy in the current quarter
-	peakShaveQuarterAt       time.Time         // Last sample time for quarter energy
-	solarOrientation         *solarOrientation // Cached clear-sky orientation suggestion
-	solarOrientationAt       time.Time         // Last orientation fit
+	peakShaveQuarterStart    time.Time               // Clock-aligned quarter used for average peak control
+	peakShaveQuarterWh       float64                 // Imported grid energy in the current quarter
+	peakShaveQuarterAt       time.Time               // Last sample time for quarter energy
+	solarOrientation         *solarOrientation       // Cached clear-sky orientation suggestion
+	solarOrientationAt       time.Time               // Last orientation fit
 }
 
 // MetersConfig contains the site's meter configuration
@@ -435,6 +436,9 @@ func (site *Site) restoreSettings() error {
 	}
 	if v, err := settings.Float(keys.BatteryCycleCost); err == nil {
 		_ = site.SetBatteryCycleCost(v)
+	}
+	if v, err := settings.Bool(keys.BatteryTrade); err == nil {
+		_ = site.SetBatteryTrade(v)
 	}
 
 	// drop legacy accumulator-based forecast settings (now stored via metrics collector)
@@ -1192,6 +1196,7 @@ func (site *Site) prepare() {
 	site.publish(keys.PeakShaveAverage, site.GetPeakShaveAverage())
 	site.publish(keys.PeakShaveState, site.GetPeakShaveState())
 	site.publish(keys.BatteryCycleCost, site.GetBatteryCycleCost())
+	site.publish(keys.BatteryTrade, site.GetBatteryTrade())
 	site.publishIdleBatteryPlan()
 	site.publish(keys.ResidualPower, site.GetResidualPower())
 	site.publish(keys.SmartCostAvailable, site.isDynamicTariff(api.TariffUsagePlanner))

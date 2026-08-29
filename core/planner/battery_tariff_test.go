@@ -11,12 +11,13 @@ import (
 
 // Belgian residential dynamic pricing (simplified but realistic for planner tests).
 //
-//   import €/kWh = (Belpex + gridCharge) * (1 + VAT)
-//   feed-in €/kWh = Belpex * (1 + VAT)   // injection typically without the 0.11 grid charge
+//	import €/kWh = (Belpex + gridCharge) * (1 + VAT)
+//	feed-in €/kWh = Belpex * (1 + VAT)   // injection typically without the 0.11 grid charge
 //
 // Defaults used in Flanders-style examples:
-//   gridCharge = 0.11 €/kWh
-//   VAT        = 6%
+//
+//	gridCharge = 0.11 €/kWh
+//	VAT        = 6%
 const (
 	beGridCharge = 0.11
 	beVAT        = 0.06
@@ -39,7 +40,7 @@ func TestBelgianPriceFormula(t *testing.T) {
 	assert.InDelta(t, 0.212, beFeedIn(0.20), 1e-9)
 
 	// Negative Belpex still adds the grid charge on import; feed-in can go negative.
-	assert.InDelta(t, ( -0.05+0.11)*1.06, beImport(-0.05), 1e-9)
+	assert.InDelta(t, (-0.05+0.11)*1.06, beImport(-0.05), 1e-9)
 	assert.InDelta(t, -0.05*1.06, beFeedIn(-0.05), 1e-9)
 
 	// Screenshot-like evening: import ~36.4 ct ⇒ Belpex ≈ 0.364/1.06 - 0.11 ≈ 0.2334
@@ -143,7 +144,7 @@ func TestScreenshotEveningExportVsOvernightSelfConsumption(t *testing.T) {
 	cfg.LiveResidualW = 400
 
 	belpex := make([]float64, 32) // 8h of 15-min slots
-	belpex[0] = 0.233            // → import ≈ 36.4 ct
+	belpex[0] = 0.233             // → import ≈ 36.4 ct
 	for i := 1; i < len(belpex); i++ {
 		belpex[i] = 0.08 // quiet night Belpex
 	}
@@ -216,6 +217,7 @@ func TestExportOnlyWhenFeedInBeatsAvoidedImport(t *testing.T) {
 	cfg := marstekCfg(90, 20)
 	cfg.LiveResidualW = 50
 	cfg.CycleCost = 0.02
+	cfg.Trade = true
 	belpex := []float64{0.05, 0.02, 0.02, 0.03, 0.02, 0.04, 0.02, 0.15}
 	slots := beSlots(belpex, 20) // ~20 W house: almost nothing to self-consume
 	feedIn := []float64{0.55, 0.02, 0.02, 0.03, 0.02, 0.04, 0.02, 0.12}
@@ -244,8 +246,8 @@ func TestDoNotExportWhenLaterImportIsExpensive(t *testing.T) {
 	for i := range belpex {
 		belpex[i] = 0.05
 	}
-	belpex[0] = 0.18                                  // decent evening Belpex / feed-in
-	for i := 28; i < 36; i++ {                         // morning 7–9 style
+	belpex[0] = 0.18           // decent evening Belpex / feed-in
+	for i := 28; i < 36; i++ { // morning 7–9 style
 		belpex[i] = 0.28
 	}
 	slots := beSlots(belpex, 800)
@@ -333,17 +335,30 @@ func TestScreenshotLikeHighFeedInStillPrefersSelfConsumption(t *testing.T) {
 	assert.Contains(t, []string{BatteryActionNormal, BatteryActionHold}, plan.Action)
 }
 
-func TestReserveIsTargetWhenNoPeaksPredicted(t *testing.T) {
+func TestReserveIsTargetWhenNoLaterUse(t *testing.T) {
 	cfg := marstekCfg(38, 20)
 	belpex := make([]float64, 16)
 	for i := range belpex {
 		belpex[i] = 0.10
 	}
-	slots := beSlots(belpex, 400) // always under 10 kW threshold
+	slots := beSlots(belpex, 0)
 
 	plan := PlanBattery(cfg, slots)
 	assert.InDelta(t, cfg.ReserveSoc, plan.TargetSoc, 0.5,
-		"with no predicted peaks, target SoC should sit at reserve (not min)")
+		"with no predicted peaks or later house import, target SoC should sit at reserve")
+	assert.Equal(t, 0.0, plan.PeakWh)
+}
+
+func TestLaterHouseUseRaisesCoverAboveReserve(t *testing.T) {
+	cfg := marstekCfg(38, 20)
+	belpex := make([]float64, 16)
+	for i := range belpex {
+		belpex[i] = 0.10
+	}
+	slots := beSlots(belpex, 400)
+
+	plan := PlanBattery(cfg, slots)
+	assert.Greater(t, plan.TargetSoc, cfg.ReserveSoc)
 	assert.Equal(t, 0.0, plan.PeakWh)
 }
 
@@ -374,6 +389,7 @@ func TestNegativeBelpexChargeOpportunityEconomicsOnly(t *testing.T) {
 	cfg.HeadroomW = 2500
 	cfg.LiveResidualW = 300
 	cfg.CycleCost = 0.02
+	cfg.Trade = true
 
 	belpex := []float64{-0.08, -0.05, 0.15, 0.18, 0.20, 0.22, 0.25, 0.30}
 	slots := beSlots(belpex, 300)
@@ -417,4 +433,138 @@ func TestSelfConsumptionCoversNightLoadInHorizon(t *testing.T) {
 	if horizon[0].Action == BatteryActionNormal || horizon[0].Action == BatteryActionHold {
 		assert.LessOrEqual(t, horizon[len(horizon)-1].Soc, cfg.Soc+1)
 	}
+}
+
+// Flanders all-in import used in the user scenario: (energy + 0.15 charges) * 1.06 VAT.
+func flImport(energy float64) float64 {
+	return (energy + 0.15) * 1.06
+}
+
+func flSlots(energy []float64, homeW, solarW float64) []BatterySlot {
+	slots := make([]BatterySlot, len(energy))
+	start := time.Date(2026, 8, 25, 12, 0, 0, 0, time.UTC)
+	hours := tariff.SlotDuration.Hours()
+	for i, e := range energy {
+		s := start.Add(time.Duration(i) * tariff.SlotDuration)
+		slots[i] = BatterySlot{
+			Start:   s,
+			End:     s.Add(tariff.SlotDuration),
+			HomeWh:  homeW * hours,
+			SolarWh: solarW * hours,
+			Price:   flImport(e),
+			FeedIn:  e * 1.06,
+		}
+	}
+	return slots
+}
+
+func TestFlandersCheapNowChargesForLaterHouseCover(t *testing.T) {
+	// 15.9 ct all-in now vs 33.9 ct this evening, weak solar, Trade off:
+	// planner grid-charges toward later house cover, not necessarily 100%.
+	cfg := marstekCfg(40, 20)
+	energy := make([]float64, 32)
+	energy[0] = 0
+	for i := 1; i < len(energy); i++ {
+		energy[i] = 0.17
+	}
+	slots := flSlots(energy, 400, 0)
+
+	plan := PlanBattery(cfg, slots)
+	assert.InDelta(t, 0.159, slots[0].Price, 1e-3)
+	assert.InDelta(t, 0.339, slots[1].Price, 1e-3)
+	assert.Equal(t, BatteryActionCharge, plan.Action)
+	assert.Contains(t, []string{BatteryReasonCharge, BatteryReasonCheap}, plan.Reason)
+	assert.Greater(t, plan.TargetSoc, cfg.Soc)
+	assert.Less(t, plan.TargetSoc, cfg.MaxSoc-0.5)
+	assert.Greater(t, plan.ChargeW, 0)
+}
+
+func TestFlandersAfternoonPvCoversEveningWaits(t *testing.T) {
+	cfg := marstekCfg(40, 20)
+	energy := make([]float64, 32)
+	energy[0] = 0
+	for i := 1; i < len(energy); i++ {
+		energy[i] = 0.17
+	}
+	slots := flSlots(energy, 400, 0)
+	hours := tariff.SlotDuration.Hours()
+	for i := 2; i < 14; i++ {
+		slots[i].SolarWh = 2000 * hours
+	}
+
+	plan := PlanBattery(cfg, slots)
+	assert.NotEqual(t, BatteryActionCharge, plan.Action)
+	assert.Greater(t, plan.SolarRoomWh, 0.0)
+}
+
+func TestFlandersCoverMetTradeOffStaysIdle(t *testing.T) {
+	cfg := marstekCfg(90, 20)
+	energy := make([]float64, 16)
+	energy[0] = 0
+	for i := 1; i < len(energy); i++ {
+		energy[i] = 0.17
+	}
+	slots := flSlots(energy, 400, 0)
+
+	plan := PlanBattery(cfg, slots)
+	assert.NotEqual(t, BatteryActionCharge, plan.Action, "trade off must not fill to 100% after cover")
+	assert.Less(t, plan.TargetSoc, cfg.Soc)
+}
+
+func TestFlandersCoverMetTradeOnKeepsCharging(t *testing.T) {
+	cfg := marstekCfg(90, 20)
+	cfg.Trade = true
+	energy := make([]float64, 16)
+	energy[0] = 0
+	for i := 1; i < len(energy); i++ {
+		energy[i] = 0.17
+	}
+	slots := flSlots(energy, 400, 0)
+
+	plan := PlanBattery(cfg, slots)
+	assert.Equal(t, BatteryActionCharge, plan.Action)
+	assert.Equal(t, BatteryReasonCheap, plan.Reason)
+	assert.Greater(t, plan.ChargeW, 0)
+}
+
+func TestFlandersTradeOnExportsWhenFeedInBeatsSelfUse(t *testing.T) {
+	cfg := marstekCfg(90, 20)
+	cfg.Trade = true
+	cfg.LiveResidualW = 50
+	cfg.CycleCost = 0.02
+	energy := make([]float64, 8)
+	for i := range energy {
+		energy[i] = 0.02
+	}
+	slots := flSlots(energy, 20, 0)
+	slots[0].FeedIn = 0.55
+	for i := 1; i < len(slots); i++ {
+		slots[i].FeedIn = 0.02
+	}
+
+	on := PlanBattery(cfg, slots)
+	assert.Equal(t, BatteryReasonExport, on.Reason)
+	assert.Equal(t, BatteryActionDischarge, on.Action)
+
+	cfg.Trade = false
+	off := PlanBattery(cfg, slots)
+	assert.NotEqual(t, BatteryReasonExport, off.Reason)
+}
+
+func TestFlandersPeakQuarterStillDischarges(t *testing.T) {
+	cfg := marstekCfg(50, 20)
+	cfg.GridThresholdW = 5000
+	cfg.HeadroomW = 0
+	cfg.LiveResidualW = 8000
+	energy := make([]float64, 16)
+	energy[0] = 0
+	for i := 1; i < len(energy); i++ {
+		energy[i] = 0.17
+	}
+	slots := flSlots(energy, 8000, 0)
+
+	plan := PlanBattery(cfg, slots)
+	assert.Equal(t, BatteryActionDischarge, plan.Action)
+	assert.Equal(t, BatteryReasonPeak, plan.Reason)
+	assert.NotEqual(t, BatteryActionCharge, plan.Action)
 }
