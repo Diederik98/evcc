@@ -448,6 +448,10 @@ const (
 	PeakShaveShedding = "shedding"
 	PeakShaveRecovery = "recovery"
 	PeakShaveLockout  = "lockout"
+
+	// Finish a started recovery fill in this band. Do not start recovery in-band
+	// unless the planner already says charge is required before the next peak.
+	peakShaveRecoveryHysteresis = 2.0
 )
 
 func (site *Site) setBatteryLimitLimits(chargeLimit, dischargeLimit int) {
@@ -589,9 +593,15 @@ func (site *Site) ManageGridLimits(batteryGridChargeActive bool) {
 		}
 	} else {
 		site.peakShaveOverloadSince = time.Time{}
-		if soc < reserveSoc {
+		needCharge := planned && plan.Action == planner.BatteryActionCharge
+		switch {
+		case soc >= reserveSoc:
+			newState = PeakShaveIdle
+		case needCharge && (soc <= reserveSoc-peakShaveRecoveryHysteresis || oldState == PeakShaveRecovery):
 			newState = PeakShaveRecovery
-		} else {
+		case oldState == PeakShaveRecovery && soc > reserveSoc-peakShaveRecoveryHysteresis:
+			newState = PeakShaveRecovery
+		default:
 			newState = PeakShaveIdle
 		}
 	}

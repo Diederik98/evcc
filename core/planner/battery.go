@@ -81,7 +81,9 @@ type BatteryHorizonSlot struct {
 
 // PlanBattery decides charge, hold, discharge or export for the current slot.
 // Prices must already include taxes and levies. Peak energy is a hard constraint:
-// the battery is charged ahead of the next predicted overshoot cluster. Discharge
+// the battery is charged ahead of the next predicted overshoot cluster when
+// later slots cannot cover the deficit. Below reserve, opportunistic cheap
+// refill is skipped so a dip after a peak does not immediately grid-charge.
 // for peaks stops at reserve SoC. Live charge/discharge watts are then tracked on
 // a faster control loop. Economic cycling only happens when there is no grid
 // limit and the tax-inclusive spread covers round-trip losses and cycle cost.
@@ -151,7 +153,11 @@ func PlanBattery(cfg BatteryConfig, slots []BatterySlot) BatteryPlan {
 
 	deficitWh := targetWh - socWh
 	if deficitWh > 1 && cfg.GridThresholdW > 0 {
-		if mustCharge, cheap := chargeNow(cfg, slots, socWh, targetWh); mustCharge || cheap {
+		mustCharge, cheap := chargeNow(cfg, slots, socWh, targetWh)
+		// Below reserve, only charge when later slots cannot refill before the
+		// next peak. Cheap opportunistic refill of the reserve chatters with
+		// discharge on the next overshoot.
+		if mustCharge || (cheap && socWh >= floorWh) {
 			charge := min(cfg.ChargeW, cfg.HeadroomW, deficitWh/hours/cfg.EtaC)
 			if charge > 0 {
 				plan.Action = BatteryActionCharge
@@ -189,16 +195,6 @@ func PlanBattery(cfg BatteryConfig, slots []BatterySlot) BatteryPlan {
 		plan.DischargeW = int(math.Round(w))
 		plan.Reason = BatteryReasonExport
 		return plan
-	}
-
-	if socWh < floorWh-1 && cfg.GridThresholdW > 0 && cfg.HeadroomW > 0 {
-		charge := min(cfg.ChargeW, cfg.HeadroomW, (floorWh-socWh)/hours/cfg.EtaC)
-		if charge > 0 {
-			plan.Action = BatteryActionCharge
-			plan.ChargeW = int(math.Round(charge))
-			plan.Reason = BatteryReasonRecovery
-			return plan
-		}
 	}
 
 	return plan

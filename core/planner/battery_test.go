@@ -351,9 +351,35 @@ func TestPlanBatteryFirstRunNoSolarForecast(t *testing.T) {
 	}
 
 	plan := PlanBattery(cfg, slots)
-	require.Equal(t, BatteryActionCharge, plan.Action)
-	assert.Greater(t, plan.ChargeW, 0)
-	assert.LessOrEqual(t, float64(plan.ChargeW), cfg.HeadroomW)
+	assert.NotEqual(t, BatteryActionCharge, plan.Action, "enough slots remain to refill before the peak")
+	assert.Greater(t, plan.PeakWh, 0.0)
+	assert.Greater(t, plan.TargetSoc, cfg.Soc)
+}
+
+func TestPlanBatteryDoesNotRefillReserveWithoutUpcomingPeak(t *testing.T) {
+	cfg := BatteryConfig{
+		Soc:            25,
+		MinSoc:         20,
+		MaxSoc:         100,
+		ReserveSoc:     40,
+		CapacityWh:     10000,
+		ChargeW:        2500,
+		DischargeW:     2500,
+		EtaC:           0.9,
+		EtaD:           0.9,
+		GridThresholdW: 10000,
+		HeadroomW:      7000,
+		LiveResidualW:  800,
+	}
+	prices := make([]float64, 16)
+	for i := range prices {
+		prices[i] = 0.22
+	}
+	slots := testSlots(prices, 800, 0)
+
+	plan := PlanBattery(cfg, slots)
+	assert.NotEqual(t, BatteryActionCharge, plan.Action)
+	assert.Equal(t, 0.0, plan.PeakWh)
 }
 
 func TestPlanBatteryEmptyBatterySkipsPeakDischarge(t *testing.T) {

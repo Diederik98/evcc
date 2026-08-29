@@ -446,11 +446,10 @@ func TestManageGridLimitsHardLockout(t *testing.T) {
 	ctrl.Finish()
 }
 
-func TestManageGridLimitsRecovery(t *testing.T) {
+func TestManageGridLimitsRecoveryWaitsWithoutPeak(t *testing.T) {
 	ctrl := gomock.NewController(t)
 
 	limitCtrl := api.NewMockBatteryLimitController(ctrl)
-	limitCtrl.EXPECT().SetChargeLimit(1000).Return(nil).Times(1)
 	bat := newLimitBat(ctrl, limitCtrl)
 
 	site := &Site{
@@ -465,6 +464,30 @@ func TestManageGridLimitsRecovery(t *testing.T) {
 	}
 
 	site.ManageGridLimits(false)
+	assert.Equal(t, PeakShaveIdle, site.peakShaveState)
+	ctrl.Finish()
+}
+
+func TestManageGridLimitsRecoveryFinishesHysteresisBand(t *testing.T) {
+	ctrl := gomock.NewController(t)
+
+	limitCtrl := api.NewMockBatteryLimitController(ctrl)
+	limitCtrl.EXPECT().SetChargeLimit(1000).Return(nil).Times(1)
+	bat := newLimitBat(ctrl, limitCtrl)
+
+	site := &Site{
+		log:                             util.NewLogger("ps"),
+		batteryMeters:                   []config.Device[api.Meter]{config.NewStaticDevice(config.Named{}, bat)},
+		GridThreshold:                   10.0,
+		PeakShaveReserveSoc:             40.0,
+		PeakShaveMinSoc:                 20.0,
+		PeakShaveMaintainSocChargePower: 1000.0,
+		gridPower:                       3000.0,
+		battery:                         types.BatteryState{Soc: 39.0},
+		peakShaveState:                  PeakShaveRecovery,
+	}
+
+	site.ManageGridLimits(false)
 	assert.Equal(t, PeakShaveRecovery, site.peakShaveState)
 	ctrl.Finish()
 }
@@ -473,7 +496,6 @@ func TestManageGridLimitsRecoveryHeadroomCap(t *testing.T) {
 	ctrl := gomock.NewController(t)
 
 	limitCtrl := api.NewMockBatteryLimitController(ctrl)
-	limitCtrl.EXPECT().SetChargeLimit(500).Return(nil).Times(1)
 	bat := newLimitBat(ctrl, limitCtrl)
 
 	site := &Site{
@@ -488,7 +510,7 @@ func TestManageGridLimitsRecoveryHeadroomCap(t *testing.T) {
 	}
 
 	site.ManageGridLimits(false)
-	assert.Equal(t, PeakShaveRecovery, site.peakShaveState)
+	assert.Equal(t, PeakShaveIdle, site.peakShaveState)
 	ctrl.Finish()
 }
 

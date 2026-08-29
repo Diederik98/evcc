@@ -102,21 +102,32 @@
 										<th>{{ $t("peakShave.plan.charging") }}</th>
 										<th>{{ $t("peakShave.plan.solar") }}</th>
 										<th>SoC</th>
+										<th>{{ $t("peakShave.plan.price") }}</th>
 									</tr>
 								</thead>
 								<tbody>
 									<tr v-for="(slot, i) in tableSlots" :key="i" :class="{ 'table-warning': slot.peak }">
 										<td>{{ slotRange(slot) }}</td>
 										<td>
-											{{ $t("peakShave.plan.action." + (slot.action || "normal")) }}
-											<span v-if="slot.reason" class="text-muted">
-												· {{ $t("peakShave.plan.reason." + slot.reason) }}
-											</span>
+											<template v-if="slot.measured">
+												{{ $t("peakShave.plan.measured") }}
+											</template>
+											<template v-else>
+												{{ $t("peakShave.plan.action." + (slot.action || "normal")) }}
+												<span v-if="slot.reason" class="text-muted">
+													· {{ $t("peakShave.plan.reason." + slot.reason) }}
+												</span>
+											</template>
 										</td>
 										<td>{{ fmtW(slot.homeW || 0, POWER_UNIT.KW, true, 1) }}</td>
 										<td>{{ fmtW(slot.loadW || 0, POWER_UNIT.KW, true, 1) }}</td>
 										<td>{{ fmtW(slot.solarW || 0, POWER_UNIT.KW, true, 1) }}</td>
 										<td>{{ Math.round(slot.soc || 0) }}%</td>
+										<td>
+											<template v-if="slot.hasPrice && slot.price">
+												{{ fmtPricePerKWh(slot.price, state.currency) }}
+											</template>
+										</td>
 									</tr>
 								</tbody>
 							</table>
@@ -185,7 +196,16 @@ export default defineComponent({
 			return [...(this.batteryPlan?.log || [])].reverse();
 		},
 		tableSlots(): BatteryPlanSlot[] {
-			return (this.batteryPlan?.slots || []).filter((_, i) => i % 4 === 0);
+			const now = Date.now();
+			return (this.batteryPlan?.slots || [])
+				.filter((s) => {
+					const end = new Date(s.end).getTime();
+					if (s.measured && end > now) {
+						return false;
+					}
+					return true;
+				})
+				.filter((_, i) => i % 4 === 0);
 		},
 	},
 	methods: {

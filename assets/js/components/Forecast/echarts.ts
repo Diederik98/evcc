@@ -2,7 +2,7 @@ import * as echarts from "echarts/core";
 import colors from "@/colors";
 import escapeHtml from "@/utils/escapeHtml";
 import type { ForecastSlot } from "./types";
-import { BarChart, LineChart } from "echarts/charts";
+import { BarChart, CustomChart, LineChart } from "echarts/charts";
 import {
   GridComponent,
   TooltipComponent,
@@ -16,6 +16,7 @@ import { SVGRenderer } from "echarts/renderers";
 
 echarts.use([
   BarChart,
+  CustomChart,
   LineChart,
   GridComponent,
   TooltipComponent,

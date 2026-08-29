@@ -7,28 +7,19 @@
 		<p v-else-if="!hasPrices" class="text-muted small mb-2">
 			{{ $t("peakShave.plan.noPrices") }}
 		</p>
+		<p v-else-if="!parsedSlots.length" class="text-muted small mb-0">
+			{{ $t("peakShave.plan.noForecast") }}
+		</p>
 
 		<div v-if="parsedSlots.length" class="legend small mb-2">
 			<span v-for="key in actionKeys" :key="key" class="legend-item">
 				<span class="legend-swatch" :class="`action-${key}`"></span>
 				{{ $t("peakShave.plan.action." + key) }}
 			</span>
-			<template v-if="hasChargerPlan">
-				<span class="legend-item">
-					<span class="legend-swatch action-charger"></span>
-					{{ $t("peakShave.plan.chargerAction.charging") }}
-				</span>
-				<span class="legend-item">
-					<span class="legend-swatch action-charger-idle"></span>
-					{{ $t("peakShave.plan.chargerAction.idle") }}
-				</span>
-			</template>
-			<span v-if="hasMeasured" class="legend-item">
-				<span class="legend-swatch series-measured"></span>
-				{{ $t("peakShave.plan.measured") }}
+			<span v-if="hasChargerPlan" class="legend-item">
+				<span class="legend-swatch action-charger"></span>
+				{{ $t("peakShave.plan.chargerAction.charging") }}
 			</span>
-		</div>
-		<div v-if="parsedSlots.length" class="legend small mb-2">
 			<span class="legend-item">
 				<span class="legend-swatch series-house"></span>
 				{{ $t("peakShave.plan.house") }}
@@ -45,109 +36,34 @@
 				<span class="legend-swatch series-price"></span>
 				{{ $t("peakShave.plan.price") }}
 			</span>
+			<span v-if="hasMeasured" class="legend-item">
+				<span class="legend-swatch series-measured"></span>
+				{{ $t("peakShave.plan.measured") }}
+			</span>
 		</div>
 
-		<p v-if="parsedSlots.length" class="text-muted small mb-1">
-			{{ $t("peakShave.plan.batteryStrip") }}
-		</p>
-		<div v-if="parsedSlots.length" class="schedule-wrap">
-			<div
-				class="schedule"
-				role="list"
-				:aria-label="$t('peakShave.plan.batteryStrip')"
-			>
-				<button
-					v-for="(slot, index) in parsedSlots"
-					:key="'b-' + slot.start.getTime()"
-					type="button"
-					class="schedule-slot"
-					:class="[
-						`action-${slot.action || 'normal'}`,
-						{
-							now: isNowSlot(slot),
-							active: activeIndex === index,
-							peak: slot.peak,
-							measured: slot.measured,
-						},
-					]"
-					:style="slotStyle(slot)"
-					role="listitem"
-					:aria-label="slotLabel(slot, index)"
-					:aria-pressed="activeIndex === index"
-					@mouseenter="activeIndex = index"
-					@mouseleave="activeIndex = null"
-					@focus="activeIndex = index"
-					@click="activeIndex = index"
-				></button>
-			</div>
-			<div
-				v-if="nowInWindow"
-				class="schedule-now"
-				:style="{ left: nowPosition + '%' }"
-				:aria-label="$t('peakShave.plan.now')"
-			></div>
-		</div>
-		<p v-if="hasChargerPlan" class="text-muted small mb-1 mt-2">
-			{{ $t("peakShave.plan.chargerStrip") }}
-		</p>
-		<div v-if="hasChargerPlan" class="schedule-wrap">
-			<div
-				class="schedule"
-				role="list"
-				:aria-label="$t('peakShave.plan.chargerStrip')"
-			>
-				<button
-					v-for="(slot, index) in parsedSlots"
-					:key="'c-' + slot.start.getTime()"
-					type="button"
-					class="schedule-slot"
-					:class="{
-						'action-charger': chargerActive(slot),
-						'action-charger-idle': !chargerActive(slot),
-						now: isNowSlot(slot),
-						active: activeIndex === index,
-						measured: slot.measured,
-					}"
-					:style="slotStyle(slot)"
-					role="listitem"
-					:aria-label="chargerLabel(slot, index)"
-					:aria-pressed="activeIndex === index"
-					@mouseenter="activeIndex = index"
-					@mouseleave="activeIndex = null"
-					@focus="activeIndex = index"
-					@click="activeIndex = index"
-				></button>
-			</div>
-			<div
-				v-if="nowInWindow"
-				class="schedule-now"
-				:style="{ left: nowPosition + '%' }"
-				:aria-label="$t('peakShave.plan.now')"
-			></div>
-		</div>
-		<p v-else-if="!parsedSlots.length" class="text-muted small mb-0">
-			{{ $t("peakShave.plan.noForecast") }}
-		</p>
+		<div
+			v-if="parsedSlots.length"
+			ref="chartEl"
+			class="forecast-chart"
+			:class="{ 'has-charger': hasChargerPlan }"
+			role="img"
+			:aria-label="forecastTitle"
+		></div>
 
-		<div v-if="parsedSlots.length" ref="chartEl" class="forecast-chart mt-3"></div>
-
-		<div v-if="activeSlot" class="small mt-3">
+		<div v-if="activeSlot" class="small mt-3 slot-summary" aria-live="polite">
 			<p class="mb-1 fw-bold">
-				<span v-if="isNowSlot(activeSlot) || activeIndex === null">{{
-					$t("peakShave.plan.now")
-				}}</span>
-				<span v-else>{{ slotRange(activeSlot) }}</span>
+				<span v-if="isNowSlot(activeSlot)">{{ $t("peakShave.plan.now") }} · </span>
+				{{ slotRange(activeSlot) }}
+				<span v-if="activeSlot.measured" class="text-muted fw-normal">
+					· {{ $t("peakShave.plan.measured") }}
+				</span>
 			</p>
 			<p class="mb-0">
-				<template v-if="activeSlot.measured">
-					{{ $t("peakShave.plan.measured") }}
-				</template>
-				<template v-else>
-					{{ $t("peakShave.plan.action." + (activeSlot.action || "normal")) }}
-					<span v-if="activeSlot.reason" class="text-muted">
-						· {{ $t("peakShave.plan.reason." + activeSlot.reason) }}
-					</span>
-				</template>
+				{{ $t("peakShave.plan.action." + (activeSlot.action || "normal")) }}
+				<span v-if="activeSlot.reason && !activeSlot.measured" class="text-muted">
+					· {{ $t("peakShave.plan.reason." + activeSlot.reason) }}
+				</span>
 			</p>
 			<p class="text-muted mb-0">
 				{{ $t("peakShave.plan.house") }}
@@ -216,6 +132,13 @@ interface ParsedSlot {
 
 const ACTION_KEYS = ["charge", "hold", "discharge", "normal"] as const;
 
+const ACTION_COLORS_SOLID: Record<string, string> = {
+	charge: "#2563eb",
+	hold: "#ff912f",
+	discharge: "#0ba631",
+	normal: "#94a3b8",
+};
+
 export default defineComponent({
 	name: "BatteryPlanForecast",
 	mixins: [formatter],
@@ -239,15 +162,24 @@ export default defineComponent({
 	},
 	computed: {
 		parsedSlots(): ParsedSlot[] {
+			const now = this.nowMs;
 			return (this.slots || [])
-				.map((s) => ({
-					...s,
-					start: new Date(s.start),
-					end: new Date(s.end),
-					action: s.action || "normal",
-					hasPrice: s.hasPrice ?? ((s.price || 0) > 0),
-				}))
-				.filter((s) => !Number.isNaN(s.start.getTime()));
+				.map((s) => {
+					const start = new Date(s.start);
+					const end = new Date(s.end);
+					// Recorded history must end at or before now. Never paint measured into the future.
+					const measured = !!s.measured && end.getTime() <= now;
+					return {
+						...s,
+						start,
+						end,
+						action: measured ? "normal" : s.action || "normal",
+						hasPrice: s.hasPrice ?? (s.price || 0) > 0,
+						measured,
+					};
+				})
+				.filter((s) => !Number.isNaN(s.start.getTime()) && s.end > s.start)
+				.sort((a, b) => a.start.getTime() - b.start.getTime());
 		},
 		hasPrices(): boolean {
 			if (this.hasPricesHint !== undefined) {
@@ -262,7 +194,7 @@ export default defineComponent({
 			return ["shaving", "critical", "shedding", "lockout"].includes(this.peakShaveState);
 		},
 		hasChargerPlan(): boolean {
-			return this.parsedSlots.some((s) => this.chargerActive(s));
+			return this.parsedSlots.some((s) => !s.measured && (s.loadW || 0) > 50);
 		},
 		windowStartMs(): number {
 			return this.parsedSlots[0]?.start.getTime() || 0;
@@ -277,14 +209,14 @@ export default defineComponent({
 		nowInWindow(): boolean {
 			return this.nowMs >= this.windowStartMs && this.nowMs <= this.windowEndMs;
 		},
-		nowPosition(): number {
-			return ((this.nowMs - this.windowStartMs) / this.windowSpanMs) * 100;
-		},
 		forecastHours(): number {
-			return Math.max(1, Math.round(this.windowSpanMs / 3600000));
+			const futureMs = Math.max(0, this.windowEndMs - Math.max(this.nowMs, this.windowStartMs));
+			const pastMs = Math.max(0, Math.min(this.nowMs, this.windowEndMs) - this.windowStartMs);
+			const span = futureMs > 0 ? pastMs + futureMs : this.windowSpanMs;
+			return Math.max(1, Math.round(span / 3600000));
 		},
 		forecastTitle(): string {
-			if (!this.forecastHours) {
+			if (!this.parsedSlots.length) {
 				return this.$t("peakShave.plan.forecast");
 			}
 			return this.$t("peakShave.plan.forecastHours", { hours: this.forecastHours });
@@ -302,52 +234,158 @@ export default defineComponent({
 					return i;
 				}
 			}
-			return 0;
+			// Prefer first forecast slot when now is between history and plan.
+			const firstForecast = this.parsedSlots.findIndex((s) => !s.measured);
+			return firstForecast >= 0 ? firstForecast : 0;
 		},
 		chartOption(): Record<string, unknown> {
 			const slots = this.parsedSlots;
 			if (!slots.length) {
 				return {};
 			}
-			const houseForecast: [number, number][] = [];
-			const houseMeasured: [number, number][] = [];
-			const load: [number, number][] = [];
-			const solarForecast: [number, number][] = [];
-			const solarMeasured: [number, number][] = [];
-			const socForecast: [number, number][] = [];
-			const socMeasured: [number, number][] = [];
-			const price: [number, number | null][] = [];
-			for (const s of slots) {
-				const t = s.start.getTime();
-				const mid = t + (s.end.getTime() - t) / 2;
-				if (s.measured) {
-					houseMeasured.push([mid, (s.homeW || 0) / 1000]);
-					solarMeasured.push([mid, (s.solarW || 0) / 1000]);
-					if (s.soc) {
-						socMeasured.push([mid, s.soc]);
-					}
-				} else {
-					houseForecast.push([t, (s.homeW || 0) / 1000]);
-					load.push([t, (s.loadW || 0) / 1000]);
-					solarForecast.push([t, (s.solarW || 0) / 1000]);
-					socForecast.push([t, s.soc || 0]);
-				}
-				price.push([t, s.hasPrice && s.price ? s.price * 100 : null]);
-			}
-			const threshold = this.gridThreshold > 0 ? this.gridThreshold : undefined;
+
+			const houseColor = "#64748B";
 			const solarColor = colors.selfPalette?.[1] || colors.price || "#FFBD2F";
 			const priceColor = colors.price || "#ff912f";
 			const socColor = colors.batteryPalette[0] || "#0BA631";
 			const gridColor = colors.grid || "#FD6158";
+			const loadColor = colors.palette?.[0] || "#7c3aed";
 			const muted = colors.muted || "#9ca3af";
-			const houseColor = "#64748B";
+			const border = colors.border || "#e5e7eb";
+			const hasCharger = this.hasChargerPlan;
+			const hasPrices = this.hasPrices;
+			const threshold = this.gridThreshold > 0 ? this.gridThreshold : undefined;
+
+			const house: { value: [number, number]; itemStyle: { color: string; opacity: number } }[] =
+				[];
+			const load: [number, number][] = [];
+			const solar: [number, number][] = [];
+			const soc: [number, number][] = [];
+			const price: [number, number | null][] = [];
+			const batteryStrip: { value: [number, number]; itemStyle: { color: string; opacity: number } }[] =
+				[];
+			const chargerStrip: { value: [number, number]; itemStyle: { color: string; opacity: number } }[] =
+				[];
+
+			for (const s of slots) {
+				const t = s.start.getTime();
+				const mid = t + (s.end.getTime() - t) / 2;
+				house.push({
+					value: [mid, (s.homeW || 0) / 1000],
+					itemStyle: { color: houseColor, opacity: s.measured ? 0.45 : 0.9 },
+				});
+				load.push([mid, s.measured ? 0 : (s.loadW || 0) / 1000]);
+				solar.push([t, (s.solarW || 0) / 1000]);
+				soc.push([t, s.soc || 0]);
+				price.push([t, s.hasPrice && s.price ? s.price * 100 : null]);
+				batteryStrip.push({
+					value: [t, s.end.getTime()],
+					itemStyle: {
+						color: ACTION_COLORS_SOLID[s.action] || ACTION_COLORS_SOLID.normal,
+						opacity: s.measured ? 0.45 : 1,
+					},
+				});
+				if (hasCharger) {
+					const active = !s.measured && (s.loadW || 0) > 50;
+					chargerStrip.push({
+						value: [t, s.end.getTime()],
+						itemStyle: {
+							color: active ? "#7c3aed" : "#e2e8f0",
+							opacity: s.measured ? 0.35 : 1,
+						},
+					});
+				}
+			}
+
+			const mainBottom = hasCharger ? "28%" : "16%";
+			const batTop = hasCharger ? "76%" : "88%";
+			const batHeight = "8%";
+			const chargerTop = "88%";
+			const chargerHeight = "8%";
+
+			const grids: Record<string, unknown>[] = [
+				{
+					top: 28,
+					right: hasPrices ? 72 : 40,
+					bottom: mainBottom,
+					left: 44,
+					borderWidth: 0,
+				},
+				{
+					top: batTop,
+					right: hasPrices ? 72 : 40,
+					height: batHeight,
+					left: 44,
+					borderWidth: 0,
+				},
+			];
+			if (hasCharger) {
+				grids.push({
+					top: chargerTop,
+					right: hasPrices ? 72 : 40,
+					height: chargerHeight,
+					left: 44,
+					borderWidth: 0,
+				});
+			}
+
+			const xAxes: Record<string, unknown>[] = [
+				{
+					type: "time",
+					gridIndex: 0,
+					min: this.windowStartMs,
+					max: this.windowEndMs,
+					axisLine: { show: false },
+					axisTick: { show: false },
+					splitLine: { show: false },
+					axisLabel: { show: false },
+					axisPointer: { show: true, label: { show: false } },
+				},
+				{
+					type: "time",
+					gridIndex: 1,
+					min: this.windowStartMs,
+					max: this.windowEndMs,
+					axisLine: { show: false },
+					axisTick: { show: false },
+					splitLine: { show: false },
+					axisLabel: {
+						show: !hasCharger,
+						color: muted,
+						fontSize: 11,
+						fontFamily: FONT_FAMILY,
+						formatter: (value: number) => this.axisLabel(value),
+					},
+					axisPointer: { show: true, label: { show: false } },
+				},
+			];
+			if (hasCharger) {
+				xAxes.push({
+					type: "time",
+					gridIndex: 2,
+					min: this.windowStartMs,
+					max: this.windowEndMs,
+					axisLine: { show: false },
+					axisTick: { show: false },
+					splitLine: { show: false },
+					axisLabel: {
+						color: muted,
+						fontSize: 11,
+						fontFamily: FONT_FAMILY,
+						formatter: (value: number) => this.axisLabel(value),
+					},
+					axisPointer: { show: true, label: { show: false } },
+				});
+			}
+
 			const yAxes: Record<string, unknown>[] = [
 				{
 					type: "value",
+					gridIndex: 0,
 					name: "kW",
 					nameTextStyle: { color: muted, fontSize: 10, fontFamily: FONT_FAMILY },
 					min: 0,
-					splitLine: { lineStyle: { color: colors.border || "#e5e7eb" } },
+					splitLine: { lineStyle: { color: border } },
 					axisLabel: {
 						color: muted,
 						fontSize: 11,
@@ -357,6 +395,7 @@ export default defineComponent({
 				},
 				{
 					type: "value",
+					gridIndex: 0,
 					name: "SoC %",
 					nameTextStyle: { color: socColor, fontSize: 10, fontFamily: FONT_FAMILY },
 					min: 0,
@@ -369,10 +408,18 @@ export default defineComponent({
 						formatter: (v: number) => `${v}`,
 					},
 				},
-			];
-			if (this.hasPrices) {
-				yAxes.push({
+				{
 					type: "value",
+					gridIndex: 1,
+					min: 0,
+					max: 1,
+					show: false,
+				},
+			];
+			if (hasPrices) {
+				yAxes.splice(2, 0, {
+					type: "value",
+					gridIndex: 0,
 					name: "ct",
 					nameTextStyle: { color: priceColor, fontSize: 10, fontFamily: FONT_FAMILY },
 					min: 0,
@@ -386,79 +433,95 @@ export default defineComponent({
 					},
 				});
 			}
+			if (hasCharger) {
+				yAxes.push({
+					type: "value",
+					gridIndex: 2,
+					min: 0,
+					max: 1,
+					show: false,
+				});
+			}
+
+			const priceAxis = hasPrices ? 2 : -1;
+			const batYAxis = hasPrices ? 3 : 2;
+			const chargerYAxis = hasPrices ? 4 : 3;
+
+			const stripRender = (
+				params: { coordSys: { y: number; height: number } },
+				api: {
+					value: (dim: number) => number;
+					coord: (val: number[]) => number[];
+					style: () => Record<string, unknown>;
+				}
+			) => {
+				const start = api.coord([api.value(0), 0]);
+				const end = api.coord([api.value(1), 0]);
+				const y = params.coordSys.y + 2;
+				const h = Math.max(4, params.coordSys.height - 4);
+				return {
+					type: "rect",
+					transition: [],
+					shape: {
+						x: start[0],
+						y,
+						width: Math.max(1, end[0] - start[0] - 1),
+						height: h,
+					},
+					style: api.style(),
+				};
+			};
+
 			const series: Record<string, unknown>[] = [
 				{
 					name: this.$t("peakShave.plan.house"),
 					type: "bar",
+					xAxisIndex: 0,
+					yAxisIndex: 0,
 					stack: "load",
-					barWidth: "70%",
-					itemStyle: { color: houseColor },
-					data: houseForecast,
+					barMaxWidth: 10,
+					data: house,
 				},
 				{
 					name: this.$t("peakShave.plan.charging"),
 					type: "bar",
+					xAxisIndex: 0,
+					yAxisIndex: 0,
 					stack: "load",
-					barWidth: "70%",
-					itemStyle: { color: colors.palette[0] },
+					barMaxWidth: 10,
+					itemStyle: { color: loadColor },
 					data: load,
 				},
 				{
 					name: this.$t("peakShave.plan.solar"),
 					type: "line",
+					xAxisIndex: 0,
+					yAxisIndex: 0,
 					showSymbol: false,
 					smooth: 0.2,
 					lineStyle: { width: 2, color: solarColor },
 					itemStyle: { color: solarColor },
-					areaStyle: { color: solarColor, opacity: 0.18 },
-					data: solarForecast,
+					areaStyle: { color: solarColor, opacity: 0.16 },
+					data: solar,
 				},
 				{
-					name: "SoC",
+					name: this.$t("peakShave.plan.soc"),
 					type: "line",
+					xAxisIndex: 0,
 					yAxisIndex: 1,
 					showSymbol: false,
 					lineStyle: { width: 2.5, color: socColor },
 					itemStyle: { color: socColor },
-					data: socForecast,
+					data: soc,
 				},
 			];
-			if (this.hasMeasured) {
-				series.push(
-					{
-						name: this.$t("peakShave.plan.measuredHouse"),
-						type: "line",
-						showSymbol: false,
-						lineStyle: { width: 1.5, type: "dotted", color: houseColor },
-						itemStyle: { color: houseColor },
-						data: houseMeasured,
-					},
-					{
-						name: this.$t("peakShave.plan.measuredSolar"),
-						type: "line",
-						showSymbol: false,
-						lineStyle: { width: 1.5, type: "dotted", color: solarColor },
-						itemStyle: { color: solarColor },
-						data: solarMeasured,
-					}
-				);
-				if (socMeasured.length) {
-					series.push({
-						name: this.$t("peakShave.plan.measuredSoc"),
-						type: "line",
-						yAxisIndex: 1,
-						showSymbol: false,
-						lineStyle: { width: 1.5, type: "dotted", color: socColor },
-						itemStyle: { color: socColor },
-						data: socMeasured,
-					});
-				}
-			}
-			if (this.hasPrices) {
+
+			if (hasPrices) {
 				series.push({
 					name: this.$t("peakShave.plan.price"),
 					type: "line",
-					yAxisIndex: 2,
+					xAxisIndex: 0,
+					yAxisIndex: priceAxis,
 					showSymbol: false,
 					connectNulls: false,
 					lineStyle: { width: 1.5, type: "dashed", color: priceColor },
@@ -466,28 +529,69 @@ export default defineComponent({
 					data: price,
 				});
 			}
+
+			series.push({
+				name: this.$t("peakShave.plan.batteryStrip"),
+				type: "custom",
+				xAxisIndex: 1,
+				yAxisIndex: batYAxis,
+				renderItem: stripRender,
+				encode: { x: [0, 1] },
+				data: batteryStrip,
+				tooltip: { show: false },
+			});
+
+			if (hasCharger) {
+				series.push({
+					name: this.$t("peakShave.plan.chargerStrip"),
+					type: "custom",
+					xAxisIndex: 2,
+					yAxisIndex: chargerYAxis,
+					renderItem: stripRender,
+					encode: { x: [0, 1] },
+					data: chargerStrip,
+					tooltip: { show: false },
+				});
+			}
+
+			if (this.hasMeasured && this.nowInWindow) {
+				series.push({
+					type: "line",
+					xAxisIndex: 0,
+					yAxisIndex: 0,
+					data: [],
+					silent: true,
+					markArea: {
+						silent: true,
+						itemStyle: { color: muted, opacity: 0.06 },
+						data: [[{ xAxis: this.windowStartMs }, { xAxis: this.nowMs }]],
+					},
+				});
+			}
+
 			if (this.nowInWindow) {
 				series.push({
-					id: "now-line",
 					type: "line",
-					data: [
-						[this.nowMs, 0],
-						[this.nowMs, 0],
-					],
-					showSymbol: false,
+					xAxisIndex: 0,
+					yAxisIndex: 0,
+					data: [],
 					silent: true,
-					z: 10,
 					markLine: {
 						symbol: "none",
 						label: { show: false },
-						lineStyle: { color: muted, width: 1, type: "solid" },
+						lineStyle: { color: muted, width: 1.5, type: "solid" },
 						data: [{ xAxis: this.nowMs }],
 					},
 				});
 			}
+
 			if (threshold) {
 				series.push({
 					type: "line",
+					xAxisIndex: 0,
+					yAxisIndex: 0,
+					data: [],
+					silent: true,
 					markLine: {
 						silent: true,
 						symbol: "none",
@@ -500,37 +604,25 @@ export default defineComponent({
 						lineStyle: { type: "dashed", color: gridColor },
 						data: [{ yAxis: threshold }],
 					},
-					data: [],
 				});
 			}
+
+			const axisPointerLink = xAxes.map((_, i) => ({ xAxisIndex: i }));
+
 			return {
 				animation: false,
-				grid: {
-					top: 28,
-					right: this.hasPrices ? 72 : 36,
-					bottom: 28,
-					left: 40,
-					borderWidth: 0,
+				axisPointer: {
+					link: axisPointerLink,
+					snap: true,
 				},
+				grid: grids,
 				tooltip: {
 					...tooltipStyle(colors.text || "#111", () => this.chart),
 					trigger: "axis",
-					formatter: (params: { dataIndex: number }[]) => this.tooltipHtml(params),
+					axisPointer: { type: "line" },
+					formatter: (params: unknown) => this.tooltipHtml(params),
 				},
-				xAxis: {
-					type: "time",
-					min: this.windowStartMs,
-					max: this.windowEndMs,
-					axisLine: { show: false },
-					axisTick: { show: false },
-					splitLine: { show: false },
-					axisLabel: {
-						color: muted,
-						fontSize: 11,
-						fontFamily: FONT_FAMILY,
-						formatter: (value: number) => this.axisLabel(value),
-					},
-				},
+				xAxis: xAxes,
 				yAxis: yAxes,
 				series,
 			};
@@ -543,12 +635,15 @@ export default defineComponent({
 			},
 			deep: true,
 		},
+		nowMs() {
+			this.$nextTick(() => this.ensureChart());
+		},
 	},
 	mounted() {
 		window.addEventListener("resize", this.resize);
 		this.nowTimer = window.setInterval(() => {
 			this.nowMs = Date.now();
-		}, 60000);
+		}, 30000);
 		this.$nextTick(() => this.ensureChart());
 	},
 	beforeUnmount() {
@@ -563,6 +658,8 @@ export default defineComponent({
 			this.chart?.resize();
 		},
 		disposeChart() {
+			this.chart?.off("updateAxisPointer");
+			this.chart?.off("globalout");
 			this.chart?.dispose();
 			this.chart = null;
 		},
@@ -574,22 +671,60 @@ export default defineComponent({
 			}
 			if (!this.chart) {
 				this.chart = markRaw(echarts.init(el));
+				this.chart.on("updateAxisPointer", (event: unknown) => {
+					this.onAxisPointer(event);
+				});
+				this.chart.on("globalout", () => {
+					this.activeIndex = null;
+				});
 			}
 			this.chart.setOption(this.chartOption, { notMerge: true });
 		},
-		slotStyle(slot: ParsedSlot) {
-			const span = Math.max(1, slot.end.getTime() - slot.start.getTime());
-			return { flex: `${span} 0 0` };
+		onAxisPointer(event: unknown) {
+			const ev = event as {
+				axesInfo?: { value?: number }[];
+			};
+			const value = ev.axesInfo?.[0]?.value;
+			if (typeof value !== "number") {
+				return;
+			}
+			const idx = this.slotIndexAt(value);
+			if (idx >= 0) {
+				this.activeIndex = idx;
+			}
+		},
+		slotIndexAt(timeMs: number): number {
+			const slots = this.parsedSlots;
+			for (let i = 0; i < slots.length; i++) {
+				const s = slots[i];
+				if (timeMs >= s.start.getTime() && timeMs < s.end.getTime()) {
+					return i;
+				}
+			}
+			// Nearest slot by start (axis snap can land on boundary).
+			let best = 0;
+			let bestDist = Infinity;
+			for (let i = 0; i < slots.length; i++) {
+				const mid =
+					slots[i].start.getTime() +
+					(slots[i].end.getTime() - slots[i].start.getTime()) / 2;
+				const dist = Math.abs(mid - timeMs);
+				if (dist < bestDist) {
+					bestDist = dist;
+					best = i;
+				}
+			}
+			return slots.length ? best : -1;
 		},
 		isNowSlot(slot: ParsedSlot) {
 			return this.nowMs >= slot.start.getTime() && this.nowMs < slot.end.getTime();
 		},
-		chargerActive(slot: ParsedSlot) {
-			return (slot.loadW || 0) > 50;
-		},
 		activeSlotLoads(slot: ParsedSlot): BatteryPlanSlotLoad[] {
+			if (slot.measured) {
+				return [];
+			}
 			if (slot.loads?.length) {
-				return slot.loads;
+				return slot.loads.filter((l) => (l.loadW || 0) > 0);
 			}
 			return (this.planLoads || [])
 				.filter((load) => {
@@ -627,32 +762,29 @@ export default defineComponent({
 		slotRange(slot: ParsedSlot) {
 			return this.fmtTimeSlot(slot.start, slot.end.getTime() - slot.start.getTime());
 		},
-		slotLabel(slot: ParsedSlot, index: number) {
-			const action = slot.measured
-				? this.$t("peakShave.plan.measured")
-				: this.$t("peakShave.plan.action." + (slot.action || "normal"));
-			const now = this.isNowSlot(slot) ? `${this.$t("peakShave.plan.now")}: ` : "";
-			return `${now}${this.slotRange(slot)}: ${action}`;
-		},
-		chargerLabel(slot: ParsedSlot, index: number) {
-			const loads = this.activeSlotLoads(slot);
-			const key = this.chargerActive(slot)
-				? "peakShave.plan.chargerAction.charging"
-				: "peakShave.plan.chargerAction.idle";
-			const now = this.isNowSlot(slot) ? `${this.$t("peakShave.plan.now")}: ` : "";
-			const power = this.chargerActive(slot)
-				? ` ${this.fmtW(slot.loadW || 0, POWER_UNIT.KW, true, 1)}`
-				: "";
-			const names =
-				loads.length > 0 ? ` (${loads.map((l) => l.title).filter(Boolean).join(", ")})` : "";
-			return `${now}${this.slotRange(slot)}: ${this.$t(key)}${power}${names}`;
-		},
-		tooltipHtml(params: { dataIndex: number }[]) {
-			const idx = params?.[0]?.dataIndex ?? 0;
+		tooltipHtml(params: unknown) {
+			const list = Array.isArray(params) ? params : [params];
+			const first = list[0] as {
+				axisValue?: number | string;
+				dataIndex?: number;
+				value?: number | [number, number];
+			};
+			let idx = -1;
+			if (typeof first?.axisValue === "number") {
+				idx = this.slotIndexAt(first.axisValue);
+			} else if (typeof first?.axisValue === "string") {
+				idx = this.slotIndexAt(new Date(first.axisValue).getTime());
+			} else if (Array.isArray(first?.value) && typeof first.value[0] === "number") {
+				idx = this.slotIndexAt(first.value[0]);
+			} else if (typeof first?.dataIndex === "number") {
+				idx = first.dataIndex;
+			}
 			const slot = this.parsedSlots[idx];
 			if (!slot) {
 				return "";
 			}
+			this.activeIndex = idx;
+
 			const rows: TooltipRow[] = [];
 			if (slot.measured) {
 				rows.push({
@@ -675,7 +807,7 @@ export default defineComponent({
 					values: [this.fmtW(slot.solarW || 0, POWER_UNIT.KW, true, 1)],
 				}
 			);
-			if ((slot.loadW || 0) > 50) {
+			if ((slot.loadW || 0) > 50 && !slot.measured) {
 				rows.push({
 					name: this.$t("peakShave.plan.charging"),
 					values: [this.fmtW(slot.loadW || 0, POWER_UNIT.KW, true, 1)],
@@ -690,7 +822,10 @@ export default defineComponent({
 				}
 			}
 			if (slot.soc) {
-				rows.push({ name: "SoC", values: [`${Math.round(slot.soc)}%`] });
+				rows.push({
+					name: this.$t("peakShave.plan.soc"),
+					values: [`${Math.round(slot.soc)}%`],
+				});
 			}
 			if (slot.hasPrice && slot.price) {
 				rows.push({
@@ -698,7 +833,16 @@ export default defineComponent({
 					values: [this.fmtPricePerKWh(slot.price, this.currency)],
 				});
 			}
-			return tooltipTable(this.slotRange(slot), rows);
+			if (slot.peak) {
+				rows.push({
+					name: this.$t("peakShave.plan.threshold"),
+					values: [this.$t("peakShave.plan.overLimit")],
+				});
+			}
+			const head = this.isNowSlot(slot)
+				? `${this.$t("peakShave.plan.now")} · ${this.slotRange(slot)}`
+				: this.slotRange(slot);
+			return tooltipTable(head, rows);
 		},
 	},
 });
@@ -722,72 +866,20 @@ export default defineComponent({
 	flex-shrink: 0;
 	background: #94a3b8;
 }
-.schedule-wrap {
-	position: relative;
-}
-.schedule {
-	display: flex;
-	gap: 1px;
-	height: 18px;
-	overflow: hidden;
-}
-.schedule-now {
-	position: absolute;
-	top: 0;
-	bottom: 0;
-	width: 2px;
-	margin-left: -1px;
-	background: currentcolor;
-	opacity: 0.85;
-	pointer-events: none;
-	z-index: 2;
-}
-.schedule-slot {
-	min-width: 0;
-	border: 0;
-	padding: 0;
-	margin: 0;
-	height: 100%;
-	cursor: pointer;
-	background: #94a3b8;
-}
-.schedule-slot.now {
-	outline: 2px solid currentcolor;
-	outline-offset: -2px;
-	z-index: 1;
-}
-.schedule-slot.active {
-	filter: brightness(1.15);
-}
-.schedule-slot.measured {
-	opacity: 0.55;
-}
-.action-charge,
-.schedule-slot.action-charge {
+.action-charge {
 	background: #2563eb;
 }
-.action-discharge,
-.schedule-slot.action-discharge {
+.action-discharge {
 	background: var(--evcc-darker-green);
 }
-.action-hold,
-.schedule-slot.action-hold {
+.action-hold {
 	background: var(--evcc-orange);
 }
-.action-normal,
-.schedule-slot.action-normal {
+.action-normal {
 	background: #94a3b8;
 }
-.schedule-slot.peak:not(.action-charge) {
-	box-shadow: inset 0 3px 0 var(--evcc-red);
-}
-.action-charger,
-.schedule-slot.action-charger {
+.action-charger {
 	background: #7c3aed;
-}
-.action-charger-idle,
-.schedule-slot.action-charger-idle {
-	background: #e2e8f0;
 }
 .series-house {
 	background: #64748b;
@@ -806,7 +898,13 @@ export default defineComponent({
 	opacity: 0.5;
 }
 .forecast-chart {
-	height: 260px;
+	height: 320px;
 	width: 100%;
+}
+.forecast-chart.has-charger {
+	height: 360px;
+}
+.slot-summary {
+	min-height: 4.5rem;
 }
 </style>
