@@ -79,6 +79,7 @@ type BatteryHorizonSlot struct {
 	Price      float64
 	FeedIn     float64
 	Soc        float64
+	CoverSoc   float64
 	Peak       bool
 }
 
@@ -119,7 +120,12 @@ func PlanBattery(cfg BatteryConfig, slots []BatterySlot) BatteryPlan {
 	peakWh := peakEnergyWh(cfg, slots)
 	peakTargetWh := requiredEnergyWh(cfg, slots)
 	cover := forecastCover(cfg, slots, socWh, maxWh, floorWh)
-	targetWh := cover.coverWh
+	plannedDC := 0.0
+	if cfg.EtaD > 0 {
+		plannedDC = plannedLoadNeedWh(cfg, slots) / cfg.EtaD
+	}
+	holdWh := clamp(floorWh+nextClusterEnergyWh(cfg, slots)+plannedDC, floorWh, maxWh)
+	targetWh := max(cover.coverWh, holdWh)
 
 	prices := slotPrices(slots)
 	dischargeFloor, chargeCeiling := economicBands(prices, cfg.EtaC, cfg.EtaD, cfg.CycleCost)
@@ -457,33 +463,25 @@ func forecastCover(cfg BatteryConfig, slots []BatterySlot, socWh, maxWh, floorWh
 			underAC = min(residualAC, cfg.GridThresholdW*slotHours(s))
 		}
 
-		if isPeak {
-			seenNeed = true
-			if etaD > 0 {
-				needDC := residualAC / etaD
-				take := min(max(0, soc-floorWh), needDC)
-				soc -= take
+		if etaD > 0 && underAC > 0 {
+			needDC := underAC / etaD
+			take := min(max(0, soc-floorWh), needDC)
+			soc -= take
+			leftoverAC := (needDC - take) * etaD
+			if leftoverAC > 1 {
+				seenNeed = true
+				out.unmetACWh += leftoverAC
+				if s.Price > 0 {
+					out.unmetCost += leftoverAC / 1000 * s.Price
+				}
+				if out.firstUnmet < 0 {
+					out.firstUnmet = i
+				}
 			}
-			continue
 		}
 
-		if etaD <= 0 {
-			continue
-		}
-		needDC := underAC / etaD
-		take := min(max(0, soc-floorWh), needDC)
-		soc -= take
-		leftoverAC := (needDC - take) * etaD
-		if leftoverAC <= 1 {
-			continue
-		}
-		seenNeed = true
-		out.unmetACWh += leftoverAC
-		if s.Price > 0 {
-			out.unmetCost += leftoverAC / 1000 * s.Price
-		}
-		if out.firstUnmet < 0 {
-			out.firstUnmet = i
+		if isPeak {
+			seenNeed = true
 		}
 	}
 
@@ -523,6 +521,25 @@ func laterImportP75(slots []BatterySlot) float64 {
 	return percentile(prices, 0.75)
 }
 
+// plannedLoadNeedWh is later planned charger/heater energy that stays under
+// the grid limit. Over-limit planned charging is reserved via the peak cluster.
+func plannedLoadNeedWh(cfg BatteryConfig, slots []BatterySlot) float64 {
+	var need float64
+	for _, s := range slots[1:] {
+		if s.LoadWh <= 1 {
+			continue
+		}
+		load := s.LoadWh
+		if cfg.GridThresholdW > 0 {
+			h := slotHours(s)
+			house := max(0, s.HomeWh-s.LoadWh)
+			load = min(load, max(0, cfg.GridThresholdW*h-house))
+		}
+		need += load
+	}
+	return need
+}
+
 func firstPeakIndex(cfg BatteryConfig, slots []BatterySlot) int {
 	for i, s := range slots {
 		if slotOvershootWh(cfg, s) > 0 {
@@ -541,6 +558,13 @@ func exportExcessW(cfg BatteryConfig, slots []BatterySlot, socWh, targetWh float
 	excessWh := socWh - targetWh
 	if excessWh <= 1 {
 		return 0
+	}
+
+	if cfg.GridThresholdW > 0 {
+		firstPeak := firstPeakIndex(cfg, slots)
+		if firstPeak >= 0 && firstPeak < peakClusterMergeSlots {
+			return 0
+		}
 	}
 
 	cur := slots[0]
@@ -688,6 +712,7 @@ func PlanBatteryHorizon(cfg BatteryConfig, slots []BatterySlot) (BatteryPlan, []
 			Price:      slots[i].Price,
 			FeedIn:     slots[i].FeedIn,
 			Soc:        100 * socWh / cfg.CapacityWh,
+			CoverSoc:   p.TargetSoc,
 			Peak:       cfg.GridThresholdW > 0 && profile > cfg.GridThresholdW,
 		}
 	}

@@ -102,6 +102,7 @@ type batteryPlanSlotStatus struct {
 	FeedIn     float64               `json:"feedIn,omitempty"`
 	HasFeedIn  bool                  `json:"hasFeedIn,omitempty"`
 	Soc        float64               `json:"soc"`
+	CoverSoc   float64               `json:"coverSoc,omitempty"`
 	Peak       bool                  `json:"peak,omitempty"`
 	Measured   bool                  `json:"measured,omitempty"`
 }
@@ -705,6 +706,7 @@ func batteryPlanSlotStatuses(slots []planner.BatteryHorizonSlot, slotLoads [][]b
 			LoadW:      s.LoadW,
 			ResidualW:  s.ResidualW,
 			Soc:        s.Soc,
+			CoverSoc:   s.CoverSoc,
 			Peak:       s.Peak,
 			Measured:   measured,
 		}

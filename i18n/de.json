@@ -212,6 +212,7 @@
       "threshold": "Grenze",
       "price": "Preis",
       "soc": "Batterie-SoC",
+      "cover": "Deckung",
       "overLimit": "Über der Netzgrenze, wenn die Batterie untätig bleibt",
       "action": {
         "normal": "Folgt dem Solarüberschuss",

@@ -174,6 +174,7 @@ export interface BatteryPlanSlot {
   feedIn?: number;
   hasFeedIn?: boolean;
   soc?: number;
+  coverSoc?: number;
   peak?: boolean;
   measured?: boolean;
 }

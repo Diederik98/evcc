@@ -102,6 +102,7 @@
 										<th>{{ $t("peakShave.plan.charging") }}</th>
 										<th>{{ $t("peakShave.plan.solar") }}</th>
 										<th>SoC</th>
+										<th>{{ $t("peakShave.plan.cover") }}</th>
 										<th>{{ $t("peakShave.plan.price") }}</th>
 									</tr>
 								</thead>
@@ -123,6 +124,11 @@
 										<td>{{ fmtW(slot.loadW || 0, POWER_UNIT.KW, true, 1) }}</td>
 										<td>{{ fmtW(slot.solarW || 0, POWER_UNIT.KW, true, 1) }}</td>
 										<td>{{ Math.round(slot.soc || 0) }}%</td>
+										<td>
+											<template v-if="!slot.measured && (slot.coverSoc || 0) > 0">
+												{{ Math.round(slot.coverSoc || 0) }}%
+											</template>
+										</td>
 										<td>
 											<template v-if="slot.hasPrice && slot.price">
 												{{ fmtPricePerKWh(slot.price, state.currency) }}

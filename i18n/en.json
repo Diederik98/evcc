@@ -212,6 +212,7 @@
       "threshold": "Limit",
       "price": "Price",
       "soc": "Battery SoC",
+      "cover": "Cover",
       "overLimit": "Above the grid limit if the battery stays idle",
       "action": {
         "normal": "Following solar surplus",

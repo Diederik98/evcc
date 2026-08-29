@@ -32,6 +32,14 @@
 				<span class="legend-swatch series-soc"></span>
 				{{ $t("peakShave.plan.soc") }}
 			</span>
+			<span v-if="hasCover" class="legend-item">
+				<span class="legend-swatch series-cover"></span>
+				{{ $t("peakShave.plan.cover") }}
+			</span>
+			<span v-if="hasExport" class="legend-item">
+				<span class="legend-swatch action-export"></span>
+				{{ $t("peakShave.plan.reason.export") }}
+			</span>
 			<span v-if="hasPrices" class="legend-item">
 				<span class="legend-swatch series-price"></span>
 				{{ $t("peakShave.plan.price") }}
@@ -75,6 +83,9 @@
 					{{ fmtW(activeSlot.loadW, POWER_UNIT.KW, true, 1) }}
 				</template>
 				<template v-if="activeSlot.soc"> · SoC {{ Math.round(activeSlot.soc) }}% </template>
+				<template v-if="!activeSlot.measured && (activeSlot.coverSoc || 0) > 0">
+					· {{ $t("peakShave.plan.cover") }} {{ Math.round(activeSlot.coverSoc || 0) }}%
+				</template>
 			</p>
 			<p v-for="(load, i) in activeSlotLoads(activeSlot)" :key="i" class="text-muted mb-0">
 				{{ load.title }}: {{ fmtW(load.loadW || 0, POWER_UNIT.KW, true, 1) }}
@@ -126,6 +137,7 @@ interface ParsedSlot {
 	hasPrice?: boolean;
 	feedIn?: number;
 	soc?: number;
+	coverSoc?: number;
 	peak?: boolean;
 	measured?: boolean;
 }
@@ -138,6 +150,8 @@ const ACTION_COLORS_SOLID: Record<string, string> = {
 	discharge: "#0ba631",
 	normal: "#94a3b8",
 };
+const EXPORT_COLOR = "#0d9488";
+const COVER_COLOR = "#1d4ed8";
 
 export default defineComponent({
 	name: "BatteryPlanForecast",
@@ -195,6 +209,12 @@ export default defineComponent({
 		},
 		hasChargerPlan(): boolean {
 			return this.parsedSlots.some((s) => !s.measured && (s.loadW || 0) > 50);
+		},
+		hasCover(): boolean {
+			return this.parsedSlots.some((s) => !s.measured && (s.coverSoc || 0) > 0);
+		},
+		hasExport(): boolean {
+			return this.parsedSlots.some((s) => !s.measured && s.reason === "export");
 		},
 		windowStartMs(): number {
 			return this.parsedSlots[0]?.start.getTime() || 0;
@@ -261,6 +281,7 @@ export default defineComponent({
 			const load: [number, number][] = [];
 			const solar: [number, number][] = [];
 			const soc: [number, number][] = [];
+			const cover: [number, number][] = [];
 			const price: [number, number | null][] = [];
 			const batteryStrip: { value: [number, number]; itemStyle: { color: string; opacity: number } }[] =
 				[];
@@ -277,11 +298,17 @@ export default defineComponent({
 				load.push([mid, s.measured ? 0 : (s.loadW || 0) / 1000]);
 				solar.push([t, (s.solarW || 0) / 1000]);
 				soc.push([t, s.soc || 0]);
+				if (!s.measured && (s.coverSoc || 0) > 0) {
+					cover.push([t, s.coverSoc || 0]);
+				}
 				price.push([t, s.hasPrice && s.price ? s.price * 100 : null]);
 				batteryStrip.push({
 					value: [t, s.end.getTime()],
 					itemStyle: {
-						color: ACTION_COLORS_SOLID[s.action] || ACTION_COLORS_SOLID.normal,
+						color:
+							s.reason === "export"
+								? EXPORT_COLOR
+								: ACTION_COLORS_SOLID[s.action] || ACTION_COLORS_SOLID.normal,
 						opacity: s.measured ? 0.45 : 1,
 					},
 				});
@@ -515,6 +542,19 @@ export default defineComponent({
 					data: soc,
 				},
 			];
+
+			if (cover.length) {
+				series.push({
+					name: this.$t("peakShave.plan.cover"),
+					type: "line",
+					xAxisIndex: 0,
+					yAxisIndex: 1,
+					showSymbol: false,
+					lineStyle: { width: 1.5, type: "dashed", color: COVER_COLOR },
+					itemStyle: { color: COVER_COLOR },
+					data: cover,
+				});
+			}
 
 			if (hasPrices) {
 				series.push({
@@ -827,6 +867,12 @@ export default defineComponent({
 					values: [`${Math.round(slot.soc)}%`],
 				});
 			}
+			if (!slot.measured && (slot.coverSoc || 0) > 0) {
+				rows.push({
+					name: this.$t("peakShave.plan.cover"),
+					values: [`${Math.round(slot.coverSoc || 0)}%`],
+				});
+			}
 			if (slot.hasPrice && slot.price) {
 				rows.push({
 					name: this.$t("peakShave.plan.price"),
@@ -878,8 +924,12 @@ export default defineComponent({
 .action-normal {
 	background: #94a3b8;
 }
-.action-charger {
-	background: #7c3aed;
+.action-export {
+	background: #0d9488;
+}
+.series-cover {
+	background: transparent;
+	border: 2px dashed #1d4ed8;
 }
 .series-house {
 	background: #64748b;
