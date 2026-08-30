@@ -67,13 +67,10 @@ export default defineComponent({
 			return `smartCostLimit-${this.loadpointId || "battery"}`;
 		},
 		energyToggleVisible(): boolean {
-			return !this.isCo2 && !this.tariffFormula;
+			return !this.isCo2;
 		},
 		energyPriceDisplay(): boolean {
-			return (
-				!this.isCo2 &&
-				isEnergyPriceDisplay(this.tariffCharges, this.tariffTax, this.tariffFormula)
-			);
+			return !this.isCo2 && isEnergyPriceDisplay();
 		},
 		displayLimit(): number | null {
 			if (this.currentLimit === null || this.isCo2) {

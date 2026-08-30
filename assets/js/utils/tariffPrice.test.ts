@@ -50,9 +50,9 @@ describe("tariffPrice", () => {
     expect(displayGridPrice(0.15, 0, 0)).toBeCloseTo(0.15, 10);
   });
 
-  test("formula stays all-in", () => {
-    expect(isEnergyPriceDisplay(charges, tax, true)).toBe(false);
-    expect(displayGridPrice(0.212, charges, tax, true)).toBe(0.212);
+  test("formula still converts with charges and tax", () => {
+    expect(isEnergyPriceDisplay(charges, tax, true)).toBe(true);
+    expect(displayGridPrice(0.212, charges, tax, true)).toBeCloseTo(0.05, 10);
   });
 
   test("mapSlotPrices converts values", () => {

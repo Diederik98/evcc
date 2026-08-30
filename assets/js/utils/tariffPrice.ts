@@ -4,8 +4,8 @@ export function canShowEnergyPrice(charges = 0, tax = 0, formula = false): boole
   return !formula && (charges !== 0 || tax !== 0);
 }
 
-export function isEnergyPriceDisplay(_charges = 0, _tax = 0, formula = false): boolean {
-  return settings.showEnergyPrice && !formula;
+export function isEnergyPriceDisplay(_charges = 0, _tax = 0, _formula = false): boolean {
+  return settings.showEnergyPrice;
 }
 
 export function energyFromAllIn(allIn: number, charges = 0, tax = 0): number {

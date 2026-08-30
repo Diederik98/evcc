@@ -49,7 +49,7 @@
 		</div>
 		<div v-if="showEnergyToggle" class="row mb-3" style="max-width: 1000px">
 			<div class="col-sm-8 offset-sm-4 pe-0">
-				<div class="form-check form-switch mb-0">
+				<div class="form-check form-switch mb-0" data-testid="energy-price-toggle">
 					<input
 						:id="formId + 'EnergyPrice'"
 						class="form-check-input"
