@@ -13,26 +13,13 @@
 			:is-slot-active="isSlotActive"
 			limit-direction="below"
 			:options-start-at-zero="isCo2"
+			:show-energy-toggle="energyToggleVisible"
+			:energy-price-display="energyPriceDisplay"
 			@save-limit="saveLimit"
 			@delete-limit="deleteLimit"
 			@apply-to-all="applyToAll"
+			@toggle-energy-price="toggleEnergyPrice"
 		/>
-		<div v-if="energyToggleVisible" class="form-check form-switch mt-3 mb-1">
-			<input
-				:id="formId + 'EnergyPrice'"
-				class="form-check-input"
-				type="checkbox"
-				role="switch"
-				:checked="energyPriceDisplay"
-				@change="toggleEnergyPrice"
-			/>
-			<label class="form-check-label" :for="formId + 'EnergyPrice'">
-				{{ $t("smartCost.showEnergyPrice") }}
-			</label>
-			<div class="form-text text-muted">
-				{{ $t("smartCost.showEnergyPriceHelp") }}
-			</div>
-		</div>
 	</div>
 </template>
 
@@ -45,7 +32,6 @@ import settings from "@/settings";
 import { type CURRENCY, SMART_COST_TYPE } from "@/types/evcc";
 import { type ForecastSlot } from "../Forecast/types";
 import {
-	canShowEnergyPrice,
 	displayGridPrice,
 	isEnergyPriceDisplay,
 	mapSlotPrices,
@@ -81,10 +67,7 @@ export default defineComponent({
 			return `smartCostLimit-${this.loadpointId || "battery"}`;
 		},
 		energyToggleVisible(): boolean {
-			return (
-				!this.isCo2 &&
-				canShowEnergyPrice(this.tariffCharges, this.tariffTax, this.tariffFormula)
-			);
+			return !this.isCo2 && !this.tariffFormula;
 		},
 		energyPriceDisplay(): boolean {
 			return (

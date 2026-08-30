@@ -1646,7 +1646,9 @@
     "priceLimit": "Prijslimiet",
     "resetAction": "Limiet verwijderen",
     "resetWarning": "Er is geen dynamische netprijs of CO₂-bron geconfigureerd. Er is echter nog steeds een limiet van {limit}. Configuratie opschonen?",
-    "saved": "Opgeslagen."
+    "saved": "Opgeslagen.",
+    "showEnergyPrice": "Energieprijs, zonder heffingen en BTW",
+    "showEnergyPriceHelp": "De limiet, grafiek en actuele prijs gebruiken de energieprijs. Heffingen en BTW tellen onderliggend nog mee bij de laadbeslissing."
   },
   "smartFeedInPriority": {
     "activeHoursLabel": "Gepauzeerde tijd",

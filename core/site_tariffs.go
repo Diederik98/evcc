@@ -83,6 +83,9 @@ func (site *Site) publishTariffs(greenShareHome float64, greenShareLoadpoints fl
 		site.publish(keys.TariffGrid, v)
 	}
 	charges, tax, formula := tariff.PriceBreakdown(site.GetTariff(api.TariffUsageGrid))
+	if charges == 0 && tax == 0 && !formula {
+		charges, tax, formula = tariff.PriceBreakdown(site.GetTariff(api.TariffUsagePlanner))
+	}
 	site.publish(keys.TariffCharges, charges)
 	site.publish(keys.TariffTax, tax)
 	site.publish(keys.TariffFormula, formula)

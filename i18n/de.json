@@ -1894,8 +1894,8 @@
     "resetAction": "Grenze löschen",
     "resetWarning": "Es ist kein dynamischer Netzpreis und keine CO₂-Quelle konfiguriert. Dennoch ist eine Grenze von {limit} eingerichtet. Konfiguration aufräumen?",
     "saved": "Gepeichert.",
-    "showEnergyPrice": "Ohne Abgaben und Steuern",
-    "showEnergyPriceHelp": "Grenze als Energiepreis festlegen. Abgaben und Steuern werden weiterhin berücksichtigt."
+    "showEnergyPrice": "Energiepreis, ohne Abgaben und Steuern",
+    "showEnergyPriceHelp": "Grenze, Grafik und aktueller Preis nutzen den Energiepreis. Abgaben und Steuern werden beim Laden weiterhin berücksichtigt."
   },
   "smartFeedInPriority": {
     "activeHoursLabel": "Pausierte Zeit",

@@ -47,6 +47,26 @@
 				</button>
 			</div>
 		</div>
+		<div v-if="showEnergyToggle" class="row mb-3" style="max-width: 1000px">
+			<div class="col-sm-8 offset-sm-4 pe-0">
+				<div class="form-check form-switch mb-0">
+					<input
+						:id="formId + 'EnergyPrice'"
+						class="form-check-input"
+						type="checkbox"
+						role="switch"
+						:checked="energyPriceDisplay"
+						@change="$emit('toggle-energy-price')"
+					/>
+					<label class="form-check-label" :for="formId + 'EnergyPrice'">
+						{{ $t("smartCost.showEnergyPrice") }}
+					</label>
+				</div>
+				<div class="form-text text-muted">
+					{{ $t("smartCost.showEnergyPriceHelp") }}
+				</div>
+			</div>
+		</div>
 		<div class="justify-content-between mb-2 d-flex justify-content-between">
 			<div class="text-start" data-testid="active-hours">
 				<div class="label">
@@ -130,8 +150,10 @@ export default defineComponent({
 			type: Function as PropType<(value: number | undefined) => boolean>,
 			required: true,
 		},
+		showEnergyToggle: Boolean,
+		energyPriceDisplay: Boolean,
 	},
-	emits: ["save-limit", "delete-limit", "apply-to-all"],
+	emits: ["save-limit", "delete-limit", "apply-to-all", "toggle-energy-price"],
 	data() {
 		return {
 			selectedLimit: null as number | null,

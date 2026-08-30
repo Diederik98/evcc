@@ -45,6 +45,16 @@ describe("tariffPrice", () => {
     expect(storedGridPrice(0.05, charges, tax)).toBe(0.05);
   });
 
+  test("energy display is on even without charges or tax", () => {
+    expect(isEnergyPriceDisplay(0, 0)).toBe(true);
+    expect(displayGridPrice(0.15, 0, 0)).toBeCloseTo(0.15, 10);
+  });
+
+  test("formula stays all-in", () => {
+    expect(isEnergyPriceDisplay(charges, tax, true)).toBe(false);
+    expect(displayGridPrice(0.212, charges, tax, true)).toBe(0.212);
+  });
+
   test("mapSlotPrices converts values", () => {
     const slots = mapSlotPrices(
       [
