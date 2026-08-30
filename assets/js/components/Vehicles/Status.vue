@@ -61,8 +61,8 @@ import { DEFAULT_LOCALE } from "@/i18n.ts";
 import formatter from "@/mixins/formatter";
 import minuteTicker from "@/mixins/minuteTicker";
 import { defineComponent, type PropType } from "vue";
-import { SMART_COST_TYPE, type CURRENCY, type VehicleStatus, type Timeout } from "@/types/evcc";
-import { displayGridPrice } from "@/utils/tariffPrice";
+import { SMART_COST_TYPE, type CURRENCY, type Forecast, type VehicleStatus, type Timeout } from "@/types/evcc";
+import { displayGridPrice, displayStoredLimit } from "@/utils/tariffPrice";
 
 import ClimaterIcon from "../MaterialIcon/Climater.vue";
 import DynamicPriceIcon from "../MaterialIcon/DynamicPrice.vue";
@@ -134,6 +134,7 @@ export default defineComponent({
 		tariffTax: { type: Number, default: 0 },
 		tariffFormula: Boolean,
 		tariffFeedIn: { type: Number, default: 0 },
+		forecast: Object as PropType<Forecast>,
 		vehicleClimaterActive: Boolean,
 		vehicleWelcomeActive: Boolean,
 		vehicleLimitSoc: { type: Number, default: 0 },
@@ -177,7 +178,8 @@ export default defineComponent({
 		},
 		smartCostNowVisible() {
 			if (this.smartCostPrice) {
-				return this.costNow <= this.smartCostLimit;
+				const limit = this.displaySmartCostLimit;
+				return limit != null && this.displayTariffGrid <= limit;
 			}
 			return this.tariffCo2 <= this.smartCostLimit;
 		},
@@ -193,17 +195,21 @@ export default defineComponent({
 			}
 			return this.fmtCo2Short(this.smartCostLimit);
 		},
-		costNow(): number {
-			if (this.smartCostLimitEnergy && this.tariffGridEnergy != null) {
-				return this.tariffGridEnergy;
-			}
-			return this.tariffGrid;
+		priceSlots() {
+			return this.forecast?.planner || this.forecast?.grid;
 		},
 		displayTariffGrid() {
 			return displayGridPrice(this.tariffGrid, this.tariffGridEnergy);
 		},
 		displaySmartCostLimit() {
-			return this.smartCostLimit;
+			if (!this.smartCostPrice || this.smartCostLimit == null) {
+				return this.smartCostLimit;
+			}
+			return displayStoredLimit(
+				this.smartCostLimit,
+				this.smartCostLimitEnergy,
+				this.priceSlots
+			);
 		},
 		feedInNow() {
 			return this.fmtPricePerKWh(this.tariffFeedIn, this.currency, true);

@@ -348,7 +348,7 @@ import ForecastMessage from "./ForecastMessage.vue";
 import settings from "@/settings";
 import collector from "@/mixins/collector.js";
 import { defineComponent, type PropType } from "vue";
-import { displayGridPrice } from "@/utils/tariffPrice";
+import { displayGridPrice, displayStoredLimit } from "@/utils/tariffPrice";
 import {
 	SMART_COST_TYPE,
 	type Battery,
@@ -562,7 +562,11 @@ export default defineComponent({
 				return this.fmtCo2Short(this.batteryGridChargeLimit);
 			}
 			return this.fmtPricePerKWh(
-				this.batteryGridChargeLimit,
+				displayStoredLimit(
+					this.batteryGridChargeLimit,
+					this.batteryGridChargeLimitEnergy,
+					this.forecast?.grid
+				) ?? this.batteryGridChargeLimit,
 				this.currency,
 				true
 			);

@@ -171,6 +171,7 @@ export default defineComponent({
 		tariffTax: { type: Number, default: 0 },
 		tariffFormula: Boolean,
 		tariffFeedIn: Number,
+		forecast: Object as PropType<Forecast>,
 		vehicle: Object as PropType<Vehicle>,
 		vehicleDetectionActive: Boolean,
 		vehicleName: String,

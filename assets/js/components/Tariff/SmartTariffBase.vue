@@ -81,7 +81,7 @@
 					<span v-if="activeSlot">{{ activeSlotName }}</span>
 					<span v-else>{{ currentPriceLabel }}</span>
 				</div>
-				<div v-if="activeSlot" class="value text-primary">
+				<div v-if="activeSlot" class="value" :class="activeSlot.charging ? highlightColor : 'value-inactive'">
 					{{ activeSlotCost }}
 				</div>
 				<div v-else-if="activeSlots.length" class="value text-primary">
@@ -173,6 +173,12 @@ export default defineComponent({
 			}
 			return [];
 		},
+		effectiveLimit(): number | null {
+			if (this.active && this.selectedLimit !== null) {
+				return this.selectedLimit;
+			}
+			return this.currentLimit;
+		},
 		limitOptions(): SelectOption<number>[] {
 			const { max } = this.optionsCostRange;
 
@@ -185,7 +191,7 @@ export default defineComponent({
 			}
 			// add special entry if currently selected value is not in the scale
 			const selected = this.selectedLimit;
-			if (selected && !values.includes(selected)) {
+			if (selected != null && !values.includes(selected)) {
 				values.push(selected);
 			}
 			values.sort((a, b) => a - b);
@@ -229,10 +235,10 @@ export default defineComponent({
 			return { min, max };
 		},
 		slots(): Slot[] {
-			return this.slotsForLimit(this.currentLimit);
+			return this.slotsForLimit(this.effectiveLimit);
 		},
 		chartSlots(): Slot[] {
-			return this.slotsForLimit(this.currentLimit ?? this.selectedLimit);
+			return this.slotsForLimit(this.effectiveLimit);
 		},
 		totalSlots() {
 			return this.slots.filter((s) => s.value !== undefined);
@@ -291,6 +297,9 @@ export default defineComponent({
 	},
 	watch: {
 		currentLimit() {
+			this.initLimit();
+		},
+		energyPriceDisplay() {
 			this.initLimit();
 		},
 	},

@@ -165,6 +165,7 @@ export default defineComponent({
 				tariffCharges: this.state.tariffCharges || 0,
 				tariffTax: this.state.tariffTax || 0,
 				tariffFormula: !!this.state.tariffFormula,
+				smartCostLimitEnergy: !!this.state.batteryGridChargeLimitEnergy,
 			};
 		},
 	},

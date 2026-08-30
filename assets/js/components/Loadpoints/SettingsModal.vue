@@ -22,6 +22,7 @@
 				:tariff-charges="tariffCharges"
 				:tariff-tax="tariffTax"
 				:tariff-formula="tariffFormula"
+				:smart-cost-limit-energy="!!loadpoint?.smartCostLimitEnergy"
 				class="mt-2 mb-4"
 			/>
 			<SmartFeedInPriority

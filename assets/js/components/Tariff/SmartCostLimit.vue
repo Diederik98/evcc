@@ -31,7 +31,13 @@ import { setLoadpointLastSmartCostLimit } from "@/uiLoadpoints";
 import settings from "@/settings";
 import { type CURRENCY, SMART_COST_TYPE } from "@/types/evcc";
 import { type ForecastSlot } from "../Forecast/types";
-import { isEnergyPriceDisplay, mapSlotPrices, roundPrice } from "@/utils/tariffPrice";
+import {
+	displayStoredLimit,
+	isEnergyPriceDisplay,
+	mapSlotPrices,
+	roundPrice,
+	storedFromDisplay,
+} from "@/utils/tariffPrice";
 
 export default defineComponent({
 	name: "SmartCostLimit",
@@ -52,6 +58,7 @@ export default defineComponent({
 		tariffCharges: { type: Number, default: 0 },
 		tariffTax: { type: Number, default: 0 },
 		tariffFormula: Boolean,
+		smartCostLimitEnergy: Boolean,
 	},
 	computed: {
 		isCo2(): boolean {
@@ -70,13 +77,23 @@ export default defineComponent({
 			if (this.currentLimit === null || this.isCo2) {
 				return this.currentLimit;
 			}
-			return roundPrice(this.currentLimit);
+			const converted = displayStoredLimit(
+				this.currentLimit,
+				this.smartCostLimitEnergy,
+				this.tariff
+			);
+			return converted == null ? null : roundPrice(converted);
 		},
 		displayLastLimit(): number | undefined {
 			if (this.lastLimit === undefined || this.isCo2 || !this.lastLimit) {
 				return this.lastLimit;
 			}
-			return roundPrice(this.lastLimit);
+			const converted = displayStoredLimit(
+				this.lastLimit,
+				this.smartCostLimitEnergy,
+				this.tariff
+			);
+			return converted == null ? this.lastLimit : roundPrice(converted);
 		},
 		displayTariff(): ForecastSlot[] | undefined {
 			if (this.isCo2) {
@@ -103,17 +120,21 @@ export default defineComponent({
 			if (value === undefined || this.displayLimit === null) {
 				return false;
 			}
-			return value <= this.displayLimit;
+			return roundPrice(value) <= this.displayLimit;
 		},
-		limitUrl(path: string, value?: number): string {
-			const qs = this.energyPriceDisplay ? "?energy=true" : "";
-			if (value === undefined) {
-				return path;
-			}
+		limitUrl(path: string, value: number, energy: boolean): string {
+			const qs = energy ? "?energy=true" : "";
 			return `${path}/${encodeURIComponent(value)}${qs}`;
 		},
+		toStored(limit: number): { value: number; energy: boolean } {
+			if (this.isCo2) {
+				return { value: limit, energy: false };
+			}
+			return storedFromDisplay(limit, this.tariff);
+		},
 		async saveLimit(limit: number, active: boolean) {
-			this.saveLastLimit(limit);
+			const stored = this.toStored(limit);
+			this.saveLastLimit(stored.value);
 
 			if (!active) return;
 
@@ -121,7 +142,7 @@ export default defineComponent({
 				? `loadpoints/${this.loadpointId}/smartcostlimit`
 				: "batterygridchargelimit";
 
-			await api.post(this.limitUrl(url, limit));
+			await api.post(this.limitUrl(url, stored.value, stored.energy));
 		},
 		saveLastLimit(limit: number) {
 			if (this.isLoadpoint) {
@@ -143,7 +164,8 @@ export default defineComponent({
 			if (selectedLimit === null) {
 				await api.delete("smartcostlimit");
 			} else {
-				await api.post(this.limitUrl("smartcostlimit", selectedLimit));
+				const stored = this.toStored(selectedLimit);
+				await api.post(this.limitUrl("smartcostlimit", stored.value, stored.energy));
 			}
 		},
 		toggleEnergyPrice() {
