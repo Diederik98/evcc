@@ -84,11 +84,7 @@ func (t *Elering) run(done chan error) {
 		for _, r := range res.Data[t.region] {
 			ts := time.Unix(r.Timestamp, 0).Local()
 
-			ar := api.Rate{
-				Start: ts,
-				End:   ts.Add(time.Hour),
-				Value: t.totalPrice(r.Price/1e3, ts),
-			}
+			ar := t.rate(ts, ts.Add(time.Hour), r.Price/1e3)
 			data = append(data, ar)
 		}
 

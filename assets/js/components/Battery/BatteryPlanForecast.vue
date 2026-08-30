@@ -135,6 +135,7 @@ interface ParsedSlot {
 	loads?: BatteryPlanSlotLoad[];
 	residualW?: number;
 	price?: number;
+	energy?: number;
 	hasPrice?: boolean;
 	feedIn?: number;
 	soc?: number;
@@ -195,12 +196,7 @@ export default defineComponent({
 						hasPrice: s.hasPrice ?? (s.price || 0) > 0,
 						price:
 							s.price != null
-								? displayGridPrice(
-										s.price,
-										this.tariffCharges,
-										this.tariffTax,
-										this.tariffFormula
-									)
+								? displayGridPrice(s.price, s.energy)
 								: s.price,
 						measured,
 					};

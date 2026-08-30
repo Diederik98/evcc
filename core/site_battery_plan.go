@@ -98,6 +98,7 @@ type batteryPlanSlotStatus struct {
 	Loads      []batteryPlanSlotLoad `json:"loads,omitempty"`
 	ResidualW  float64               `json:"residualW"`
 	Price      float64               `json:"price,omitempty"`
+	Energy     *float64              `json:"energy,omitempty"`
 	HasPrice   bool                  `json:"hasPrice,omitempty"`
 	FeedIn     float64               `json:"feedIn,omitempty"`
 	HasFeedIn  bool                  `json:"hasFeedIn,omitempty"`
@@ -211,15 +212,20 @@ func extendProfile(home []float64, n int) []float64 {
 	return out
 }
 
-func rateValueAt(rr api.Rates, ts time.Time) (float64, bool) {
+func rateAt(rr api.Rates, ts time.Time) (api.Rate, bool) {
 	if len(rr) == 0 {
-		return 0, false
+		return api.Rate{}, false
 	}
 	r, err := rr.At(ts)
 	if err != nil {
-		return 0, false
+		return api.Rate{}, false
 	}
-	return r.Value, true
+	return r, true
+}
+
+func rateValueAt(rr api.Rates, ts time.Time) (float64, bool) {
+	r, ok := rateAt(rr, ts)
+	return r.Value, ok
 }
 
 func (site *Site) batteryPlanSlots() []planner.BatterySlot {
@@ -710,8 +716,9 @@ func batteryPlanSlotStatuses(slots []planner.BatteryHorizonSlot, slotLoads [][]b
 			Peak:       s.Peak,
 			Measured:   measured,
 		}
-		if price, ok := rateValueAt(grid, s.Start); ok {
-			st.Price = price
+		if r, ok := rateAt(grid, s.Start); ok {
+			st.Price = r.Value
+			st.Energy = api.CloneEnergy(r.Energy)
 			st.HasPrice = true
 		}
 		if s.FeedIn > 0 {
@@ -787,8 +794,9 @@ func (site *Site) batteryPlanMeasuredSlots(n int) []batteryPlanSlotStatus {
 		if st.Soc == 0 && site.batteryConfigured() {
 			st.Soc = site.battery.Soc
 		}
-		if price, ok := rateValueAt(grid, start); ok {
-			st.Price = price
+		if r, ok := rateAt(grid, start); ok {
+			st.Price = r.Value
+			st.Energy = api.CloneEnergy(r.Energy)
 			st.HasPrice = true
 		}
 		out = append(out, st)

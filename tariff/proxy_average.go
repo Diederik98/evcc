@@ -36,30 +36,34 @@ func averageSlots(rates api.Rates, average time.Duration) api.Rates {
 		return nil
 	}
 
-	// accumulate sums and counts per period
-	avgs := make(map[time.Time]*struct {
-		sum float64
-		cnt int
-	})
+	type bucket struct {
+		sum, energySum float64
+		cnt, energyCnt int
+	}
 
+	avgs := make(map[time.Time]*bucket)
 	for _, r := range rates {
 		ts := r.Start.Truncate(average)
 		avg, ok := avgs[ts]
 		if !ok {
-			avg = new(struct {
-				sum float64
-				cnt int
-			})
+			avg = new(bucket)
 			avgs[ts] = avg
 		}
 		avg.sum += r.Value
 		avg.cnt++
+		if r.Energy != nil {
+			avg.energySum += *r.Energy
+			avg.energyCnt++
+		}
 	}
 
 	res := slices.Clone(rates)
 	for i, r := range res {
 		avg := avgs[r.Start.Truncate(average)]
 		res[i].Value = avg.sum / float64(avg.cnt)
+		if avg.energyCnt > 0 {
+			res[i].Energy = api.NewEnergy(avg.energySum / float64(avg.energyCnt))
+		}
 	}
 
 	return res

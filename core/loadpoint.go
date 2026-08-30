@@ -120,6 +120,7 @@ type Loadpoint struct {
 	limitSoc                 int      // Session limit for soc
 	limitEnergy              float64  // Session limit for energy
 	smartCostLimit           *float64 // always charge if consumption cost is below this value
+	smartCostLimitEnergy     bool     // compare against Rate.Energy instead of all-in Value
 	smartFeedInPriorityLimit *float64 // prevent charging if feed-in cost is above this value
 	batteryBoost             int      // battery boost state
 	batteryBoostLimit        int      // battery boost soc limit (0-100, 100=disabled)
@@ -385,6 +386,9 @@ func (lp *Loadpoint) restoreSettings() {
 	}
 	if v, err := lp.settings.Float(keys.SmartCostLimit); err == nil {
 		lp.SetSmartCostLimit(&v)
+	}
+	if v, err := lp.settings.Bool(keys.SmartCostLimitEnergy); err == nil {
+		lp.SetSmartCostLimitEnergy(v)
 	}
 	if v, err := lp.settings.Float(keys.SmartFeedInPriorityLimit); err == nil {
 		lp.SetSmartFeedInPriorityLimit(&v)
@@ -740,6 +744,7 @@ func (lp *Loadpoint) Prepare(site site.API, uiChan chan<- util.Param, pushChan c
 	lp.publish(keys.ChargerSinglePhase, lp.getChargerPhysicalPhases() == 1)
 	lp.publish(keys.PhasesActive, lp.ActivePhases())
 	lp.publish(keys.SmartCostLimit, lp.smartCostLimit)
+	lp.publish(keys.SmartCostLimitEnergy, lp.smartCostLimitEnergy)
 	lp.publish(keys.SmartFeedInPriorityLimit, lp.smartFeedInPriorityLimit)
 	lp.publishTimer(phaseTimer, 0, timerInactive)
 	lp.publishTimer(pvTimer, 0, timerInactive)

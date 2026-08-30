@@ -1,50 +1,29 @@
 import settings from "@/settings";
 
-export function canShowEnergyPrice(charges = 0, tax = 0, formula = false): boolean {
-  return !formula && (charges !== 0 || tax !== 0);
-}
-
-export function isEnergyPriceDisplay(_charges = 0, _tax = 0, _formula = false): boolean {
+export function isEnergyPriceDisplay(): boolean {
   return settings.showEnergyPrice;
-}
-
-export function energyFromAllIn(allIn: number, charges = 0, tax = 0): number {
-  return allIn / (1 + tax) - charges;
-}
-
-export function allInFromEnergy(energy: number, charges = 0, tax = 0): number {
-  return (energy + charges) * (1 + tax);
 }
 
 export function roundPrice(value: number): number {
   return Math.round(value * 1000) / 1000;
 }
 
-export function displayGridPrice(allIn: number, charges = 0, tax = 0, formula = false): number {
-  if (!isEnergyPriceDisplay(charges, tax, formula)) {
-    return allIn;
+export function displayGridPrice(allIn: number, energy?: number | null): number {
+  if (isEnergyPriceDisplay() && energy != null) {
+    return energy;
   }
-  return energyFromAllIn(allIn, charges, tax);
+  return allIn;
 }
 
-export function storedGridPrice(display: number, charges = 0, tax = 0, formula = false): number {
-  if (!isEnergyPriceDisplay(charges, tax, formula)) {
-    return display;
-  }
-  return allInFromEnergy(display, charges, tax);
-}
-
-export function mapSlotPrices<T extends { value: number }>(
-  slots: T[] | undefined,
-  charges = 0,
-  tax = 0,
-  formula = false
-): T[] {
+export function mapSlotPrices<T extends { value: number; energy?: number }>(slots: T[] | undefined): T[] {
   if (!slots?.length) {
     return slots || [];
   }
-  if (!isEnergyPriceDisplay(charges, tax, formula)) {
+  if (!isEnergyPriceDisplay()) {
     return slots;
   }
-  return slots.map((s) => ({ ...s, value: energyFromAllIn(s.value, charges, tax) }));
+  return slots.map((s) => ({
+    ...s,
+    value: s.energy != null ? s.energy : s.value,
+  }));
 }

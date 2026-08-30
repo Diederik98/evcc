@@ -173,7 +173,7 @@ import formatter from "@/mixins/formatter";
 import settings from "@/settings";
 import store from "../store";
 import { adjustedSolar, ForecastType, isStaticTariff } from "@/utils/forecast";
-import { canShowEnergyPrice, isEnergyPriceDisplay, mapSlotPrices } from "@/utils/tariffPrice";
+import { isEnergyPriceDisplay, mapSlotPrices } from "@/utils/tariffPrice";
 
 const MIN_HOURS = 76;
 const MAX_HOURS = 96;
@@ -254,27 +254,13 @@ export default defineComponent({
 			return settings.priceZoom;
 		},
 		showEnergyPrice() {
-			return isEnergyPriceDisplay(this.tariffCharges, this.tariffTax, this.tariffFormula);
+			return isEnergyPriceDisplay();
 		},
 		energyToggleVisible() {
-			return canShowEnergyPrice(this.tariffCharges, this.tariffTax, this.tariffFormula);
-		},
-		tariffCharges() {
-			return store.state?.tariffCharges || 0;
-		},
-		tariffTax() {
-			return store.state?.tariffTax || 0;
-		},
-		tariffFormula() {
-			return !!store.state?.tariffFormula;
+			return !!this.forecast.grid;
 		},
 		gridSlots() {
-			return mapSlotPrices(
-				this.forecast.grid,
-				this.tariffCharges,
-				this.tariffTax,
-				this.tariffFormula
-			);
+			return mapSlotPrices(this.forecast.grid);
 		},
 		showFeedin() {
 			return !settings.hideFeedin;

@@ -176,11 +176,76 @@ func updateSmartCostLimit(site site.API, setLimit func(loadpoint.API, *float64))
 			val = &f
 		}
 
+		energy := energyQuery(r) && val != nil
 		for _, lp := range site.Loadpoints() {
 			setLimit(lp, val)
+			setSmartCostLimitEnergy(lp, energy)
 		}
 
 		jsonWrite(w, val)
+	}
+}
+
+func energyQuery(r *http.Request) bool {
+	v := strings.ToLower(r.URL.Query().Get("energy"))
+	return v == "true" || v == "1"
+}
+
+type smartCostEnergySetter interface {
+	SetSmartCostLimitEnergy(bool)
+}
+
+func setSmartCostLimitEnergy(lp loadpoint.API, energy bool) {
+	if s, ok := lp.(smartCostEnergySetter); ok {
+		s.SetSmartCostLimitEnergy(energy)
+	}
+}
+
+func smartCostLimitPtrHandler(lp loadpoint.API) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodDelete {
+			_ = pass(lp.SetSmartCostLimit)(nil)
+			setSmartCostLimitEnergy(lp, false)
+			jsonWrite(w, nil)
+			return
+		}
+
+		f, err := parseFloat(mux.Vars(r)["value"])
+		if err != nil {
+			jsonError(w, http.StatusBadRequest, err)
+			return
+		}
+
+		_ = pass(lp.SetSmartCostLimit)(&f)
+		setSmartCostLimitEnergy(lp, energyQuery(r))
+		jsonWrite(w, &f)
+	}
+}
+
+func batteryGridChargeLimitHandler(site site.API) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodDelete {
+			if err := site.SetBatteryGridChargeLimit(nil); err != nil {
+				jsonError(w, http.StatusBadRequest, err)
+				return
+			}
+			site.SetBatteryGridChargeLimitEnergy(false)
+			jsonWrite(w, nil)
+			return
+		}
+
+		f, err := parseFloat(mux.Vars(r)["value"])
+		if err != nil {
+			jsonError(w, http.StatusBadRequest, err)
+			return
+		}
+
+		if err := site.SetBatteryGridChargeLimit(&f); err != nil {
+			jsonError(w, http.StatusBadRequest, err)
+			return
+		}
+		site.SetBatteryGridChargeLimitEnergy(energyQuery(r))
+		jsonWrite(w, &f)
 	}
 }
 

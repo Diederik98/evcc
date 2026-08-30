@@ -926,7 +926,34 @@ func (lp *Loadpoint) SetSmartCostLimit(val *float64) {
 
 		lp.settings.SetFloatPtr(keys.SmartCostLimit, val)
 		lp.publish(keys.SmartCostLimit, val)
+
+		if val == nil && lp.smartCostLimitEnergy {
+			lp.smartCostLimitEnergy = false
+			lp.settings.SetBool(keys.SmartCostLimitEnergy, false)
+			lp.publish(keys.SmartCostLimitEnergy, false)
+		}
 	}
+}
+
+// GetSmartCostLimitEnergy reports whether the smart cost limit is a source energy price.
+func (lp *Loadpoint) GetSmartCostLimitEnergy() bool {
+	lp.RLock()
+	defer lp.RUnlock()
+	return lp.smartCostLimitEnergy
+}
+
+// SetSmartCostLimitEnergy sets whether the smart cost limit is a source energy price.
+func (lp *Loadpoint) SetSmartCostLimitEnergy(val bool) {
+	lp.Lock()
+	defer lp.Unlock()
+
+	if lp.smartCostLimitEnergy == val {
+		return
+	}
+
+	lp.smartCostLimitEnergy = val
+	lp.settings.SetBool(keys.SmartCostLimitEnergy, val)
+	lp.publish(keys.SmartCostLimitEnergy, val)
 }
 
 // GetSmartFeedInPriorityLimit gets the smart feed-in limit

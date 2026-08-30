@@ -96,6 +96,7 @@ export interface State {
   ext?: Meter[];
   tariffs?: ConfigStatus<unknown, unknown>;
   tariffGrid?: number;
+  tariffGridEnergy?: number;
   tariffCharges?: number;
   tariffTax?: number;
   tariffFormula?: boolean;
@@ -119,6 +120,7 @@ export interface State {
   bufferStartSoc?: number;
   batteryDischargeControl?: boolean;
   batteryGridChargeLimit?: number | null;
+  batteryGridChargeLimitEnergy?: boolean;
   smartCostAvailable?: boolean;
   smartCostType?: SMART_COST_TYPE;
   historyUpdated?: string; // ISO timestamp, bumped each 15min metrics persist
@@ -173,6 +175,7 @@ export interface BatteryPlanSlot {
   loads?: BatteryPlanSlotLoad[];
   residualW?: number;
   price?: number;
+  energy?: number;
   hasPrice?: boolean;
   feedIn?: number;
   hasFeedIn?: boolean;
@@ -522,6 +525,7 @@ export interface Loadpoint {
   sessionSolarPercentage: number;
   smartCostActive: boolean;
   smartCostLimit: number | null;
+  smartCostLimitEnergy?: boolean;
   smartCostNextStart: string | null;
   smartFeedInPriorityActive: boolean;
   smartFeedInPriorityLimit: number | null;

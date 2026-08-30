@@ -81,11 +81,12 @@ type Site struct {
 	consumerMeters                  []config.Device[api.Meter] // Consumer meters
 
 	// battery settings
-	prioritySoc             float64  // prefer battery up to this Soc
-	bufferSoc               float64  // continue charging on battery above this Soc
-	bufferStartSoc          float64  // start charging on battery above this Soc
-	batteryDischargeControl bool     // prevent battery discharge for fast and planned charging
-	batteryGridChargeLimit  *float64 // grid charging limit
+	prioritySoc                  float64  // prefer battery up to this Soc
+	bufferSoc                    float64  // continue charging on battery above this Soc
+	bufferStartSoc               float64  // start charging on battery above this Soc
+	batteryDischargeControl      bool     // prevent battery discharge for fast and planned charging
+	batteryGridChargeLimit       *float64 // grid charging limit
+	batteryGridChargeLimitEnergy bool     // limit is source energy price, not all-in Value
 
 	// optimizer settings
 	optimizerChargingStrategy string // optimizer grid charging strategy
@@ -407,6 +408,9 @@ func (site *Site) restoreSettings() error {
 		if err := site.SetBatteryGridChargeLimit(&v); err != nil && !errors.Is(err, ErrBatteryControlNotAvailable) {
 			return err
 		}
+	}
+	if v, err := settings.Bool(keys.BatteryGridChargeLimitEnergy); err == nil {
+		site.SetBatteryGridChargeLimitEnergy(v)
 	}
 	if v, err := settings.String(keys.OptimizerChargingStrategy); err == nil && v != "" {
 		if err := site.SetOptimizerChargingStrategy(v); err != nil {

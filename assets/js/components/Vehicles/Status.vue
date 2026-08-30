@@ -120,6 +120,7 @@ export default defineComponent({
 		smartCostActive: Boolean,
 		smartCostDisabled: Boolean,
 		smartCostLimit: { type: Number, default: null },
+		smartCostLimitEnergy: Boolean,
 		smartCostNextStart: String,
 		smartCostType: String,
 		smartFeedInPriorityActive: Boolean,
@@ -128,6 +129,7 @@ export default defineComponent({
 		smartFeedInPriorityNextStart: String,
 		tariffCo2: { type: Number, default: 0 },
 		tariffGrid: { type: Number, default: 0 },
+		tariffGridEnergy: { type: Number },
 		tariffCharges: { type: Number, default: 0 },
 		tariffTax: { type: Number, default: 0 },
 		tariffFormula: Boolean,
@@ -175,7 +177,7 @@ export default defineComponent({
 		},
 		smartCostNowVisible() {
 			if (this.smartCostPrice) {
-				return this.tariffGrid <= this.smartCostLimit;
+				return this.costNow <= this.smartCostLimit;
 			}
 			return this.tariffCo2 <= this.smartCostLimit;
 		},
@@ -191,21 +193,17 @@ export default defineComponent({
 			}
 			return this.fmtCo2Short(this.smartCostLimit);
 		},
+		costNow(): number {
+			if (this.smartCostLimitEnergy && this.tariffGridEnergy != null) {
+				return this.tariffGridEnergy;
+			}
+			return this.tariffGrid;
+		},
 		displayTariffGrid() {
-			return displayGridPrice(
-				this.tariffGrid,
-				this.tariffCharges,
-				this.tariffTax,
-				this.tariffFormula
-			);
+			return displayGridPrice(this.tariffGrid, this.tariffGridEnergy);
 		},
 		displaySmartCostLimit() {
-			return displayGridPrice(
-				this.smartCostLimit,
-				this.tariffCharges,
-				this.tariffTax,
-				this.tariffFormula
-			);
+			return this.smartCostLimit;
 		},
 		feedInNow() {
 			return this.fmtPricePerKWh(this.tariffFeedIn, this.currency, true);

@@ -55,6 +55,10 @@ type API interface {
 	GetBatteryGridChargeLimit() *float64
 	// SetBatteryGridChargeLimit sets the grid charge limit
 	SetBatteryGridChargeLimit(limit *float64) error
+	// GetBatteryGridChargeLimitEnergy reports whether the grid charge limit is a source energy price
+	GetBatteryGridChargeLimitEnergy() bool
+	// SetBatteryGridChargeLimitEnergy sets whether the grid charge limit is a source energy price
+	SetBatteryGridChargeLimitEnergy(energy bool)
 
 	// GetOptimizerChargingStrategy gets the optimizer grid charging strategy
 	GetOptimizerChargingStrategy() string

@@ -27,6 +27,7 @@ const (
 	TariffCo2Loadpoints   = "tariffCo2Loadpoints"
 	TariffFeedIn          = "tariffFeedIn"
 	TariffGrid            = "tariffGrid"
+	TariffGridEnergy      = "tariffGridEnergy"
 	TariffCharges         = "tariffCharges"
 	TariffTax             = "tariffTax"
 	TariffFormula         = "tariffFormula"
@@ -46,6 +47,7 @@ const (
 	// battery settings
 	BatteryDischargeControl         = "batteryDischargeControl"
 	BatteryGridChargeLimit          = "batteryGridChargeLimit"
+	BatteryGridChargeLimitEnergy    = "batteryGridChargeLimitEnergy"
 	BatteryGridChargeActive         = "batteryGridChargeActive"
 	BufferSoc                       = "bufferSoc"
 	BufferStartSoc                  = "bufferStartSoc"

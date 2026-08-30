@@ -364,12 +364,12 @@ func (site *Site) tariffRates(usage api.TariffUsage) (api.Rates, error) {
 
 func (site *Site) smartCostActive(lp loadpoint.API, rate api.Rate) bool {
 	limit := lp.GetSmartCostLimit()
-	return limit != nil && !rate.IsZero() && rate.Value <= *limit
+	return limit != nil && !rate.IsZero() && rate.Cost(loadpointSmartCostEnergy(lp)) <= *limit
 }
 
 func (site *Site) batteryGridChargeActive(rate api.Rate) bool {
 	limit := site.GetBatteryGridChargeLimit()
-	return limit != nil && !rate.IsZero() && rate.Value <= *limit
+	return limit != nil && !rate.IsZero() && rate.Cost(site.GetBatteryGridChargeLimitEnergy()) <= *limit
 }
 
 func (site *Site) dischargeControlActive(rate api.Rate) bool {

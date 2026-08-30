@@ -1895,7 +1895,7 @@
     "resetWarning": "There is no dynamic grid price or CO₂-source configured. However, there is still a limit of {limit}. Clean up your configuration?",
     "saved": "Saved.",
     "showEnergyPrice": "Energy price, without charges or tax",
-    "showEnergyPriceHelp": "The limit, chart, and current price use the energy price. Charges and tax are still applied when deciding to charge."
+    "showEnergyPriceHelp": "Shows the source energy price before charges, tax, and any formula. Hourly averaging is kept if configured. Save the limit in this unit; charging uses the same energy price."
   },
   "smartFeedInPriority": {
     "activeHoursLabel": "Paused time",

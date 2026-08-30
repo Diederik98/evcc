@@ -152,7 +152,7 @@
 											<template v-if="slot.hasPrice && slot.price">
 												{{
 													fmtPricePerKWh(
-														displaySlotPrice(slot.price),
+														displaySlotPrice(slot),
 														state.currency
 													)
 												}}
@@ -297,13 +297,8 @@ export default defineComponent({
 			}
 			return this.fmtPlanTime(slot.start);
 		},
-		displaySlotPrice(price: number): number {
-			return displayGridPrice(
-				price,
-				this.state.tariffCharges || 0,
-				this.state.tariffTax || 0,
-				!!this.state.tariffFormula
-			);
+		displaySlotPrice(slot: BatteryPlanSlot): number {
+			return displayGridPrice(slot.price || 0, slot.energy);
 		},
 		fmtTime(value: string): string {
 			return this.fmtPlanTime(value);

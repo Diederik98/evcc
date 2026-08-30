@@ -80,11 +80,7 @@ func (t *Awattar) run(done chan error) {
 
 		data := make(api.Rates, 0, len(res.Data))
 		for _, r := range res.Data {
-			ar := api.Rate{
-				Start: r.StartTimestamp.Local(),
-				End:   r.EndTimestamp.Local(),
-				Value: t.totalPrice(r.Marketprice/1e3, r.StartTimestamp),
-			}
+			ar := t.rate(r.StartTimestamp.Local(), r.EndTimestamp.Local(), r.Marketprice/1e3)
 			data = append(data, ar)
 		}
 

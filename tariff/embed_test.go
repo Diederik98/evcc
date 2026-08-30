@@ -135,12 +135,28 @@ func TestEmbedDecodeChargesZones(t *testing.T) {
 	assert.Len(t, cc.chargesZones, 2)
 }
 
-func TestEnergyPriceRoundtrip(t *testing.T) {
+func TestPricedRateKeepsSourceEnergy(t *testing.T) {
 	e := embed{Charges: 0.15, Tax: 0.06}
 	require.NoError(t, e.init())
 
-	energy := 0.05
-	total := e.totalFromEnergy(energy)
-	assert.InDelta(t, (0.05+0.15)*1.06, total, 1e-9)
-	assert.InDelta(t, energy, e.energyPrice(total), 1e-9)
+	start := time.Now()
+	r := e.rate(start, start.Add(time.Hour), 0.05)
+	require.NotNil(t, r.Energy)
+	assert.InDelta(t, 0.05, *r.Energy, 1e-9)
+	assert.InDelta(t, (0.05+0.15)*1.06, r.Value, 1e-9)
+}
+
+func TestPricedRateFormulaDoesNotChangeEnergy(t *testing.T) {
+	e := embed{
+		Charges: 0.1195,
+		Tax:     0.06,
+		Formula: `math.Max((0.0010175 * (price * 1000) + 0.0213160 + charges*100) * (1 + tax), 0.0)`,
+	}
+	require.NoError(t, e.init())
+
+	start := time.Now()
+	r := e.rate(start, start.Add(time.Hour), 0.05)
+	require.NotNil(t, r.Energy)
+	assert.InDelta(t, 0.05, *r.Energy, 1e-9)
+	assert.Greater(t, r.Value, *r.Energy)
 }

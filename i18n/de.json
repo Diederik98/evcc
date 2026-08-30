@@ -1895,7 +1895,7 @@
     "resetWarning": "Es ist kein dynamischer Netzpreis und keine CO₂-Quelle konfiguriert. Dennoch ist eine Grenze von {limit} eingerichtet. Konfiguration aufräumen?",
     "saved": "Gepeichert.",
     "showEnergyPrice": "Energiepreis, ohne Abgaben und Steuern",
-    "showEnergyPriceHelp": "Grenze, Grafik und aktueller Preis nutzen den Energiepreis. Abgaben und Steuern werden beim Laden weiterhin berücksichtigt."
+    "showEnergyPriceHelp": "Zeigt den Energiepreis der Quelle vor Abgaben, Steuern und Formel. Stundenmittel bleibt erhalten, wenn konfiguriert. Die Grenze in dieser Einheit speichern; das Laden verwendet denselben Energiepreis."
   },
   "smartFeedInPriority": {
     "activeHoursLabel": "Pausierte Zeit",

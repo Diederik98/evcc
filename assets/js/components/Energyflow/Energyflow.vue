@@ -384,9 +384,11 @@ export default defineComponent({
 		battery: { type: Object as PropType<Battery> },
 		batteryDischargeControl: { type: Boolean },
 		batteryGridChargeLimit: { type: Number },
+		batteryGridChargeLimitEnergy: { type: Boolean },
 		batteryGridChargeActive: { type: Boolean },
 		batteryMode: { type: String },
 		tariffGrid: { type: Number },
+		tariffGridEnergy: { type: Number },
 		tariffCharges: { type: Number, default: 0 },
 		tariffTax: { type: Number, default: 0 },
 		tariffFormula: Boolean,
@@ -424,12 +426,7 @@ export default defineComponent({
 			if (this.tariffGrid === undefined) {
 				return this.tariffGrid;
 			}
-			return displayGridPrice(
-				this.tariffGrid,
-				this.tariffCharges,
-				this.tariffTax,
-				this.tariffFormula
-			);
+			return displayGridPrice(this.tariffGrid, this.tariffGridEnergy);
 		},
 		hasCo2() {
 			return this.tariffCo2 !== undefined;
@@ -565,12 +562,7 @@ export default defineComponent({
 				return this.fmtCo2Short(this.batteryGridChargeLimit);
 			}
 			return this.fmtPricePerKWh(
-				displayGridPrice(
-					this.batteryGridChargeLimit,
-					this.tariffCharges,
-					this.tariffTax,
-					this.tariffFormula
-				),
+				this.batteryGridChargeLimit,
 				this.currency,
 				true
 			);

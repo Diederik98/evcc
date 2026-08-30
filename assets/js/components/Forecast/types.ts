@@ -11,6 +11,7 @@ export interface ForecastSlot {
   start: string;
   end: string;
   value: number;
+  energy?: number;
 }
 
 export interface EnergyByDay {

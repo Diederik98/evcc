@@ -27,9 +27,10 @@ func TestFixed(t *testing.T) {
 
 		for hour := range 24 {
 			expect = append(expect, api.Rate{
-				Value: 0.3,
-				Start: dayStart.Add(time.Hour * time.Duration(hour)),
-				End:   dayStart.Add(time.Hour * time.Duration(hour+1)),
+				Value:  0.3,
+				Energy: api.NewEnergy(0.3),
+				Start:  dayStart.Add(time.Hour * time.Duration(hour)),
+				End:    dayStart.Add(time.Hour * time.Duration(hour+1)),
 			})
 		}
 	}
@@ -61,41 +62,46 @@ func TestFixedSplitZones(t *testing.T) {
 		// 00:00-05:00 0.1
 		for hour := range 5 {
 			expect = append(expect, api.Rate{
-				Value: 0.1,
-				Start: dayStart.Add(time.Hour * time.Duration(hour)),
-				End:   dayStart.Add(time.Hour * time.Duration(hour+1)),
+				Value:  0.1,
+				Energy: api.NewEnergy(0.1),
+				Start:  dayStart.Add(time.Hour * time.Duration(hour)),
+				End:    dayStart.Add(time.Hour * time.Duration(hour+1)),
 			})
 		}
 
 		// 05:00-05:30 0.1
 		expect = append(expect, api.Rate{
-			Value: 0.1,
-			Start: dayStart.Add(5 * time.Hour),
-			End:   dayStart.Add(5*time.Hour + 30*time.Minute),
+			Value:  0.1,
+			Energy: api.NewEnergy(0.1),
+			Start:  dayStart.Add(5 * time.Hour),
+			End:    dayStart.Add(5*time.Hour + 30*time.Minute),
 		})
 
 		// 05:30-06:00 0.5
 		expect = append(expect, api.Rate{
-			Value: 0.5,
-			Start: dayStart.Add(5*time.Hour + 30*time.Minute),
-			End:   dayStart.Add(6 * time.Hour),
+			Value:  0.5,
+			Energy: api.NewEnergy(0.5),
+			Start:  dayStart.Add(5*time.Hour + 30*time.Minute),
+			End:    dayStart.Add(6 * time.Hour),
 		})
 
 		// 06:00-20:00 0.5
 		for hour := 6; hour < 20; hour++ {
 			expect = append(expect, api.Rate{
-				Value: 0.5,
-				Start: dayStart.Add(time.Hour * time.Duration(hour)),
-				End:   dayStart.Add(time.Hour * time.Duration(hour+1)),
+				Value:  0.5,
+				Energy: api.NewEnergy(0.5),
+				Start:  dayStart.Add(time.Hour * time.Duration(hour)),
+				End:    dayStart.Add(time.Hour * time.Duration(hour+1)),
 			})
 		}
 
 		// 20:00-21:00,21:00-00:00 0.1
 		for hour := 20; hour < 24; hour++ {
 			expect = append(expect, api.Rate{
-				Value: 0.1,
-				Start: dayStart.Add(time.Hour * time.Duration(hour)),
-				End:   dayStart.Add(time.Hour * time.Duration(hour+1)),
+				Value:  0.1,
+				Energy: api.NewEnergy(0.1),
+				Start:  dayStart.Add(time.Hour * time.Duration(hour)),
+				End:    dayStart.Add(time.Hour * time.Duration(hour+1)),
 			})
 		}
 	}
