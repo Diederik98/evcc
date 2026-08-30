@@ -38,3 +38,14 @@ func TestNewLoadpointFromConfigAfterSplitAcceptsPersistedHeating(t *testing.T) {
 	_, err = NewLoadpointFromConfig(util.NewLogger("lp"), settings.NewDatabaseSettingsAdapter("t."), nil, static)
 	require.EqualError(t, err, "missing charger")
 }
+
+func TestNewLoadpointFromConfigAfterSplitAcceptsSmartCostLimitEnergy(t *testing.T) {
+	_, static, err := loadpoint.SplitConfig(map[string]any{
+		"smartCostLimitEnergy": true,
+	})
+	require.NoError(t, err)
+	assert.NotContains(t, static, "smartCostLimitEnergy")
+
+	_, err = NewLoadpointFromConfig(util.NewLogger("lp"), settings.NewDatabaseSettingsAdapter("t."), nil, static)
+	require.EqualError(t, err, "missing charger")
+}

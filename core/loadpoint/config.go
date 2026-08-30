@@ -24,12 +24,13 @@ type DynamicConfig struct {
 	MinCurrent               float64   `json:"minCurrent"`
 	MaxCurrent               float64   `json:"maxCurrent"`
 	SmartCostLimit           *float64  `json:"smartCostLimit"`
+	SmartCostLimitEnergy     *bool     `json:"smartCostLimitEnergy,omitempty"`
 	SmartFeedInPriorityLimit *float64  `json:"smartFeedInPriorityLimit"`
 	PlanEnergy               float64   `json:"planEnergy"`
 	PlanTime                 time.Time `json:"planTime"`
 	PlanPrecondition_        int64     `json:"planPrecondition" mapstructure:"planPrecondition"` // TODO deprecated, keep for compatibility
-	BatteryBoostLimit          int  `json:"batteryBoostLimit"`
-	BatteryDischargeExclude    bool `json:"batteryDischargeExclude,omitempty"`
+	BatteryBoostLimit        int       `json:"batteryBoostLimit"`
+	BatteryDischargeExclude  bool      `json:"batteryDischargeExclude,omitempty"`
 	LimitEnergy              float64   `json:"limitEnergy"`
 	LimitSoc                 int       `json:"limitSoc"`
 
@@ -65,6 +66,7 @@ func SplitConfig(payload map[string]any) (DynamicConfig, map[string]any, error) 
 	// TODO: proper handling of id/name
 	delete(cc.Other, "id")
 	delete(cc.Other, "name")
+	delete(cc.Other, "smartCostLimitEnergy")
 
 	return cc.DynamicConfig, cc.Other, nil
 }
@@ -73,6 +75,11 @@ func (payload DynamicConfig) Apply(lp API) error {
 	lp.SetTitle(payload.Title)
 	lp.SetPriority(payload.Priority)
 	lp.SetSmartCostLimit(payload.SmartCostLimit)
+	if payload.SmartCostLimitEnergy != nil {
+		if e, ok := lp.(interface{ SetSmartCostLimitEnergy(bool) }); ok {
+			e.SetSmartCostLimitEnergy(*payload.SmartCostLimitEnergy)
+		}
+	}
 	lp.SetSmartFeedInPriorityLimit(payload.SmartFeedInPriorityLimit)
 	lp.SetThresholds(payload.Thresholds)
 	lp.SetPlanEnergy(payload.PlanTime, payload.PlanEnergy)

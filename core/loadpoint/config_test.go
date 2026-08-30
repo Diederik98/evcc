@@ -58,6 +58,21 @@ func TestSplitConfigStoresHeatingAndRepeatingPlans(t *testing.T) {
 	assert.Equal(t, 900.0, dynamic.HeatingPattern.Bands[0].PeakW)
 }
 
+func TestSplitConfigStripsSmartCostLimitEnergy(t *testing.T) {
+	payload := map[string]any{
+		"charger":              "wallbox",
+		"smartCostLimitEnergy": true,
+	}
+
+	dynamic, other, err := SplitConfig(payload)
+	require.NoError(t, err)
+
+	assert.Equal(t, "wallbox", other["charger"])
+	assert.NotContains(t, other, "smartCostLimitEnergy")
+	require.NotNil(t, dynamic.SmartCostLimitEnergy)
+	assert.True(t, *dynamic.SmartCostLimitEnergy)
+}
+
 func expectApplyBase(lp *MockAPI) {
 	lp.EXPECT().SetTitle("")
 	lp.EXPECT().SetPriority(0)
