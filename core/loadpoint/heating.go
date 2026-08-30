@@ -28,7 +28,7 @@ type HeatingComfort struct {
 	MinOnTime        int64   `json:"minOnTime"`        // seconds
 	AssumedPowerW    float64 `json:"assumedPowerW"`    // extra watts while boosted, 0 = use max power
 	MaxAssumedPowerW float64 `json:"maxAssumedPowerW"` // cap for residual inference
-	StopTemp         float64 `json:"stopTemp"`         // tank target °C, 0 = charger limit
+	StopTemp         float64 `json:"stopTemp"`         // comfort ceiling °C, 0 = charger limit. Calendar plans ignore this.
 }
 
 // HeatingBoost is one completed force-heat episode.

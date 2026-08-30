@@ -244,17 +244,17 @@ func TestHorizonChargeDemandsIncludesRepeatingPlanWhileComfortCouldRun(t *testin
 
 func TestWarmTankDoesNotCancelRepeatingPlanDemand(t *testing.T) {
 	// Battery overlay still sees the kWh goal when the tank is already warm.
-	// The heater itself must not stay on at stop temp.
+	// Calendar slots keep heating to the scheduled energy, past comfort stop temp.
 	clk, loc := brusselsMorning(t, 16, 0)
 	lp := heatingPlanLoadpoint(t, clk, defaultComfort(1150))
 	lp.vehicleSoc = 52 // above stop temp
 	lp.repeatingPlans = repeatingEveningPlan(2.3)
 
 	require.False(t, lp.heatingComfortActive())
-	require.True(t, lp.LimitSocReached())
+	require.True(t, lp.LimitSocReached(), "stop temp is still the comfort ceiling")
 	assert.Greater(t, lp.getPlanRequiredDuration(2.3, 1150), 30*time.Minute)
-	assert.False(t, lp.plannerActive(), "stop temp must turn the heater off even inside the slot")
-	assert.False(t, heatingWouldStayOn(lp))
+	assert.True(t, lp.plannerActive(), "calendar slot must keep heating to the scheduled kWh")
+	assert.True(t, heatingWouldStayOn(lp))
 
 	start := clk.Now().Truncate(tariff.SlotDuration)
 	demands := lp.HorizonChargeDemands([]planner.BatterySlot{{
@@ -374,7 +374,7 @@ func TestRepeatingHeatingPlanStopsAfterDeadline(t *testing.T) {
 	assert.False(t, heatingWouldStayOn(lp))
 }
 
-func TestRepeatingHeatingPlanStopsAtStopTempDuringSlot(t *testing.T) {
+func TestRepeatingHeatingPlanContinuesPastStopTempDuringSlot(t *testing.T) {
 	clk, _ := brusselsMorning(t, 17, 0)
 	lp := heatingPlanLoadpoint(t, clk, defaultComfort(1150))
 	lp.vehicleSoc = 45
@@ -382,10 +382,24 @@ func TestRepeatingHeatingPlanStopsAtStopTempDuringSlot(t *testing.T) {
 	require.True(t, lp.plannerActive())
 
 	lp.vehicleSoc = 50
-	assert.True(t, lp.LimitSocReached())
-	assert.False(t, lp.plannerActive())
+	assert.True(t, lp.LimitSocReached(), "stop temp remains the comfort ceiling")
 	assert.False(t, lp.heatingComfortActive())
-	assert.False(t, heatingWouldStayOn(lp))
+	assert.True(t, lp.plannerActive(), "calendar must keep heating to the scheduled kWh")
+	assert.True(t, heatingWouldStayOn(lp))
+}
+
+func TestRepeatingHeatingPlanIgnoresComfortStopTemp(t *testing.T) {
+	clk, _ := brusselsMorning(t, 16, 0)
+	comfort := defaultComfort(1150)
+	comfort.StopTemp = 45
+	lp := heatingPlanLoadpoint(t, clk, comfort)
+	lp.vehicleSoc = 47
+	lp.repeatingPlans = repeatingEveningPlan(2.3)
+
+	require.False(t, lp.heatingComfortActive())
+	require.True(t, lp.LimitSocReached())
+	assert.True(t, lp.plannerActive(), "47°C must not abort a calendar slot at 45°C comfort stop")
+	assert.Greater(t, lp.getPlanRequiredDuration(2.3, 1150), time.Hour)
 }
 
 func TestRepeatingHeatingPlanHonorsMinOnAfterSlot(t *testing.T) {

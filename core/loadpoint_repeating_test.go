@@ -140,12 +140,32 @@ func TestNextEnergyPlanEmptyTimezoneUsesLocal(t *testing.T) {
 
 func TestChargeDemandRepeatingHeatingNearStopTemp(t *testing.T) {
 	lp := heatingLoadpoint(t, 1150)
-	lp.vehicleSoc = 49.8 // within 0.5 K of stop: pattern estimate returns 0
+	lp.vehicleSoc = 49.8 // within 0.5 K of stop: pattern estimate would return 0
 
 	demand, ok := lp.chargeDemand(time.Now().Add(8*time.Hour), 2.3, false)
 	require.True(t, ok, "must still schedule kWh goal when tank is nearly at stop temp")
 	assert.InDelta(t, 2300, demand.RequiredWh, 1)
 	assert.Greater(t, demand.MaxW, 0.0)
+}
+
+func TestChargeDemandRepeatingHeatingIgnoresLearnedStopTemp(t *testing.T) {
+	lp := heatingLoadpoint(t, 1150)
+	lp.vehicleSoc = 42
+	lp.heatingPattern = loadpoint.HeatingPattern{Bands: []loadpoint.HeatingBand{{
+		MinStartTemp: 40,
+		MaxStartTemp: 45,
+		MinutesPerK:  5,
+		WhPerK:       100,
+		PeakW:        1150,
+		Samples:      3,
+	}}}
+
+	d := lp.getPlanRequiredDuration(2.3, 1150)
+	assert.InDelta(t, 2*time.Hour, d, float64(15*time.Minute), "calendar duration follows kWh, not time to stop temp")
+
+	demand, ok := lp.chargeDemand(time.Now().Add(8*time.Hour), 2.3, false)
+	require.True(t, ok)
+	assert.InDelta(t, 2300, demand.RequiredWh, 1)
 }
 
 func TestGetNextOccurrenceSameDayBeforeDeadline(t *testing.T) {

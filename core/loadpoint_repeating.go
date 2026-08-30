@@ -109,16 +109,6 @@ func (lp *Loadpoint) chargeDemand(deadline time.Time, energy float64, fixed bool
 	}
 
 	required := lp.energyDuration(energy, power)
-	if lp.chargerHasFeature(api.Heating) {
-		stop := lp.heatingStopTempLocked()
-		if d, wh, peak, learned := lp.heatingPattern.Estimate(lp.vehicleSoc, stop, required, power); learned && d > 0 {
-			required = d
-			energy = wh / 1e3
-			if peak > 0 {
-				power = peak
-			}
-		}
-	}
 	if required <= 0 {
 		return planner.ChargeDemand{}, false
 	}

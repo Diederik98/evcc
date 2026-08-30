@@ -87,21 +87,6 @@ func (lp *Loadpoint) getPlanRequiredDuration(goal, maxPower float64) time.Durati
 		return lp.socEstimator.RemainingChargeDuration(goal, maxPower)
 	}
 
-	if lp.chargerHasFeature(api.Heating) && maxPower > 0 {
-		energy := lp.energyPlanGoalWh(goal) / 1e3
-		fallback := time.Duration(0)
-		if maxPower > 0 && energy > 0 {
-			fallback = time.Duration(energy * 1e3 / maxPower * float64(time.Hour))
-		}
-		stop := lp.heatingStopTempLocked()
-		if d, _, _, learned := lp.heatingPattern.Estimate(lp.vehicleSoc, stop, fallback, maxPower); learned && d > 0 {
-			return d
-		}
-		if fallback > 0 {
-			return fallback
-		}
-	}
-
 	energy := lp.energyPlanGoalWh(goal) / 1e3
 	return time.Duration(energy * 1e3 / maxPower * float64(time.Hour))
 }
@@ -229,13 +214,6 @@ func (lp *Loadpoint) plannerActive() (active bool) {
 
 	activeSlot := planner.SlotAt(lp.clock.Now(), plan)
 	active = !activeSlot.End.IsZero()
-
-	if lp.chargerHasFeature(api.Heating) {
-		if stop := lp.heatingStopTempLocked(); stop > 0 && lp.vehicleSoc >= stop {
-			lp.log.DEBUG.Printf("plan: heating stop temp reached (%.1f°C >= %.1f°C)", lp.vehicleSoc, stop)
-			return false
-		}
-	}
 
 	if active {
 		// ignore short plans if not already active
