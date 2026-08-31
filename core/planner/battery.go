@@ -202,11 +202,6 @@ func gridChargePlan(cfg BatteryConfig, slots []BatterySlot, socWh, peakTargetWh,
 		if !must && !cheap {
 			return BatteryPlan{}, false
 		}
-		// Below reserve, only charge when later slots cannot finish the target.
-		// Cheap opportunistic refill chatters with the next peak discharge.
-		if !must && socWh < floorWh {
-			return BatteryPlan{}, false
-		}
 		deficit := targetWh - socWh
 		if deficit <= 1 {
 			return BatteryPlan{}, false
@@ -222,10 +217,19 @@ func gridChargePlan(cfg BatteryConfig, slots []BatterySlot, socWh, peakTargetWh,
 		return BatteryPlan{Action: BatteryActionCharge, Reason: reason, ChargeW: int(math.Round(charge))}, true
 	}
 
+	var best BatteryPlan
+	found := false
+	consider := func(p BatteryPlan, ok bool) {
+		if ok && (!found || p.ChargeW > best.ChargeW) {
+			best, found = p, true
+		}
+	}
+
 	if socWh < peakTargetWh-1 {
 		must, cheap := chargeByDeadline(cfg, slots, socWh, peakTargetWh, firstPeakIndex(cfg, slots), true)
-		if p, ok := tryCharge(peakTargetWh, must, cheap, BatteryReasonCharge); ok {
-			return p, true
+		// Below reserve, skip opportunistic reserve refill on a flat tariff.
+		if must || socWh >= floorWh {
+			consider(tryCharge(peakTargetWh, must, cheap, BatteryReasonCharge))
 		}
 	}
 
@@ -234,28 +238,22 @@ func gridChargePlan(cfg BatteryConfig, slots []BatterySlot, socWh, peakTargetWh,
 		avoided := cover.unmetCost / (cover.unmetACWh / 1000)
 		if gridChargePays(cur.Price, avoided, cfg.EtaC, cfg.EtaD, cfg.CycleCost) {
 			must, cheap := chargeByDeadline(cfg, slots, socWh, coverCap, cover.firstUnmet, true)
-			if p, ok := tryCharge(coverCap, must, cheap, BatteryReasonCharge); ok {
-				return p, true
+			consider(tryCharge(coverCap, must, cheap, BatteryReasonCharge))
+		}
+	}
+
+	if cfg.Trade {
+		tradeCap := min(maxWh, maxWh-cover.solarAllWh)
+		if socWh >= coverWh-1 && socWh < tradeCap-1 {
+			p75 := laterImportP75(slots)
+			if gridChargePays(cur.Price, p75, cfg.EtaC, cfg.EtaD, cfg.CycleCost) {
+				must, cheap := chargeByDeadline(cfg, slots, socWh, tradeCap, -1, true)
+				consider(tryCharge(tradeCap, must, cheap, BatteryReasonCheap))
 			}
 		}
 	}
 
-	if !cfg.Trade {
-		return BatteryPlan{}, false
-	}
-
-	tradeCap := min(maxWh, maxWh-cover.solarAllWh)
-	if socWh >= coverWh-1 && socWh < tradeCap-1 {
-		p75 := laterImportP75(slots)
-		if gridChargePays(cur.Price, p75, cfg.EtaC, cfg.EtaD, cfg.CycleCost) {
-			must, cheap := chargeByDeadline(cfg, slots, socWh, tradeCap, -1, true)
-			if p, ok := tryCharge(tradeCap, must, cheap, BatteryReasonCheap); ok {
-				return p, true
-			}
-		}
-	}
-
-	return BatteryPlan{}, false
+	return best, found
 }
 
 func slotHours(s BatterySlot) float64 {

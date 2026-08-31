@@ -107,8 +107,10 @@ func (site *Site) peakShaveGridHeadroom() float64 {
 }
 
 // idleGridPower is the grid import if the battery were neither charging nor discharging.
+// Battery meter sign is positive when discharging. Adding it undoes the battery's
+// effect on the grid meter: charging must not look like extra house load.
 func (site *Site) idleGridPower() float64 {
-	return site.gridPower - site.battery.Power
+	return site.gridPower + site.battery.Power
 }
 
 func (site *Site) peakShaveLimitW() float64 {

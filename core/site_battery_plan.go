@@ -143,7 +143,7 @@ func (site *Site) evaluateBatteryPlan() (planner.BatteryPlan, bool) {
 		Trade:          site.BatteryTrade,
 		GridThresholdW: site.GridThreshold * 1000,
 		HeadroomW:      site.peakShaveGridHeadroom(),
-		LiveResidualW:  max(0, site.gridPower-site.battery.Power),
+		LiveResidualW:  max(0, site.idleGridPower()),
 	}
 
 	plan, slotsOut := planner.PlanBatteryHorizon(cfg, slots)
@@ -640,7 +640,7 @@ func (site *Site) batteryPlanExplanation(plan planner.BatteryPlan) *batteryPlanE
 		HasPrices:      hasPrices,
 		HasSolar:       hasSolar,
 		GridThresholdW: site.GridThreshold * 1000,
-		LiveResidualW:  max(0, site.gridPower-site.battery.Power),
+		LiveResidualW:  max(0, site.idleGridPower()),
 		CapacityWh:     site.battery.Capacity * 1e3,
 		Soc:            site.battery.Soc,
 		MinSoc:         site.peakShaveEffectiveMinSoc(),

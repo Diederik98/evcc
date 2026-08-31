@@ -641,11 +641,75 @@ func TestApplyLiveBatteryPowerLimitsKeepsDischargeFromResidual(t *testing.T) {
 		GridThreshold:   10.0,
 		PeakShaveMinSoc: 20.0,
 		gridPower:       12000.0,
-		battery:         types.BatteryState{Soc: 80.0, Power: -3000},
+		// Already discharging 3 kW while grid is still 12 kW: house residual is 15 kW.
+		battery: types.BatteryState{Soc: 80.0, Power: 3000},
 	}
 
 	site.applyLiveBatteryPowerLimits()
 	assert.Equal(t, 5000, site.lastBatteryDischargeW)
+	ctrl.Finish()
+}
+
+func TestIdleGridPowerUndoesBatteryMeter(t *testing.T) {
+	site := &Site{gridPower: 5500, battery: types.BatteryState{Power: -2430}}
+	assert.InDelta(t, 3070, site.idleGridPower(), 0.1)
+
+	site.gridPower = 12000
+	site.battery.Power = 3000
+	assert.InDelta(t, 15000, site.idleGridPower(), 0.1)
+}
+
+func TestApplyLiveBatteryPowerLimitsChargeDoesNotLookLikePeak(t *testing.T) {
+	ctrl := gomock.NewController(t)
+
+	limitCtrl := api.NewMockBatteryLimitController(ctrl)
+	limitCtrl.EXPECT().SetChargeLimit(2430).Return(nil).Times(1)
+	bat := newLimitBat(ctrl, limitCtrl)
+
+	site := &Site{
+		log:                 util.NewLogger("ps"),
+		batteryMeters:       []config.Device[api.Meter]{config.NewStaticDevice(config.Named{}, bat)},
+		GridThreshold:       5.5,
+		PeakShaveMinSoc:     11.0,
+		PeakShaveReserveSoc: 20.0,
+		gridPower:           5500,
+		batteryPlanChargeW:  2430,
+		battery:             types.BatteryState{Soc: 17.6, Power: -2430},
+	}
+
+	site.applyLiveBatteryPowerLimits()
+	assert.Equal(t, 2430, site.lastBatteryChargeW)
+	assert.Equal(t, 0, site.lastBatteryDischargeW)
+	ctrl.Finish()
+}
+
+func TestApplyLiveBatteryPowerLimitsPlannedChargeWhileChargerActive(t *testing.T) {
+	ctrl := gomock.NewController(t)
+
+	limitCtrl := api.NewMockBatteryLimitController(ctrl)
+	limitCtrl.EXPECT().SetChargeLimit(2430).Return(nil).Times(1)
+	bat := newLimitBat(ctrl, limitCtrl)
+
+	lp := NewLoadpoint(util.NewLogger("lp"), nil)
+	lp.status = api.StatusC
+	lp.mode = api.ModeNow
+
+	site := &Site{
+		log:                     util.NewLogger("ps"),
+		batteryMeters:           []config.Device[api.Meter]{config.NewStaticDevice(config.Named{}, bat)},
+		GridThreshold:           5.5,
+		PeakShaveMinSoc:         11.0,
+		PeakShaveReserveSoc:     20.0,
+		batteryDischargeControl: true,
+		gridPower:               3070,
+		batteryPlanChargeW:      2430,
+		loadpoints:              []*Loadpoint{lp},
+		battery:                 types.BatteryState{Soc: 17.6},
+	}
+
+	site.applyLiveBatteryPowerLimits()
+	assert.Equal(t, 2430, site.lastBatteryChargeW)
+	assert.Equal(t, 0, site.lastBatteryDischargeW)
 	ctrl.Finish()
 }
 

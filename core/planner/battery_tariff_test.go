@@ -568,3 +568,26 @@ func TestFlandersPeakQuarterStillDischarges(t *testing.T) {
 	assert.Equal(t, BatteryReasonPeak, plan.Reason)
 	assert.NotEqual(t, BatteryActionCharge, plan.Action)
 }
+
+func TestFlandersCheapNowChargesBelowReserveDespiteOfftake(t *testing.T) {
+	// Marstek at 17.6% with EV/heat-pump offtake still under the 5.5 kW limit.
+	// Cheap now vs expensive evening: use remaining headroom, do not wait for surplus.
+	cfg := marstekCfg(17.6, 20)
+	cfg.GridThresholdW = 5500
+	cfg.HeadroomW = 2430
+	cfg.LiveResidualW = 3070
+	cfg.Trade = true
+
+	energy := make([]float64, 48)
+	energy[0] = 0
+	for i := 1; i < len(energy); i++ {
+		energy[i] = 0.17
+	}
+	slots := flSlots(energy, 700, 0)
+
+	plan := PlanBattery(cfg, slots)
+	assert.Equal(t, BatteryActionCharge, plan.Action)
+	assert.Contains(t, []string{BatteryReasonCharge, BatteryReasonCheap}, plan.Reason)
+	assert.Greater(t, plan.ChargeW, 1000, "should use remaining headroom, not trickle to reserve only")
+	assert.LessOrEqual(t, plan.ChargeW, 2430)
+}
