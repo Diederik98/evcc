@@ -160,6 +160,17 @@ func getHandler[T any](get func() T) http.HandlerFunc {
 	}
 }
 
+// errorHandler runs an action and returns true, or a JSON error
+func errorHandler(fn func() error) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if err := fn(); err != nil {
+			jsonError(w, http.StatusBadRequest, err)
+			return
+		}
+		jsonWrite(w, true)
+	}
+}
+
 // updateSmartCostLimit sets the smart cost limit globally
 func updateSmartCostLimit(site site.API, setLimit func(loadpoint.API, *float64)) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {

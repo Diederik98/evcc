@@ -1,6 +1,18 @@
 <template>
 	<div class="battery-plan-forecast mb-4">
-		<p class="fw-bold mb-1">{{ forecastTitle }}</p>
+		<div class="d-flex align-items-center justify-content-between gap-2 mb-1">
+			<p class="fw-bold mb-0">{{ forecastTitle }}</p>
+			<button
+				type="button"
+				class="btn btn-sm btn-outline-secondary"
+				:disabled="replanning"
+				:aria-label="$t('peakShave.plan.replan')"
+				@click="replan"
+			>
+				{{ $t("peakShave.plan.replan") }}
+			</button>
+		</div>
+		<p class="text-muted small mb-2">{{ $t("peakShave.plan.replanHelp") }}</p>
 		<p v-if="liveOverride" class="text-muted small mb-2">
 			{{ $t("peakShave.plan.liveOverride") }}
 		</p>
@@ -12,43 +24,25 @@
 		</p>
 
 		<div v-if="parsedSlots.length" class="legend small mb-2">
-			<span v-for="key in actionKeys" :key="key" class="legend-item">
-				<span class="legend-swatch" :class="`action-${key}`"></span>
-				{{ $t("peakShave.plan.action." + key) }}
-			</span>
-			<span v-if="hasChargerPlan" class="legend-item">
-				<span class="legend-swatch action-charger"></span>
-				{{ $t("peakShave.plan.chargerAction.charging") }}
-			</span>
-			<span class="legend-item">
-				<span class="legend-swatch series-house"></span>
-				{{ $t("peakShave.plan.house") }}
-			</span>
-			<span class="legend-item">
-				<span class="legend-swatch series-solar"></span>
-				{{ $t("peakShave.plan.solar") }}
-			</span>
-			<span class="legend-item">
-				<span class="legend-swatch series-soc"></span>
-				{{ $t("peakShave.plan.soc") }}
-			</span>
-			<span v-if="hasCover" class="legend-item">
-				<span class="legend-swatch series-cover"></span>
-				{{ $t("peakShave.plan.cover") }}
-			</span>
-			<span v-if="hasExport" class="legend-item">
-				<span class="legend-swatch action-export"></span>
-				{{ $t("peakShave.plan.reason.export") }}
-			</span>
-			<span v-if="hasPrices" class="legend-item">
-				<span class="legend-swatch series-price"></span>
-				{{ $t("peakShave.plan.price") }}
-			</span>
-			<span v-if="hasMeasured" class="legend-item">
-				<span class="legend-swatch series-measured"></span>
-				{{ $t("peakShave.plan.measured") }}
+			<span
+				v-for="item in legendItems"
+				:key="item.key"
+				class="legend-item"
+				:title="$t('peakShave.plan.help.' + item.key)"
+			>
+				<span class="legend-swatch" :class="item.swatch"></span>
+				{{ $t(item.label) }}
 			</span>
 		</div>
+		<p v-if="parsedSlots.length" class="text-muted small mb-2">
+			{{ $t("peakShave.plan.legendIntro") }}
+		</p>
+		<dl v-if="showLegendHelp && parsedSlots.length" class="legend-defs small mb-3">
+			<template v-for="item in legendItems" :key="'help-' + item.key">
+				<dt>{{ $t(item.label) }}</dt>
+				<dd>{{ $t("peakShave.plan.help." + item.key) }}</dd>
+			</template>
+		</dl>
 
 		<div
 			v-if="parsedSlots.length"
@@ -109,6 +103,7 @@ import {
 	tooltipTable,
 	type TooltipRow,
 } from "../Forecast/echarts";
+import api from "@/api";
 import colors from "@/colors";
 import formatter, { POWER_UNIT } from "@/mixins/formatter";
 import {
@@ -146,14 +141,34 @@ interface ParsedSlot {
 
 const ACTION_KEYS = ["charge", "hold", "discharge", "normal"] as const;
 
-const ACTION_COLORS_SOLID: Record<string, string> = {
-	charge: "#2563eb",
-	hold: "#ff912f",
-	discharge: "#0ba631",
+const SERIES_COLORS = {
+	house: "#475569",
+	solar: "#ca8a04",
+	charging: "#7c3aed",
+	soc: "#16a34a",
+	cover: "#c026d3",
+	price: "#0891b2",
+	charge: "#1d4ed8",
+	hold: "#ea580c",
+	discharge: "#0d9488",
+	export: "#be185d",
 	normal: "#94a3b8",
+} as const;
+
+const ACTION_COLORS_SOLID: Record<string, string> = {
+	charge: SERIES_COLORS.charge,
+	hold: SERIES_COLORS.hold,
+	discharge: SERIES_COLORS.discharge,
+	normal: SERIES_COLORS.normal,
 };
-const EXPORT_COLOR = "#0d9488";
-const COVER_COLOR = "#1d4ed8";
+const EXPORT_COLOR = SERIES_COLORS.export;
+const COVER_COLOR = SERIES_COLORS.cover;
+
+interface LegendItem {
+	key: string;
+	label: string;
+	swatch: string;
+}
 
 export default defineComponent({
 	name: "BatteryPlanForecast",
@@ -168,15 +183,16 @@ export default defineComponent({
 		tariffCharges: { type: Number, default: 0 },
 		tariffTax: { type: Number, default: 0 },
 		tariffFormula: Boolean,
+		showLegendHelp: Boolean,
 	},
 	data() {
 		return {
 			POWER_UNIT,
-			actionKeys: ACTION_KEYS,
 			activeIndex: null as number | null,
 			chart: null as EChartsType | null,
 			nowMs: Date.now(),
 			nowTimer: undefined as number | undefined,
+			replanning: false,
 		};
 	},
 	computed: {
@@ -194,10 +210,7 @@ export default defineComponent({
 						end,
 						action: measured ? "normal" : s.action || "normal",
 						hasPrice: s.hasPrice ?? (s.price || 0) > 0,
-						price:
-							s.price != null
-								? displayGridPrice(s.price, s.energy)
-								: s.price,
+						price: s.price != null ? displayGridPrice(s.price, s.energy) : s.price,
 						measured,
 					};
 				})
@@ -253,6 +266,56 @@ export default defineComponent({
 			}
 			return this.$t("peakShave.plan.forecastHours", { hours: this.forecastHours });
 		},
+		legendItems(): LegendItem[] {
+			const items: LegendItem[] = [
+				{ key: "house", label: "peakShave.plan.house", swatch: "series-house" },
+				{ key: "solar", label: "peakShave.plan.solar", swatch: "series-solar" },
+				{ key: "soc", label: "peakShave.plan.soc", swatch: "series-soc" },
+			];
+			if (this.hasChargerPlan) {
+				items.push({
+					key: "charging",
+					label: "peakShave.plan.charging",
+					swatch: "action-charger",
+				});
+			}
+			if (this.hasCover) {
+				items.push({
+					key: "cover",
+					label: "peakShave.plan.cover",
+					swatch: "series-cover",
+				});
+			}
+			if (this.hasPrices) {
+				items.push({
+					key: "price",
+					label: "peakShave.plan.price",
+					swatch: "series-price",
+				});
+			}
+			for (const key of ACTION_KEYS) {
+				items.push({
+					key,
+					label: "peakShave.plan.action." + key,
+					swatch: `action-${key}`,
+				});
+			}
+			if (this.hasExport) {
+				items.push({
+					key: "export",
+					label: "peakShave.plan.reason.export",
+					swatch: "action-export",
+				});
+			}
+			if (this.hasMeasured) {
+				items.push({
+					key: "measured",
+					label: "peakShave.plan.measured",
+					swatch: "series-measured",
+				});
+			}
+			return items;
+		},
 		activeSlot(): ParsedSlot | null {
 			if (!this.parsedSlots.length) {
 				return null;
@@ -276,12 +339,12 @@ export default defineComponent({
 				return {};
 			}
 
-			const houseColor = "#64748B";
-			const solarColor = colors.selfPalette?.[1] || colors.price || "#FFBD2F";
-			const priceColor = colors.price || "#ff912f";
-			const socColor = colors.batteryPalette[0] || "#0BA631";
-			const gridColor = colors.grid || "#FD6158";
-			const loadColor = colors.palette?.[0] || "#7c3aed";
+			const houseColor = SERIES_COLORS.house;
+			const solarColor = SERIES_COLORS.solar;
+			const priceColor = SERIES_COLORS.price;
+			const socColor = SERIES_COLORS.soc;
+			const gridColor = colors.grid || "#dc2626";
+			const loadColor = SERIES_COLORS.charging;
 			const muted = colors.muted || "#9ca3af";
 			const border = colors.border || "#e5e7eb";
 			const hasCharger = this.hasChargerPlan;
@@ -335,7 +398,7 @@ export default defineComponent({
 					chargerStrip.push({
 						value: [t, s.end.getTime()],
 						itemStyle: {
-							color: active ? "#7c3aed" : "#e2e8f0",
+							color: active ? SERIES_COLORS.charging : "#e2e8f0",
 							opacity: s.measured ? 0.35 : 1,
 						},
 					});
@@ -738,6 +801,17 @@ export default defineComponent({
 			}
 			this.chart.setOption(this.chartOption, { notMerge: true });
 		},
+		async replan() {
+			if (this.replanning) {
+				return;
+			}
+			this.replanning = true;
+			try {
+				await api.post("batteryplan");
+			} finally {
+				this.replanning = false;
+			}
+		},
 		onAxisPointer(event: unknown) {
 			const ev = event as {
 				axesInfo?: { value?: number }[];
@@ -931,39 +1005,56 @@ export default defineComponent({
 	background: #94a3b8;
 }
 .action-charge {
-	background: #2563eb;
+	background: #1d4ed8;
 }
 .action-discharge {
-	background: var(--evcc-darker-green);
+	background: #0d9488;
 }
 .action-hold {
-	background: var(--evcc-orange);
+	background: #ea580c;
 }
 .action-normal {
 	background: #94a3b8;
 }
 .action-export {
-	background: #0d9488;
+	background: #be185d;
+}
+.action-charger {
+	background: #7c3aed;
 }
 .series-cover {
 	background: transparent;
-	border: 2px dashed #1d4ed8;
+	border: 2px dashed #c026d3;
 }
 .series-house {
-	background: #64748b;
+	background: #475569;
 }
 .series-solar {
-	background: #ffbd2f;
+	background: #ca8a04;
 }
 .series-soc {
-	background: #0ba631;
+	background: #16a34a;
 }
 .series-price {
-	background: var(--evcc-price, #ff912f);
+	background: #0891b2;
 }
 .series-measured {
-	background: #64748b;
-	opacity: 0.5;
+	background: #475569;
+	opacity: 0.45;
+}
+.legend-defs {
+	display: grid;
+	grid-template-columns: auto 1fr;
+	column-gap: 0.75rem;
+	row-gap: 0.35rem;
+	margin: 0;
+}
+.legend-defs dt {
+	font-weight: 600;
+}
+.legend-defs dd {
+	margin: 0;
+	color: var(--bs-secondary-color, #6c757d);
 }
 .forecast-chart {
 	height: 320px;

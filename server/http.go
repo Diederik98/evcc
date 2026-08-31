@@ -169,6 +169,7 @@ func (s *HTTPd) RegisterSiteHandlers(site site.API) {
 		"gridsessions":            {"GET", "/gridsessions", gridSessionsHandler},
 		"energyhistory":           {"GET", "/history/energy", energyHistoryHandler},
 		"optimize":                {"POST", "/optimize", getHandler(site.Optimize)},
+		"batteryplan":             {"POST", "/batteryplan", errorHandler(site.ReplanBattery)},
 		"telemetry2":              {"POST", "/settings/telemetry/{value:[01truefalse]+}", boolHandler(telemetry.Enable, telemetry.Enabled)},
 		"devicecolors":            {"PUT", "/devicecolors", updateDeviceColor(site)},
 

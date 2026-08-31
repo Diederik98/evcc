@@ -96,6 +96,7 @@
 							:tariff-charges="state.tariffCharges || 0"
 							:tariff-tax="state.tariffTax || 0"
 							:tariff-formula="!!state.tariffFormula"
+							:show-legend-help="true"
 						/>
 						<div class="table-responsive">
 							<table class="table table-sm small">
@@ -103,12 +104,22 @@
 									<tr>
 										<th>{{ $t("peakShave.plan.colTime") }}</th>
 										<th>{{ $t("peakShave.plan.colAction") }}</th>
-										<th>{{ $t("peakShave.plan.house") }}</th>
-										<th>{{ $t("peakShave.plan.charging") }}</th>
-										<th>{{ $t("peakShave.plan.solar") }}</th>
-										<th>SoC</th>
-										<th>{{ $t("peakShave.plan.cover") }}</th>
-										<th>{{ $t("peakShave.plan.price") }}</th>
+										<th :title="$t('peakShave.plan.help.house')">
+											{{ $t("peakShave.plan.house") }}
+										</th>
+										<th :title="$t('peakShave.plan.help.charging')">
+											{{ $t("peakShave.plan.charging") }}
+										</th>
+										<th :title="$t('peakShave.plan.help.solar')">
+											{{ $t("peakShave.plan.solar") }}
+										</th>
+										<th :title="$t('peakShave.plan.help.soc')">SoC</th>
+										<th :title="$t('peakShave.plan.help.cover')">
+											{{ $t("peakShave.plan.cover") }}
+										</th>
+										<th :title="$t('peakShave.plan.help.price')">
+											{{ $t("peakShave.plan.price") }}
+										</th>
 									</tr>
 								</thead>
 								<tbody>

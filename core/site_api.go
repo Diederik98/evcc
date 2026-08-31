@@ -39,6 +39,22 @@ func filterConfigurable(ref []string) []string {
 	})
 }
 
+// ReplanBattery rebuilds the battery plan from current SoC, prices, solar, and charger schedules.
+func (site *Site) ReplanBattery() error {
+	if !site.batteryConfigured() {
+		return ErrBatteryNotConfigured
+	}
+
+	site.batteryPlanFingerprint = ""
+	plan, planned := site.evaluateBatteryPlan()
+	if planned {
+		site.publishBatteryPlan(plan)
+	} else {
+		site.publishIdleBatteryPlan()
+	}
+	return nil
+}
+
 // Optimize updates the optimizer
 func (site *Site) Optimize() error {
 	if !sponsor.IsAuthorized() || !optimizerEnabled() {

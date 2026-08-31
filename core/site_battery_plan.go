@@ -681,7 +681,7 @@ func (site *Site) recordBatteryPlanLog(plan planner.BatteryPlan) {
 
 	code := "replan"
 	switch {
-	case site.batteryPlanFingerprint == "":
+	case site.batteryPlanFingerprint == "" && len(site.batteryPlanLog) == 0:
 		code = "created"
 	case plan.Reason == planner.BatteryReasonPeak:
 		code = "peak"

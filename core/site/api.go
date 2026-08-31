@@ -17,6 +17,7 @@ type API interface {
 	Loadpoints() []loadpoint.API
 	Vehicles() Vehicles
 	Optimize() error
+	ReplanBattery() error
 
 	// Meta
 	GetTitle() string
