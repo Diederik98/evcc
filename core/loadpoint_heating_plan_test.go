@@ -399,6 +399,45 @@ func TestRepeatingHeatingPlanResetsGoalNextDay(t *testing.T) {
 	assert.True(t, lp.plannerActive(), "the next day's occurrence starts from a full kWh goal")
 }
 
+func TestHorizonChargeDemandsSkipsPastDeadlineOccurrence(t *testing.T) {
+	clk, loc := brusselsMorning(t, 19, 32)
+	lp := heatingPlanLoadpoint(t, clk, defaultComfort(1150))
+	lp.vehicleSoc = 51
+	lp.repeatingPlans = repeatingEveningPlan(1.725)
+
+	assert.False(t, lp.plannerActive(), "today's 18:00 deadline has passed")
+
+	start := clk.Now().Truncate(tariff.SlotDuration)
+	sameDay := lp.HorizonChargeDemands([]planner.BatterySlot{{
+		Start: start,
+		End:   time.Date(start.Year(), start.Month(), start.Day(), 23, 59, 0, 0, loc),
+	}})
+	assert.Empty(t, sameDay, "must not inject a finished occurrence starting now")
+
+	demands := lp.HorizonChargeDemands([]planner.BatterySlot{{
+		Start: start,
+		End:   start.Add(24 * time.Hour),
+	}})
+	require.Len(t, demands, 1)
+	assert.Equal(t, 23, demands[0].Deadline.In(loc).Day())
+	assert.Equal(t, 18, demands[0].Deadline.In(loc).Hour())
+}
+
+func TestHorizonChargeDemandsKeepsActiveOverrun(t *testing.T) {
+	clk, loc := brusselsMorning(t, 18, 5)
+	lp := heatingPlanLoadpoint(t, clk, defaultComfort(1150))
+	lp.repeatingPlans = repeatingEveningPlan(1.725)
+	lp.planActive = true
+
+	start := clk.Now().Truncate(tariff.SlotDuration)
+	demands := lp.HorizonChargeDemands([]planner.BatterySlot{{
+		Start: start,
+		End:   time.Date(start.Year(), start.Month(), start.Day(), 23, 59, 0, 0, loc),
+	}})
+	require.Len(t, demands, 1)
+	assert.Equal(t, 22, demands[0].Deadline.In(loc).Day())
+}
+
 func TestRepeatingHeatingPlanStopsAfterDeadline(t *testing.T) {
 	clk, loc := brusselsMorning(t, 17, 0)
 	lp := heatingPlanLoadpoint(t, clk, defaultComfort(1150))

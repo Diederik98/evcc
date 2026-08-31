@@ -144,6 +144,12 @@ func (lp *Loadpoint) chargeDemand(deadline time.Time, energy float64, fixed bool
 	}, true
 }
 
+// horizonDemandActive reports whether a charge deadline still belongs on the battery overlay.
+// Past deadlines are skipped unless this loadpoint is still running that slot (overrun).
+func (lp *Loadpoint) horizonDemandActive(deadline, now time.Time) bool {
+	return deadline.After(now) || lp.planActive
+}
+
 func (lp *Loadpoint) HorizonChargeDemands(slots []planner.BatterySlot) []planner.ChargeDemand {
 	lp.RLock()
 	defer lp.RUnlock()
@@ -152,11 +158,14 @@ func (lp *Loadpoint) HorizonChargeDemands(slots []planner.BatterySlot) []planner
 	}
 
 	from, to := slots[0].Start, slots[len(slots)-1].End
+	now := lp.clock.Now()
 	var demands []planner.ChargeDemand
 
 	if lp.planEnergy > 0 && !lp.planTime.IsZero() && lp.planTime.After(from.Add(-tariff.SlotDuration)) {
-		if d, ok := lp.chargeDemand(lp.planTime, lp.planEnergy, false); ok {
-			demands = append(demands, d)
+		if lp.horizonDemandActive(lp.planTime, now) {
+			if d, ok := lp.chargeDemand(lp.planTime, lp.planEnergy, false); ok {
+				demands = append(demands, d)
+			}
 		}
 	}
 
@@ -172,6 +181,9 @@ func (lp *Loadpoint) HorizonChargeDemands(slots []planner.BatterySlot) []planner
 			deadline := t
 			if rp.Fixed {
 				deadline = t.Add(lp.energyDuration(rp.Energy, lp.heatingPlanPowerLocked()))
+			}
+			if !lp.horizonDemandActive(deadline, now) {
+				continue
 			}
 			energy := rp.Energy
 			if lp.repeatingPlanOffsetSet && deadline.Equal(lp.repeatingPlanEnd) {
