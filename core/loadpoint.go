@@ -152,16 +152,18 @@ type Loadpoint struct {
 	socEstimator   *soc.Estimator
 
 	// charge planning
-	planner          *planner.Planner
-	planTime         time.Time        // time goal
-	planStrategy     api.PlanStrategy // plan strategy (precondition, continuous)
-	planEnergy       float64          // Plan charge energy in kWh (dumb vehicles)
-	planEnergyOffset float64          // already charged energy in kWh when plan was set
-	planSlotEnd      time.Time        // current plan slot end time
-	planActive       bool             // charge plan exists and has a currently active slot
-	planOverrunSent  bool             // notification has been sent already
-	planLocked       PlanLock         // locked plan
-	repeatingPlans   []api.RepeatingPlan
+	planner                *planner.Planner
+	planTime               time.Time        // time goal
+	planStrategy           api.PlanStrategy // plan strategy (precondition, continuous)
+	planEnergy             float64          // Plan charge energy in kWh (dumb vehicles)
+	planEnergyOffset       float64          // already charged energy in kWh when plan was set
+	planSlotEnd            time.Time        // current plan slot end time
+	planActive             bool             // charge plan exists and has a currently active slot
+	planOverrunSent        bool             // notification has been sent already
+	planLocked             PlanLock         // locked plan
+	repeatingPlans         []api.RepeatingPlan
+	repeatingPlanEnd       time.Time // deadline of the repeating occurrence bound to planEnergyOffset
+	repeatingPlanOffsetSet bool      // true after this occurrence started charging
 
 	heatingComfort        loadpoint.HeatingComfort
 	heatingBoosts         []loadpoint.HeatingBoost

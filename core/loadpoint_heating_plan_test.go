@@ -358,6 +358,47 @@ func TestHeatingComfortHysteresisStopsAndRestartsBelowMin(t *testing.T) {
 	assert.True(t, heatingWouldStayOn(lp))
 }
 
+func TestRepeatingHeatingPlanStopsWhenEnergyDelivered(t *testing.T) {
+	clk, loc := brusselsMorning(t, 16, 0)
+	lp := heatingPlanLoadpoint(t, clk, defaultComfort(1150))
+	lp.vehicleSoc = 51
+	lp.repeatingPlans = repeatingEveningPlan(2.3)
+
+	require.True(t, lp.plannerActive(), "calendar slot starts with the full kWh goal")
+	require.True(t, lp.repeatingPlanOffsetSet)
+
+	lp.energyMetrics.Update(2.3)
+	assert.Equal(t, time.Duration(0), lp.getPlanRequiredDuration(2.3, 1150))
+	assert.False(t, lp.plannerActive(), "scheduled kWh must end the calendar slot")
+	assert.False(t, lp.heatingComfortActive())
+	assert.False(t, heatingWouldStayOn(lp))
+
+	clk.Set(time.Date(2026, 8, 22, 17, 30, 0, 0, loc))
+	assert.False(t, lp.plannerActive(), "must not restart before the deadline after the kWh goal")
+
+	start := clk.Now().Truncate(tariff.SlotDuration)
+	demands := lp.HorizonChargeDemands([]planner.BatterySlot{{
+		Start: start,
+		End:   time.Date(start.Year(), start.Month(), start.Day(), 23, 59, 0, 0, loc),
+	}})
+	assert.Empty(t, demands, "today's kWh goal is already delivered")
+}
+
+func TestRepeatingHeatingPlanResetsGoalNextDay(t *testing.T) {
+	clk, loc := brusselsMorning(t, 16, 0)
+	lp := heatingPlanLoadpoint(t, clk, defaultComfort(1150))
+	lp.vehicleSoc = 45
+	lp.repeatingPlans = repeatingEveningPlan(2.3)
+
+	require.True(t, lp.plannerActive())
+	lp.energyMetrics.Update(2.3)
+	require.False(t, lp.plannerActive())
+
+	clk.Set(time.Date(2026, 8, 23, 16, 0, 0, 0, loc))
+	assert.Greater(t, lp.getPlanRequiredDuration(2.3, 1150), time.Hour)
+	assert.True(t, lp.plannerActive(), "the next day's occurrence starts from a full kWh goal")
+}
+
 func TestRepeatingHeatingPlanStopsAfterDeadline(t *testing.T) {
 	clk, loc := brusselsMorning(t, 17, 0)
 	lp := heatingPlanLoadpoint(t, clk, defaultComfort(1150))

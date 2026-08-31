@@ -173,7 +173,11 @@ func (lp *Loadpoint) HorizonChargeDemands(slots []planner.BatterySlot) []planner
 			if rp.Fixed {
 				deadline = t.Add(lp.energyDuration(rp.Energy, lp.heatingPlanPowerLocked()))
 			}
-			if d, ok := lp.chargeDemand(deadline, rp.Energy, rp.Fixed); ok {
+			energy := rp.Energy
+			if lp.repeatingPlanOffsetSet && deadline.Equal(lp.repeatingPlanEnd) {
+				energy = lp.remainingPlanEnergy(rp.Energy)
+			}
+			if d, ok := lp.chargeDemand(deadline, energy, rp.Fixed); ok {
 				demands = append(demands, d)
 			}
 		}

@@ -44,6 +44,14 @@ func (lp *Loadpoint) lockPlanGoal(planTime time.Time, soc int, id int) {
 
 // setPlanActive updates plan active flag
 func (lp *Loadpoint) setPlanActive(active bool) {
+	if active && !lp.planActive && lp.repeatingPlanning() {
+		end, _, _, _ := lp.nextEnergyPlan()
+		if !lp.repeatingPlanOffsetSet || !end.Equal(lp.repeatingPlanEnd) {
+			lp.planEnergyOffset = lp.getChargedEnergy() / 1e3
+			lp.repeatingPlanOffsetSet = true
+			lp.repeatingPlanEnd = end
+		}
+	}
 	if !active {
 		lp.planOverrunSent = false
 		lp.planSlotEnd = time.Time{}
@@ -92,11 +100,15 @@ func (lp *Loadpoint) getPlanRequiredDuration(goal, maxPower float64) time.Durati
 }
 
 // energyPlanGoalWh is the remaining energy goal in Wh for the active plan.
-// Repeating plans always target the full configured kWh; static plans subtract
-// energy already delivered since the plan was set.
+// Repeating plans use the full configured kWh until that occurrence starts,
+// then subtract energy delivered during the slot. Static plans subtract energy
+// already delivered since the plan was set.
 func (lp *Loadpoint) energyPlanGoalWh(planEnergyKWh float64) float64 {
 	if lp.getPlanId() > 1 {
-		return planEnergyKWh * 1e3
+		end, _, _, _ := lp.nextEnergyPlan()
+		if !lp.repeatingPlanOffsetSet || !end.Equal(lp.repeatingPlanEnd) {
+			return planEnergyKWh * 1e3
+		}
 	}
 	return lp.remainingPlanEnergy(planEnergyKWh) * 1e3
 }
