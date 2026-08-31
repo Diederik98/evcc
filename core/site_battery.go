@@ -318,38 +318,46 @@ func (site *Site) applyBatteryMode(mode api.BatteryMode) error {
 
 func (site *Site) applyBatteryModeDirect(mode api.BatteryMode) error {
 	fromToCharge := mode == api.BatteryCharge || mode == api.BatteryUnknown && site.batteryMode == api.BatteryCharge
-
-	for _, dev := range site.batteryMeters {
-		meter := dev.Instance()
-
-		batCtrl, ok := api.Cap[api.BatteryController](meter)
-		if !ok {
-			continue
-		}
-
-		// validate max soc
-		if fromToCharge && mode != api.BatteryHold {
+	if fromToCharge && mode != api.BatteryHold {
+		for _, dev := range site.batteryMeters {
+			if _, ok := api.Cap[api.BatteryController](dev.Instance()); !ok {
+				continue
+			}
 			ok, err := site.batteryMaxSocReached(dev)
 			if err != nil && !errors.Is(err, api.ErrNotAvailable) {
 				return err
 			}
-
-			// put battery into hold mode when soc limit reached
 			if ok {
-				// TODO do this only once
 				mode = api.BatteryHold
-			}
-		}
-
-		if mode != api.BatteryUnknown {
-			if err := batCtrl.SetBatteryMode(mode); err == nil {
-				site.log.DEBUG.Printf("set battery %s mode: %s", deviceTitleOrName(dev), mode)
-			} else if !errors.Is(err, api.ErrNotAvailable) {
-				return err
+				break
 			}
 		}
 	}
 
+	if mode == api.BatteryUnknown {
+		return nil
+	}
+
+	// Hold is applied from the 1s live loop while a charger is in cheap/fast
+	// charge. Marstek hold rewrites RS485 force-stop; do not send it every second.
+	if mode == api.BatteryHold && mode == site.batteryModeApplied {
+		return nil
+	}
+
+	for _, dev := range site.batteryMeters {
+		batCtrl, ok := api.Cap[api.BatteryController](dev.Instance())
+		if !ok {
+			continue
+		}
+
+		if err := batCtrl.SetBatteryMode(mode); err == nil {
+			site.log.DEBUG.Printf("set battery %s mode: %s", deviceTitleOrName(dev), mode)
+		} else if !errors.Is(err, api.ErrNotAvailable) {
+			return err
+		}
+	}
+
+	site.batteryModeApplied = mode
 	return nil
 }
 
@@ -478,6 +486,14 @@ func (site *Site) setBatteryLimitLimits(chargeLimit, dischargeLimit int) {
 	site.lastBatteryChargeW = chargeLimit
 	site.lastBatteryDischargeW = dischargeLimit
 	site.batteryLimitSet = true
+
+	// Charge/discharge limits on Marstek also write force charge/discharge.
+	// Forget the last batterymode write so a later Hold is not skipped.
+	if chargeLimit > 0 {
+		site.batteryModeApplied = api.BatteryCharge
+	} else if dischargeLimit > 0 {
+		site.batteryModeApplied = api.BatteryUnknown
+	}
 }
 
 func (site *Site) resetBatteryLimitLimits() {
@@ -539,7 +555,7 @@ func (site *Site) ManageGridLimits(batteryGridChargeActive bool) {
 			site.batteryPlanChargeW = 0
 			site.batteryPlanDischargeW = 0
 			site.publishIdleBatteryPlan()
-			if wasLimited {
+			if wasLimited && !site.batteryChargeOnlyLocked() {
 				site.resetBatteryLimitLimits()
 				site.peakShaveBatteryLimited = false
 			}

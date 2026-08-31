@@ -107,6 +107,7 @@ type Site struct {
 	auxPower                 float64                      // Aux power
 	battery                  types.BatteryState           // Battery cached and published state
 	batteryMode              api.BatteryMode              // Battery mode (runtime only, not persisted)
+	batteryModeApplied       api.BatteryMode              // Last mode written to the battery controller
 	batteryModeExternal      api.BatteryMode              // Battery mode (external, runtime only, not persisted)
 	batteryModeExternalTimer time.Time                    // Battery mode timer for external control
 	peakShaveState           string                       // Peak shaving state machine state

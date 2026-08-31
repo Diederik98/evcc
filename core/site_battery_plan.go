@@ -490,6 +490,11 @@ func (site *Site) applyBatteryPlan(plan planner.BatteryPlan) {
 	default:
 		site.batteryPlanChargeW = 0
 		site.batteryPlanDischargeW = 0
+		if site.batteryChargeOnlyLocked() {
+			// Cheap charging owns hold/surplus. Do not drop RS485 control back to self-consumption.
+			site.peakShaveBatteryLimited = true
+			break
+		}
 		if site.peakShaveBatteryLimited {
 			site.log.DEBUG.Println("battery plan: idle, resetting battery limits")
 			site.resetBatteryLimitLimits()
