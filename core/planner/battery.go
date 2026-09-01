@@ -157,7 +157,7 @@ func PlanBattery(cfg BatteryConfig, slots []BatterySlot) BatteryPlan {
 	}
 
 	if !inPeak {
-		if p, ok := gridChargePlan(cfg, slots, socWh, targetWh, need, hours, maxWh); ok {
+		if p, ok := gridChargePlan(cfg, slots, socWh, targetWh, need, hours, maxWh, chargeCeiling); ok {
 			p.TargetSoc = plan.TargetSoc
 			p.PeakWh = plan.PeakWh
 			p.CoverWh = plan.CoverWh
@@ -207,7 +207,7 @@ func withBatteryDefaults(cfg BatteryConfig) BatteryConfig {
 	return cfg
 }
 
-func gridChargePlan(cfg BatteryConfig, slots []BatterySlot, socWh, coverWh float64, need batteryNeed, hours, maxWh float64) (BatteryPlan, bool) {
+func gridChargePlan(cfg BatteryConfig, slots []BatterySlot, socWh, coverWh float64, need batteryNeed, hours, maxWh, chargeCeiling float64) (BatteryPlan, bool) {
 	cur := slots[0]
 
 	tryCharge := func(targetWh float64, reason string) (BatteryPlan, bool) {
@@ -222,12 +222,26 @@ func gridChargePlan(cfg BatteryConfig, slots []BatterySlot, socWh, coverWh float
 		return BatteryPlan{Action: BatteryActionCharge, Reason: reason, ChargeW: int(math.Round(charge))}, true
 	}
 
+	wantCharge := func(targetWh float64, deadline int) (must bool, ok bool) {
+		must = chargeMustByDeadline(cfg, slots, socWh, targetWh, deadline, true)
+		if must {
+			return true, true
+		}
+		if !inCheapBand(cur.Price, chargeCeiling) {
+			return false, false
+		}
+		if laterCheaperCharge(slots, deadline, cur.Price) {
+			return false, false
+		}
+		return false, true
+	}
+
 	coverCap := min(coverWh, maxWh-need.solarRoomWh)
 	if socWh < coverCap-1 && need.unmetACWh > 1 {
 		avoided := need.unmetCost / (need.unmetACWh / 1000)
 		if gridChargePays(cur.Price, avoided, cfg.EtaC, cfg.EtaD, cfg.CycleCost) {
-			must, cheap := chargeByDeadline(cfg, slots, socWh, coverCap, need.firstNeed, true)
-			if must || cheap || !laterCheaperCharge(slots, need.firstNeed, cur.Price) {
+			must, ok := wantCharge(coverCap, need.firstNeed)
+			if ok {
 				reason := BatteryReasonCheap
 				if must {
 					reason = BatteryReasonCharge
@@ -244,15 +258,29 @@ func gridChargePlan(cfg BatteryConfig, slots []BatterySlot, socWh, coverWh float
 		if socWh >= coverWh-1 && socWh < tradeCap-1 {
 			p75 := laterImportP75(slots)
 			if gridChargePays(cur.Price, p75, cfg.EtaC, cfg.EtaD, cfg.CycleCost) {
-				must, cheap := chargeByDeadline(cfg, slots, socWh, tradeCap, -1, true)
-				if must || cheap || !laterCheaperCharge(slots, -1, cur.Price) {
-					return tryCharge(tradeCap, BatteryReasonCheap)
+				must, ok := wantCharge(tradeCap, -1)
+				if ok {
+					reason := BatteryReasonCheap
+					if must {
+						reason = BatteryReasonCharge
+					}
+					return tryCharge(tradeCap, reason)
 				}
 			}
 		}
 	}
 
 	return BatteryPlan{}, false
+}
+
+func inCheapBand(price, chargeCeiling float64) bool {
+	if price <= 0 {
+		return true
+	}
+	if chargeCeiling <= 0 {
+		return true
+	}
+	return price <= chargeCeiling
 }
 
 func laterHigherPrice(slots []BatterySlot, priceNow float64) bool {
@@ -363,10 +391,10 @@ func firstPeakIndex(cfg BatteryConfig, slots []BatterySlot) int {
 	return -1
 }
 
-func chargeByDeadline(cfg BatteryConfig, slots []BatterySlot, socWh, targetWh float64, deadline int, peakLockout bool) (must, cheap bool) {
+func chargeMustByDeadline(cfg BatteryConfig, slots []BatterySlot, socWh, targetWh float64, deadline int, peakLockout bool) bool {
 	deficit := targetWh - socWh
 	if deficit <= 0 {
-		return false, false
+		return false
 	}
 
 	firstPeak := -1
@@ -374,7 +402,7 @@ func chargeByDeadline(cfg BatteryConfig, slots []BatterySlot, socWh, targetWh fl
 		firstPeak = firstPeakIndex(cfg, slots)
 	}
 	if peakLockout && firstPeak >= 0 && firstPeak < peakClusterMergeSlots {
-		return false, false
+		return false
 	}
 
 	until := len(slots)
@@ -385,33 +413,14 @@ func chargeByDeadline(cfg BatteryConfig, slots []BatterySlot, socWh, targetWh fl
 		until = min(until, firstPeak)
 	}
 	if until <= 0 {
-		return true, true
+		return true
 	}
 
 	var laterWh float64
-	var prices []float64
 	for i := 1; i < until; i++ {
-		h := slotHours(slots[i])
-		laterWh += cfg.ChargeW * h * cfg.EtaC
-		if slots[i].Price > 0 {
-			prices = append(prices, slots[i].Price)
-		}
+		laterWh += cfg.ChargeW * slotHours(slots[i]) * cfg.EtaC
 	}
-	if socWh+laterWh < targetWh {
-		must = true
-	}
-
-	if slots[0].Price <= 0 {
-		return must, must
-	}
-	if len(prices) == 0 {
-		return must, true
-	}
-
-	slices.Sort(prices)
-	idx := max(0, len(prices)/2-1)
-	cheap = slots[0].Price <= prices[idx]*1.05
-	return must, cheap
+	return socWh+laterWh < targetWh
 }
 
 // planNeed walks future slots. PV surplus fills first. Peak quarters are left
