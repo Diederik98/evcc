@@ -85,43 +85,75 @@ func TestPlanBatteryDischargeDuringPeak(t *testing.T) {
 	assert.Greater(t, plan.DischargeW, 0)
 }
 
-func TestPlanBatteryHoldCheapNightForMorningPeak(t *testing.T) {
-	// cheap night (0.12 including tax), expensive morning (0.40). Battery has
-	// enough energy: hold overnight instead of emptying into cheap hours.
+func TestPlanBatteryHoldCoverInCheapWindow(t *testing.T) {
+	// cheap night vs expensive morning that pays after round-trip and cycle.
+	// SoC sits in the cover band: hold instead of feeding cheap house load.
 	cfg := BatteryConfig{
 		Soc:            70,
-		MinSoc:         20,
+		MinSoc:         10,
 		MaxSoc:         100,
-		ReserveSoc:     40,
+		ReserveSoc:     20,
 		CapacityWh:     10000,
 		ChargeW:        2500,
 		DischargeW:     5000,
 		EtaC:           0.9,
 		EtaD:           0.9,
 		CycleCost:      0.05,
-		GridThresholdW: 5000,
-		HeadroomW:      4000,
+		GridThresholdW: 10000,
+		HeadroomW:      8000,
 		LiveResidualW:  1500,
 	}
-	cfg.Soc = 90
 	prices := make([]float64, 24)
 	for i := range prices {
 		if i < 16 {
-			prices[i] = 0.25
+			prices[i] = 0.12
 		} else {
-			prices[i] = 0.35
+			prices[i] = 0.40
 		}
 	}
-	// night: 2 kW house, last slots: 8 kW peak that 90% SoC can cover down to reserve
 	slots := testSlots(prices, 2000, 0)
-	for i := 21; i < len(slots); i++ {
-		slots[i].HomeWh = 8000 * tariff.SlotDuration.Hours()
+
+	plan := PlanBattery(cfg, slots)
+	require.Greater(t, plan.TargetSoc, cfg.Soc)
+	require.Equal(t, BatteryActionHold, plan.Action, "cover band must hold in a cheap window")
+	assert.Equal(t, BatteryReasonHold, plan.Reason)
+}
+
+func TestPlanBatteryLeftoverAboveCoverDoesNotHold(t *testing.T) {
+	// Full pack, small cover, evening 38 ct vs a later 41 ct bump. Leftover
+	// must idle so the house can use it; a 5% later bump must not freeze the pack.
+	cfg := BatteryConfig{
+		Soc:            99.9,
+		MinSoc:         11,
+		MaxSoc:         100,
+		ReserveSoc:     20,
+		CapacityWh:     5120,
+		ChargeW:        2500,
+		DischargeW:     2500,
+		EtaC:           0.9,
+		EtaD:           0.9,
+		CycleCost:      0.05,
+		Trade:          true,
+		GridThresholdW: 5500,
+		HeadroomW:      4000,
+		LiveResidualW:  500,
+	}
+	prices := make([]float64, 48)
+	for i := range prices {
+		prices[i] = 0.38
+	}
+	prices[0] = 0.38
+	prices[len(prices)-4] = 0.41
+	slots := testSlots(prices, 400, 0)
+	for i := range slots {
+		slots[i].FeedIn = 0.225
 	}
 
 	plan := PlanBattery(cfg, slots)
-	require.Equal(t, BatteryActionHold, plan.Action, "should hold cheap energy for the morning peak")
-	assert.Equal(t, BatteryReasonHold, plan.Reason)
-	assert.Greater(t, plan.DischargeFloor, 0.12)
+	assert.Less(t, plan.TargetSoc, cfg.Soc-10, "cover must stay well below a full pack")
+	assert.NotEqual(t, BatteryActionHold, plan.Action, "leftover above cover must not hold")
+	assert.Equal(t, BatteryActionNormal, plan.Action)
+	assert.NotEqual(t, BatteryReasonExport, plan.Reason, "22.5 ct feed-in must not beat 38 ct house use")
 }
 
 func TestPlanBatteryTaxesWidenSpreadNeededToCycle(t *testing.T) {
@@ -879,6 +911,99 @@ func TestPlanBatteryExpensiveSlotDoesNotHold(t *testing.T) {
 
 	plan := PlanBattery(cfg, slots)
 	assert.NotEqual(t, BatteryActionHold, plan.Action, "expensive evening should consume cover")
+}
+
+func TestPlanBatteryLeftoverFeedsHouseAcrossHorizon(t *testing.T) {
+	// Live-site shape: 99.9% SoC, ~20% reserve, Trade on, evening 40 ct then a
+	// long stretch of 31-40 ct with a 41 ct bump tomorrow. Leftover must drain
+	// into the house instead of holding until the bump.
+	cfg := BatteryConfig{
+		Soc:            99.9,
+		MinSoc:         11,
+		MaxSoc:         100,
+		ReserveSoc:     20,
+		CapacityWh:     5120,
+		ChargeW:        2500,
+		DischargeW:     2500,
+		EtaC:           0.9,
+		EtaD:           0.9,
+		CycleCost:      0.05,
+		Trade:          true,
+		GridThresholdW: 5500,
+		HeadroomW:      4000,
+		LiveResidualW:  500,
+	}
+	prices := make([]float64, 80)
+	for i := range prices {
+		prices[i] = 0.34
+	}
+	prices[0] = 0.401
+	for i := 1; i < 16; i++ {
+		prices[i] = 0.38
+	}
+	for i := 40; i < 56; i++ {
+		prices[i] = 0.28 // midday, battery-eligible heat-pump load
+	}
+	prices[72] = 0.41
+	slots := testSlots(prices, 400, 0)
+	hours := tariff.SlotDuration.Hours()
+	for i := 40; i < 56; i++ {
+		slots[i].HomeWh = (400 + 1150) * hours
+	}
+	for i := range slots {
+		slots[i].FeedIn = 0.225
+	}
+
+	plan, horizon := PlanBatteryHorizon(cfg, slots)
+	require.NotEmpty(t, horizon)
+	assert.NotEqual(t, BatteryActionHold, plan.Action, "full leftover at 40 ct must not hold")
+	assert.Equal(t, BatteryActionNormal, plan.Action)
+
+	var holdRun, maxHoldRun int
+	for _, h := range horizon {
+		if h.Action == BatteryActionHold {
+			holdRun++
+			if holdRun > maxHoldRun {
+				maxHoldRun = holdRun
+			}
+			continue
+		}
+		holdRun = 0
+	}
+	assert.Less(t, maxHoldRun, 16, "must not freeze the pack for hours on a 40 vs 41 ct bump")
+	assert.Less(t, horizon[len(horizon)-1].Soc, cfg.Soc-5, "leftover should feed the house")
+}
+
+func TestPlanBatteryEligibleMiddayLoadConsumesLeftover(t *testing.T) {
+	cfg := BatteryConfig{
+		Soc:            90,
+		MinSoc:         11,
+		MaxSoc:         100,
+		ReserveSoc:     20,
+		CapacityWh:     5120,
+		ChargeW:        2500,
+		DischargeW:     2500,
+		EtaC:           0.9,
+		EtaD:           0.9,
+		CycleCost:      0.05,
+		Trade:          true,
+		GridThresholdW: 5500,
+		HeadroomW:      4000,
+		LiveResidualW:  1150,
+	}
+	prices := make([]float64, 8)
+	for i := range prices {
+		prices[i] = 0.28
+	}
+	prices[7] = 0.40
+	slots := testSlots(prices, 400, 0)
+	hours := tariff.SlotDuration.Hours()
+	slots[0].HomeWh = (400 + 1150) * hours
+	slots[0].LoadWh = 1150 * hours
+
+	plan := PlanBattery(cfg, slots)
+	assert.NotEqual(t, BatteryActionHold, plan.Action, "leftover must feed eligible midday load")
+	assert.Equal(t, BatteryActionNormal, plan.Action)
 }
 
 func TestPlanBatterySolarCoversEveningSkipsGridCharge(t *testing.T) {

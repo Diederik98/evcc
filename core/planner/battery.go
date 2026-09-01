@@ -99,10 +99,10 @@ type batteryNeed struct {
 // constraint: never grid-charge into a peak, and peak discharge stops at
 // reserve. Cover is reserve plus later expensive battery-served import after
 // solar, plus a small margin. Grid charging happens when the tax-inclusive
-// spread covers round-trip losses and cycle cost. Hold only applies in cheap
-// windows so stored energy is not dumped; expensive windows consume cover.
-// With Trade, leftover above cover may be filled or sold when feed-in beats
-// later self-use.
+// spread covers round-trip losses and cycle cost. Hold only locks the cover
+// band in cheap windows; leftover above cover stays idle so the house can
+// use it. Expensive windows consume cover. With Trade, leftover may be
+// filled or sold when feed-in beats later self-use.
 func PlanBattery(cfg BatteryConfig, slots []BatterySlot) BatteryPlan {
 	if cfg.CapacityWh <= 0 || len(slots) == 0 {
 		return BatteryPlan{Action: BatteryActionNormal, Reason: BatteryReasonIdle}
@@ -116,8 +116,9 @@ func PlanBattery(cfg BatteryConfig, slots []BatterySlot) BatteryPlan {
 	socWh := clamp(cfg.CapacityWh*cfg.Soc/100, minWh, maxWh)
 
 	prices := slotPrices(slots)
+	cheapRef := cheapestPrice(prices)
 	dischargeFloor, chargeCeiling := economicBands(prices, cfg.EtaC, cfg.EtaD, cfg.CycleCost)
-	need := planNeed(cfg, slots, socWh, maxWh, floorWh, cheapestPrice(prices))
+	need := planNeed(cfg, slots, socWh, maxWh, floorWh, cheapRef)
 
 	targetWh := min(need.coverWh, maxWh-need.solarRoomWh)
 	if targetWh < floorWh {
@@ -177,9 +178,12 @@ func PlanBattery(cfg BatteryConfig, slots []BatterySlot) BatteryPlan {
 		}
 	}
 
-	// Hold only while this slot is cheap and a later hour is more expensive.
-	// Expensive slots stay idle so the house can consume cover.
-	if dischargeFloor > 0 && cur.Price > 0 && cur.Price < dischargeFloor && socWh > floorWh+1 && laterHigherPrice(slots, cur.Price) {
+	// Hold only the cover band, and only while this slot is cheap relative to
+	// later hours that actually pay after round-trip and cycle cost. Leftover
+	// above cover stays idle so the house can use it. dischargeFloor (P25/η
+	// plus cycle) sits above typical evening prices and must not freeze the
+	// whole pack for a later 5% bump.
+	if socWh <= targetWh+1 && socWh > floorWh+1 && !slotIsExpensive(cur.Price, cheapRef, cfg.EtaC, cfg.EtaD, cfg.CycleCost) {
 		plan.Action = BatteryActionHold
 		plan.Reason = BatteryReasonHold
 		return plan
@@ -281,18 +285,6 @@ func inCheapBand(price, chargeCeiling float64) bool {
 		return true
 	}
 	return price <= chargeCeiling
-}
-
-func laterHigherPrice(slots []BatterySlot, priceNow float64) bool {
-	if priceNow <= 0 {
-		return false
-	}
-	for _, s := range slots[1:] {
-		if s.Price > priceNow*1.05 {
-			return true
-		}
-	}
-	return false
 }
 
 func laterCheaperCharge(slots []BatterySlot, until int, priceNow float64) bool {
