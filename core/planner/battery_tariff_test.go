@@ -352,8 +352,9 @@ func TestReserveIsTargetWhenNoLaterUse(t *testing.T) {
 func TestLaterHouseUseRaisesCoverAboveReserve(t *testing.T) {
 	cfg := marstekCfg(38, 20)
 	belpex := make([]float64, 16)
-	for i := range belpex {
-		belpex[i] = 0.10
+	belpex[0] = 0.02
+	for i := 1; i < len(belpex); i++ {
+		belpex[i] = 0.28
 	}
 	slots := beSlots(belpex, 400)
 
@@ -369,13 +370,18 @@ func TestPeakRaisesTargetAboveReserve(t *testing.T) {
 	cfg.LiveResidualW = 2000
 	belpex := make([]float64, 20)
 	for i := range belpex {
-		belpex[i] = 0.12
+		if i < 8 {
+			belpex[i] = 0.02
+		} else {
+			belpex[i] = 0.28
+		}
 	}
 	slots := beSlots(belpex, 2000)
 	hours := tariff.SlotDuration.Hours()
 	for i := 8; i < 12; i++ {
-		slots[i].HomeWh = 8000 * hours // 8 kW peak above 5 kW limit
+		slots[i].HomeWh = 2000 * hours
 	}
+	slots[10].HomeWh = 8000 * hours
 
 	plan := PlanBattery(cfg, slots)
 	assert.Greater(t, plan.PeakWh, 0.0)
@@ -590,4 +596,29 @@ func TestFlandersCheapNowChargesBelowReserveDespiteOfftake(t *testing.T) {
 	assert.Contains(t, []string{BatteryReasonCharge, BatteryReasonCheap}, plan.Reason)
 	assert.Greater(t, plan.ChargeW, 1000, "should use remaining headroom, not trickle to reserve only")
 	assert.LessOrEqual(t, plan.ChargeW, 2430)
+}
+
+func TestScreenshotNoonChargesForEveningPeakPrices(t *testing.T) {
+	cfg := marstekCfg(26, 20)
+	cfg.GridThresholdW = 5500
+	cfg.HeadroomW = 3800
+	cfg.LiveResidualW = 1700
+
+	energy := make([]float64, 28)
+	for i := range energy {
+		if i < 16 {
+			energy[i] = 0.06 // all-in ~22 ct
+		} else {
+			energy[i] = 0.21 // all-in ~38 ct
+		}
+	}
+	slots := flSlots(energy, 500, 0)
+
+	plan := PlanBattery(cfg, slots)
+	assert.InDelta(t, 0.2226, slots[0].Price, 1e-3)
+	assert.InDelta(t, 0.3816, slots[16].Price, 1e-3)
+	assert.Equal(t, BatteryActionCharge, plan.Action)
+	assert.Greater(t, plan.ChargeW, 0)
+	assert.Greater(t, plan.TargetSoc, cfg.Soc)
+	assert.Less(t, plan.TargetSoc, 95.0)
 }

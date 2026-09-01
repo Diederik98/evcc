@@ -45,7 +45,11 @@ func TestPlanBatteryChargeForUpcomingPeak(t *testing.T) {
 	}
 	prices := make([]float64, 16)
 	for i := range prices {
-		prices[i] = 0.20
+		if i < 8 {
+			prices[i] = 0.12
+		} else {
+			prices[i] = 0.35
+		}
 	}
 	slots := testSlots(prices, 2000, 0)
 	for i := 8; i < len(slots); i++ {
@@ -53,10 +57,9 @@ func TestPlanBatteryChargeForUpcomingPeak(t *testing.T) {
 	}
 
 	plan := PlanBattery(cfg, slots)
-	require.Equal(t, BatteryActionCharge, plan.Action, "should pre-charge for the evening peak")
-	assert.Greater(t, plan.ChargeW, 0)
-	assert.Greater(t, plan.TargetSoc, cfg.Soc)
+	assert.NotEqual(t, BatteryActionCharge, plan.Action, "peak quarters are shaved live, not pre-charged on a kW signal")
 	assert.Greater(t, plan.PeakWh, 0.0)
+	assert.GreaterOrEqual(t, plan.TargetSoc, cfg.ReserveSoc-0.5)
 }
 
 func TestPlanBatteryDischargeDuringPeak(t *testing.T) {
@@ -287,12 +290,12 @@ func TestPlanBatteryVehicleChargeOverGridLimit(t *testing.T) {
 	hours := tariff.SlotDuration.Hours()
 	for i := 8; i < 12; i++ {
 		slots[i].HomeWh = (2000 + 11000) * hours
+		slots[i].Price = 0.32
 	}
 
 	plan := PlanBattery(cfg, slots)
-	require.Equal(t, BatteryActionCharge, plan.Action)
 	assert.Greater(t, plan.PeakWh, 0.0)
-	assert.Greater(t, plan.TargetSoc, cfg.Soc)
+	assert.NotEqual(t, BatteryActionCharge, plan.Action, "over-limit vehicle energy is a peak, not cover")
 }
 
 func TestPlanBatteryVehicleChargeFitsUnderGridLimit(t *testing.T) {
@@ -652,18 +655,18 @@ func TestPlanBatteryDoesNotExportEnergyNeededForPlannedLoad(t *testing.T) {
 	cfg := exportCfg()
 	cfg.Soc = 90
 	cfg.LiveResidualW = 200
-	prices := []float64{0.18, 0.20, 0.20, 0.22, 0.21, 0.20, 0.19, 0.20}
+	prices := []float64{0.18, 0.45, 0.46, 0.48, 0.47, 0.46, 0.44, 0.45}
 	slots := testSlots(prices, 200, 0)
 	hours := tariff.SlotDuration.Hours()
 	for i := 3; i < 7; i++ {
-		load := 7000 * hours
+		load := 3000 * hours
 		slots[i].LoadWh = load
 		slots[i].HomeWh = 200*hours + load
 	}
 	for i := range slots {
 		slots[i].FeedIn = 0.04
 	}
-	slots[0].FeedIn = 0.55
+	slots[0].FeedIn = 0.20
 
 	plan := PlanBattery(cfg, slots)
 	assert.NotEqual(t, BatteryReasonExport, plan.Reason,
@@ -739,4 +742,176 @@ func TestPlanBatteryHorizonExposesCoverSoc(t *testing.T) {
 	assert.InDelta(t, plan.TargetSoc, horizon[0].CoverSoc, 0.6)
 	assert.Greater(t, horizon[0].CoverSoc, cfg.ReserveSoc)
 	assert.Greater(t, horizon[6].LoadW, 1000.0)
+}
+
+func TestPlanBatteryChargesNoonForExpensiveEvening(t *testing.T) {
+	cfg := BatteryConfig{
+		Soc:            26,
+		MinSoc:         11,
+		MaxSoc:         100,
+		ReserveSoc:     20,
+		CapacityWh:     5120,
+		ChargeW:        2500,
+		DischargeW:     2500,
+		EtaC:           0.9,
+		EtaD:           0.9,
+		CycleCost:      0.05,
+		GridThresholdW: 5500,
+		HeadroomW:      3800,
+		LiveResidualW:  1700,
+	}
+	hours := tariff.SlotDuration.Hours()
+	prices := make([]float64, 28)
+	for i := range prices {
+		if i < 16 {
+			prices[i] = 0.22
+		} else {
+			prices[i] = 0.38
+		}
+	}
+	slots := testSlots(prices, 500, 0)
+	for i := 0; i < 16; i++ {
+		slots[i].LoadWh = 2300 * hours
+		slots[i].HomeWh = 500*hours + 2300*hours
+	}
+
+	plan := PlanBattery(cfg, slots)
+	require.Equal(t, BatteryActionCharge, plan.Action, "22 ct noon should grid-charge for 38 ct evening")
+	assert.Greater(t, plan.ChargeW, 0)
+	assert.Greater(t, plan.TargetSoc, cfg.Soc)
+	assert.Less(t, plan.TargetSoc, 90.0, "cover is later expensive need, not 100%")
+}
+
+func TestPlanBatteryCheapDaikinDoesNotBlockEveningCharge(t *testing.T) {
+	cfg := BatteryConfig{
+		Soc:            26,
+		MinSoc:         11,
+		MaxSoc:         100,
+		ReserveSoc:     20,
+		CapacityWh:     5120,
+		ChargeW:        2500,
+		DischargeW:     2500,
+		EtaC:           0.9,
+		EtaD:           0.9,
+		CycleCost:      0.05,
+		GridThresholdW: 5500,
+		HeadroomW:      3800,
+		LiveResidualW:  1700,
+	}
+	hours := tariff.SlotDuration.Hours()
+	prices := make([]float64, 32)
+	for i := range prices {
+		if i < 12 {
+			prices[i] = 0.22
+		} else {
+			prices[i] = 0.40
+		}
+	}
+	slots := testSlots(prices, 500, 0)
+	for i := 0; i < 8; i++ {
+		load := 2300 * hours
+		slots[i].LoadWh = load
+		slots[i].HomeWh = 500*hours + load
+	}
+
+	plan := PlanBattery(cfg, slots)
+	assert.Equal(t, BatteryActionCharge, plan.Action)
+	assert.Greater(t, plan.ChargeW, 0)
+}
+
+func TestPlanBatteryGridOnlyLoadDoesNotEnterCover(t *testing.T) {
+	cfg := BatteryConfig{
+		Soc:            40,
+		MinSoc:         10,
+		MaxSoc:         100,
+		ReserveSoc:     20,
+		CapacityWh:     5120,
+		ChargeW:        2500,
+		DischargeW:     2500,
+		EtaC:           0.9,
+		EtaD:           0.9,
+		CycleCost:      0.05,
+		GridThresholdW: 5500,
+		HeadroomW:      2000,
+		LiveResidualW:  500,
+	}
+	hours := tariff.SlotDuration.Hours()
+	prices := make([]float64, 16)
+	prices[0] = 0.10
+	for i := 1; i < len(prices); i++ {
+		prices[i] = 0.35
+	}
+	slots := testSlots(prices, 400, 0)
+	for i := 8; i < 12; i++ {
+		load := 7000 * hours
+		slots[i].LoadWh = load
+		slots[i].GridOnlyWh = load
+		slots[i].HomeWh = 400*hours + load
+	}
+
+	plan := PlanBattery(cfg, slots)
+	assert.Greater(t, plan.PeakWh, 0.0)
+	assert.Less(t, plan.TargetSoc, 50.0, "grid-only EV energy must not inflate cover")
+}
+
+func TestPlanBatteryExpensiveSlotDoesNotHold(t *testing.T) {
+	cfg := BatteryConfig{
+		Soc:            40,
+		MinSoc:         11,
+		MaxSoc:         100,
+		ReserveSoc:     20,
+		CapacityWh:     5120,
+		ChargeW:        2500,
+		DischargeW:     2500,
+		EtaC:           0.9,
+		EtaD:           0.9,
+		CycleCost:      0.05,
+		GridThresholdW: 5500,
+		HeadroomW:      4000,
+		LiveResidualW:  500,
+	}
+	prices := make([]float64, 16)
+	for i := range prices {
+		prices[i] = 0.40
+	}
+	prices[0] = 0.40
+	slots := testSlots(prices, 500, 0)
+
+	plan := PlanBattery(cfg, slots)
+	assert.NotEqual(t, BatteryActionHold, plan.Action, "expensive evening should consume cover")
+}
+
+func TestPlanBatterySolarCoversEveningSkipsGridCharge(t *testing.T) {
+	cfg := BatteryConfig{
+		Soc:            26,
+		MinSoc:         11,
+		MaxSoc:         100,
+		ReserveSoc:     20,
+		CapacityWh:     5120,
+		ChargeW:        2500,
+		DischargeW:     2500,
+		EtaC:           0.9,
+		EtaD:           0.9,
+		CycleCost:      0.05,
+		GridThresholdW: 5500,
+		HeadroomW:      3800,
+		LiveResidualW:  400,
+	}
+	hours := tariff.SlotDuration.Hours()
+	prices := make([]float64, 32)
+	for i := range prices {
+		if i < 8 {
+			prices[i] = 0.22
+		} else {
+			prices[i] = 0.38
+		}
+	}
+	slots := testSlots(prices, 500, 0)
+	for i := 2; i < 16; i++ {
+		slots[i].SolarWh = 2500 * hours
+	}
+
+	plan := PlanBattery(cfg, slots)
+	assert.NotEqual(t, BatteryActionCharge, plan.Action)
+	assert.Greater(t, plan.SolarRoomWh, 0.0)
 }

@@ -14,27 +14,29 @@ const (
 	BatteryActionHold      = "hold"
 	BatteryActionDischarge = "discharge"
 
-	BatteryReasonIdle     = "idle"
-	BatteryReasonPeak     = "peak"
-	BatteryReasonCharge   = "charge"
-	BatteryReasonCheap    = "cheap"
-	BatteryReasonHold     = "hold"
-	BatteryReasonRecovery = "recovery"
-	BatteryReasonExport   = "export"
+	BatteryReasonIdle   = "idle"
+	BatteryReasonPeak   = "peak"
+	BatteryReasonCharge = "charge"
+	BatteryReasonCheap  = "cheap"
+	BatteryReasonHold   = "hold"
+	BatteryReasonExport = "export"
 
 	batteryEta            = 0.9
 	defaultBatteryChargeW = 2500.0
+	coverMargin           = 1.15 // charge a little more than predicted expensive need
+	peakClusterMergeSlots = 2
 )
 
 // BatterySlot is one planning interval with tax-inclusive prices.
 type BatterySlot struct {
-	Start   time.Time
-	End     time.Time
-	HomeWh  float64
-	SolarWh float64
-	LoadWh  float64 // planned charger/heater energy included in HomeWh
-	Price   float64 // grid price including charges and tax, per kWh
-	FeedIn  float64
+	Start      time.Time
+	End        time.Time
+	HomeWh     float64 // house + all planned loads (peak residual)
+	SolarWh    float64
+	LoadWh     float64 // planned charger/heater energy included in HomeWh
+	GridOnlyWh float64 // planned load the battery must not serve (subset of LoadWh)
+	Price      float64 // grid price including charges and tax, per kWh
+	FeedIn     float64
 }
 
 // BatteryConfig describes the battery and grid constraints for PlanBattery.
@@ -83,60 +85,52 @@ type BatteryHorizonSlot struct {
 	Peak       bool
 }
 
+type batteryNeed struct {
+	coverWh     float64
+	solarRoomWh float64
+	solarAllWh  float64
+	unmetACWh   float64
+	unmetCost   float64
+	firstNeed   int
+}
+
 // PlanBattery decides charge, hold, discharge or export for the current slot.
 // Prices must already include taxes and levies. Peak shaving is the hard
 // constraint: never grid-charge into a peak, and peak discharge stops at
-// reserve. The energy target is later house import after future net solar,
-// plus the next peak cluster. Grid charging for that cover happens when the
-// tax-inclusive spread covers round-trip losses and cycle cost. With Trade,
-// leftover above cover can be filled toward max or sold when feed-in beats
-// later self-use. Live watts are tracked on a faster control loop.
+// reserve. Cover is reserve plus later expensive battery-served import after
+// solar, plus a small margin. Grid charging happens when the tax-inclusive
+// spread covers round-trip losses and cycle cost. Hold only applies in cheap
+// windows so stored energy is not dumped; expensive windows consume cover.
+// With Trade, leftover above cover may be filled or sold when feed-in beats
+// later self-use.
 func PlanBattery(cfg BatteryConfig, slots []BatterySlot) BatteryPlan {
 	if cfg.CapacityWh <= 0 || len(slots) == 0 {
 		return BatteryPlan{Action: BatteryActionNormal, Reason: BatteryReasonIdle}
 	}
 
-	if cfg.EtaC <= 0 {
-		cfg.EtaC = batteryEta
-	}
-	if cfg.EtaD <= 0 {
-		cfg.EtaD = batteryEta
-	}
-	if cfg.ChargeW <= 0 {
-		cfg.ChargeW = defaultBatteryChargeW
-	}
-	if cfg.DischargeW <= 0 {
-		cfg.DischargeW = defaultBatteryChargeW
-	}
-	if cfg.MaxSoc <= 0 {
-		cfg.MaxSoc = 100
-	}
+	cfg = withBatteryDefaults(cfg)
 
 	minWh := minEnergyWh(cfg)
 	maxWh := cfg.CapacityWh * cfg.MaxSoc / 100
 	floorWh := reserveEnergyWh(cfg)
 	socWh := clamp(cfg.CapacityWh*cfg.Soc/100, minWh, maxWh)
 
-	peakWh := peakEnergyWh(cfg, slots)
-	peakTargetWh := requiredEnergyWh(cfg, slots)
-	cover := forecastCover(cfg, slots, socWh, maxWh, floorWh)
-	plannedDC := 0.0
-	if cfg.EtaD > 0 {
-		plannedDC = plannedLoadNeedWh(cfg, slots) / cfg.EtaD
-	}
-	holdWh := clamp(floorWh+nextClusterEnergyWh(cfg, slots)+plannedDC, floorWh, maxWh)
-	targetWh := max(cover.coverWh, holdWh)
-
 	prices := slotPrices(slots)
 	dischargeFloor, chargeCeiling := economicBands(prices, cfg.EtaC, cfg.EtaD, cfg.CycleCost)
+	need := planNeed(cfg, slots, socWh, maxWh, floorWh, cheapestPrice(prices))
+
+	targetWh := min(need.coverWh, maxWh-need.solarRoomWh)
+	if targetWh < floorWh {
+		targetWh = floorWh
+	}
 
 	plan := BatteryPlan{
 		Action:         BatteryActionNormal,
 		Reason:         BatteryReasonIdle,
 		TargetSoc:      100 * targetWh / cfg.CapacityWh,
-		PeakWh:         peakWh,
+		PeakWh:         peakEnergyWh(cfg, slots),
 		CoverWh:        targetWh,
-		SolarRoomWh:    cover.solarRoomWh,
+		SolarRoomWh:    need.solarRoomWh,
 		DischargeFloor: dischargeFloor,
 		ChargeCeiling:  chargeCeiling,
 	}
@@ -152,7 +146,6 @@ func PlanBattery(cfg BatteryConfig, slots []BatterySlot) BatteryPlan {
 	overshootW := max(0, residualW-cfg.GridThresholdW)
 	inPeak := cfg.GridThresholdW > 0 && overshootW > 0
 
-	// Peak discharge stops at reserve. Min SoC is only the live last-resort floor.
 	if inPeak && socWh > floorWh+1 {
 		discharge := min(overshootW, cfg.DischargeW, (socWh-floorWh)/hours*cfg.EtaD)
 		if discharge > 0 {
@@ -164,7 +157,7 @@ func PlanBattery(cfg BatteryConfig, slots []BatterySlot) BatteryPlan {
 	}
 
 	if !inPeak {
-		if p, ok := gridChargePlan(cfg, slots, socWh, peakTargetWh, targetWh, cover, hours, floorWh); ok {
+		if p, ok := gridChargePlan(cfg, slots, socWh, targetWh, need, hours, maxWh); ok {
 			p.TargetSoc = plan.TargetSoc
 			p.PeakWh = plan.PeakWh
 			p.CoverWh = plan.CoverWh
@@ -173,13 +166,6 @@ func PlanBattery(cfg BatteryConfig, slots []BatterySlot) BatteryPlan {
 			p.ChargeCeiling = plan.ChargeCeiling
 			return p
 		}
-	}
-
-	deficitWh := targetWh - socWh
-	if dischargeFloor > 0 && cur.Price > 0 && cur.Price < dischargeFloor && socWh > floorWh+1 && (deficitWh > -cfg.CapacityWh*0.05 || peakWh > 0) {
-		plan.Action = BatteryActionHold
-		plan.Reason = BatteryReasonHold
-		return plan
 	}
 
 	if cfg.Trade {
@@ -191,17 +177,40 @@ func PlanBattery(cfg BatteryConfig, slots []BatterySlot) BatteryPlan {
 		}
 	}
 
+	// Hold only while this slot is cheap and a later hour is more expensive.
+	// Expensive slots stay idle so the house can consume cover.
+	if dischargeFloor > 0 && cur.Price > 0 && cur.Price < dischargeFloor && socWh > floorWh+1 && laterHigherPrice(slots, cur.Price) {
+		plan.Action = BatteryActionHold
+		plan.Reason = BatteryReasonHold
+		return plan
+	}
+
 	return plan
 }
 
-func gridChargePlan(cfg BatteryConfig, slots []BatterySlot, socWh, peakTargetWh, coverWh float64, cover batteryCover, hours, floorWh float64) (BatteryPlan, bool) {
-	maxWh := cfg.CapacityWh * cfg.MaxSoc / 100
+func withBatteryDefaults(cfg BatteryConfig) BatteryConfig {
+	if cfg.EtaC <= 0 {
+		cfg.EtaC = batteryEta
+	}
+	if cfg.EtaD <= 0 {
+		cfg.EtaD = batteryEta
+	}
+	if cfg.ChargeW <= 0 {
+		cfg.ChargeW = defaultBatteryChargeW
+	}
+	if cfg.DischargeW <= 0 {
+		cfg.DischargeW = defaultBatteryChargeW
+	}
+	if cfg.MaxSoc <= 0 {
+		cfg.MaxSoc = 100
+	}
+	return cfg
+}
+
+func gridChargePlan(cfg BatteryConfig, slots []BatterySlot, socWh, coverWh float64, need batteryNeed, hours, maxWh float64) (BatteryPlan, bool) {
 	cur := slots[0]
 
-	tryCharge := func(targetWh float64, must, cheap bool, reasonIfMust string) (BatteryPlan, bool) {
-		if !must && !cheap {
-			return BatteryPlan{}, false
-		}
+	tryCharge := func(targetWh float64, reason string) (BatteryPlan, bool) {
 		deficit := targetWh - socWh
 		if deficit <= 1 {
 			return BatteryPlan{}, false
@@ -210,50 +219,68 @@ func gridChargePlan(cfg BatteryConfig, slots []BatterySlot, socWh, peakTargetWh,
 		if charge <= 0 {
 			return BatteryPlan{}, false
 		}
-		reason := BatteryReasonCheap
-		if must {
-			reason = reasonIfMust
-		}
 		return BatteryPlan{Action: BatteryActionCharge, Reason: reason, ChargeW: int(math.Round(charge))}, true
 	}
 
-	var best BatteryPlan
-	found := false
-	consider := func(p BatteryPlan, ok bool) {
-		if ok && (!found || p.ChargeW > best.ChargeW) {
-			best, found = p, true
-		}
-	}
-
-	if socWh < peakTargetWh-1 {
-		must, cheap := chargeByDeadline(cfg, slots, socWh, peakTargetWh, firstPeakIndex(cfg, slots), true)
-		// Below reserve, skip opportunistic reserve refill on a flat tariff.
-		if must || socWh >= floorWh {
-			consider(tryCharge(peakTargetWh, must, cheap, BatteryReasonCharge))
-		}
-	}
-
-	coverCap := min(coverWh, maxWh-cover.solarRoomWh)
-	if socWh < coverCap-1 && cover.unmetACWh > 1 {
-		avoided := cover.unmetCost / (cover.unmetACWh / 1000)
+	coverCap := min(coverWh, maxWh-need.solarRoomWh)
+	if socWh < coverCap-1 && need.unmetACWh > 1 {
+		avoided := need.unmetCost / (need.unmetACWh / 1000)
 		if gridChargePays(cur.Price, avoided, cfg.EtaC, cfg.EtaD, cfg.CycleCost) {
-			must, cheap := chargeByDeadline(cfg, slots, socWh, coverCap, cover.firstUnmet, true)
-			consider(tryCharge(coverCap, must, cheap, BatteryReasonCharge))
-		}
-	}
-
-	if cfg.Trade {
-		tradeCap := min(maxWh, maxWh-cover.solarAllWh)
-		if socWh >= coverWh-1 && socWh < tradeCap-1 {
-			p75 := laterImportP75(slots)
-			if gridChargePays(cur.Price, p75, cfg.EtaC, cfg.EtaD, cfg.CycleCost) {
-				must, cheap := chargeByDeadline(cfg, slots, socWh, tradeCap, -1, true)
-				consider(tryCharge(tradeCap, must, cheap, BatteryReasonCheap))
+			must, cheap := chargeByDeadline(cfg, slots, socWh, coverCap, need.firstNeed, true)
+			if must || cheap || !laterCheaperCharge(slots, need.firstNeed, cur.Price) {
+				reason := BatteryReasonCheap
+				if must {
+					reason = BatteryReasonCharge
+				}
+				if p, ok := tryCharge(coverCap, reason); ok {
+					return p, true
+				}
 			}
 		}
 	}
 
-	return best, found
+	if cfg.Trade {
+		tradeCap := min(maxWh, maxWh-need.solarAllWh)
+		if socWh >= coverWh-1 && socWh < tradeCap-1 {
+			p75 := laterImportP75(slots)
+			if gridChargePays(cur.Price, p75, cfg.EtaC, cfg.EtaD, cfg.CycleCost) {
+				must, cheap := chargeByDeadline(cfg, slots, socWh, tradeCap, -1, true)
+				if must || cheap || !laterCheaperCharge(slots, -1, cur.Price) {
+					return tryCharge(tradeCap, BatteryReasonCheap)
+				}
+			}
+		}
+	}
+
+	return BatteryPlan{}, false
+}
+
+func laterHigherPrice(slots []BatterySlot, priceNow float64) bool {
+	if priceNow <= 0 {
+		return false
+	}
+	for _, s := range slots[1:] {
+		if s.Price > priceNow*1.05 {
+			return true
+		}
+	}
+	return false
+}
+
+func laterCheaperCharge(slots []BatterySlot, until int, priceNow float64) bool {
+	if priceNow <= 0 {
+		return false
+	}
+	end := len(slots)
+	if until >= 0 {
+		end = min(end, until)
+	}
+	for i := 1; i < end; i++ {
+		if slots[i].Price > 0 && slots[i].Price < priceNow*0.95 {
+			return true
+		}
+	}
+	return false
 }
 
 func slotHours(s BatterySlot) float64 {
@@ -289,6 +316,18 @@ func slotOvershootWh(cfg BatteryConfig, s BatterySlot) float64 {
 	return max(0, max(0, s.HomeWh-s.SolarWh)-thresholdWh(cfg, h))
 }
 
+func servedHomeWh(s BatterySlot) float64 {
+	return max(0, s.HomeWh-s.GridOnlyWh)
+}
+
+func servedResidualAC(s BatterySlot) float64 {
+	return max(0, servedHomeWh(s)-s.SolarWh)
+}
+
+func solarSurplusAC(s BatterySlot) float64 {
+	return max(0, s.SolarWh-servedHomeWh(s))
+}
+
 func minEnergyWh(cfg BatteryConfig) float64 {
 	return cfg.CapacityWh * cfg.MinSoc / 100
 }
@@ -315,55 +354,13 @@ func peakEnergyWh(cfg BatteryConfig, slots []BatterySlot) float64 {
 	return sum
 }
 
-const peakClusterMergeSlots = 2
-
-// requiredEnergyWh is reserve plus energy for the next peak cluster. Later
-// clusters are not pre-charged: that would refill between peaks and chatter.
-func requiredEnergyWh(cfg BatteryConfig, slots []BatterySlot) float64 {
-	floorWh := reserveEnergyWh(cfg)
-	maxWh := cfg.CapacityWh * cfg.MaxSoc / 100
-	return clamp(floorWh+nextClusterEnergyWh(cfg, slots), floorWh, maxWh)
-}
-
-func nextClusterEnergyWh(cfg BatteryConfig, slots []BatterySlot) float64 {
-	start := firstPeakIndex(cfg, slots)
-	if start < 0 {
-		return 0
-	}
-	// already in a peak, or the next one is the following quarter: use energy
-	// already above reserve instead of grid-charging into a discharge slot
-	if start < peakClusterMergeSlots {
-		return 0
-	}
-
-	end := start
-	quiet := 0
-	for i := start; i < len(slots); i++ {
-		if slotOvershootWh(cfg, slots[i]) > 0 {
-			end = i
-			quiet = 0
-			continue
-		}
-		quiet++
-		if quiet >= peakClusterMergeSlots {
-			break
+func firstPeakIndex(cfg BatteryConfig, slots []BatterySlot) int {
+	for i, s := range slots {
+		if slotOvershootWh(cfg, s) > 0 {
+			return i
 		}
 	}
-
-	var need float64
-	for i := start; i <= end; i++ {
-		overshoot := slotOvershootWh(cfg, slots[i])
-		if overshoot > 0 && cfg.EtaD > 0 {
-			need += overshoot / cfg.EtaD
-		}
-	}
-	for i := 0; i < start; i++ {
-		surplus := max(0, slots[i].SolarWh-slots[i].HomeWh)
-		if surplus > 0 && cfg.EtaC > 0 {
-			need -= surplus * cfg.EtaC
-		}
-	}
-	return max(0, need)
+	return -1
 }
 
 func chargeByDeadline(cfg BatteryConfig, slots []BatterySlot, socWh, targetWh float64, deadline int, peakLockout bool) (must, cheap bool) {
@@ -417,78 +414,113 @@ func chargeByDeadline(cfg BatteryConfig, slots []BatterySlot, socWh, targetWh fl
 	return must, cheap
 }
 
-type batteryCover struct {
-	coverWh     float64
-	solarRoomWh float64
-	solarAllWh  float64
-	unmetACWh   float64
-	unmetCost   float64
-	firstUnmet  int
+// planNeed walks future slots. PV surplus fills first. Peak quarters are left
+// to live shaving. Only later under-limit import that would pay after round-trip
+// and cycle cost, relative to the cheapest horizon price, counts as cover.
+func planNeed(cfg BatteryConfig, slots []BatterySlot, socWh, maxWh, floorWh, cheapRef float64) batteryNeed {
+	out := batteryNeed{firstNeed: -1, coverWh: floorWh}
+	if len(slots) < 2 || cfg.EtaD <= 0 {
+		return out
+	}
+
+	desired := coverWalk(cfg, slots, floorWh, maxWh, floorWh, cheapRef, true)
+	fromSoc := coverWalk(cfg, slots, socWh, maxWh, floorWh, cheapRef, true)
+	out.solarRoomWh = fromSoc.solarRoomWh
+	out.solarAllWh = max(desired.solarAllWh, fromSoc.solarAllWh)
+	out.unmetACWh = fromSoc.unmetACWh
+	out.unmetCost = fromSoc.unmetCost
+	out.firstNeed = fromSoc.firstNeed
+	if fromSoc.firstNeed < 0 {
+		out.firstNeed = desired.firstNeed
+	}
+	out.coverWh = clamp(floorWh+desired.unmetDC*coverMargin, floorWh, maxWh)
+	return out
 }
 
-// forecastCover walks future slots from current SoC. PV surplus fills first.
-// Under-limit house residual that the virtual battery cannot cover is unmet
-// import. Cover is reserve plus next peak cluster plus that unmet, as DC Wh.
-func forecastCover(cfg BatteryConfig, slots []BatterySlot, socWh, maxWh, floorWh float64) batteryCover {
-	out := batteryCover{firstUnmet: -1}
-	soc := socWh
+type coverWalkResult struct {
+	solarRoomWh, solarAllWh, unmetACWh, unmetCost, unmetDC float64
+	firstNeed                                              int
+}
+
+func coverWalk(cfg BatteryConfig, slots []BatterySlot, startWh, maxWh, floorWh, cheapRef float64, trackSolarRoom bool) coverWalkResult {
+	out := coverWalkResult{firstNeed: -1}
+	soc := clamp(startWh, floorWh, maxWh)
 	seenNeed := false
 	etaC, etaD := cfg.EtaC, cfg.EtaD
 
 	for i := 1; i < len(slots); i++ {
 		s := slots[i]
-		surplusAC := max(0, s.SolarWh-s.HomeWh)
-		residualAC := max(0, s.HomeWh-s.SolarWh)
-
-		if surplusAC > 0 && etaC > 0 {
+		if surplusAC := solarSurplusAC(s); surplusAC > 0 && etaC > 0 {
 			stored := min(maxWh-soc, surplusAC*etaC)
 			if stored > 0 {
 				soc += stored
 				out.solarAllWh += stored
-				if !seenNeed {
+				if trackSolarRoom && !seenNeed {
 					out.solarRoomWh += stored
 				}
 			}
 		}
 
-		if residualAC <= 0 {
+		if cfg.GridThresholdW > 0 && slotOvershootWh(cfg, s) > 0 {
 			continue
 		}
 
-		isPeak := cfg.GridThresholdW > 0 && slotOvershootWh(cfg, s) > 0
-		underAC := residualAC
+		servedAC := servedResidualAC(s)
 		if cfg.GridThresholdW > 0 {
-			underAC = min(residualAC, cfg.GridThresholdW*slotHours(s))
+			servedAC = min(servedAC, cfg.GridThresholdW*slotHours(s))
+		}
+		if servedAC <= 1 {
+			continue
+		}
+		if !slotIsExpensive(s.Price, cheapRef, cfg.EtaC, cfg.EtaD, cfg.CycleCost) {
+			continue
 		}
 
-		if etaD > 0 && underAC > 0 {
-			needDC := underAC / etaD
-			take := min(max(0, soc-floorWh), needDC)
-			soc -= take
-			leftoverAC := (needDC - take) * etaD
-			if leftoverAC > 1 {
-				seenNeed = true
-				out.unmetACWh += leftoverAC
-				if s.Price > 0 {
-					out.unmetCost += leftoverAC / 1000 * s.Price
-				}
-				if out.firstUnmet < 0 {
-					out.firstUnmet = i
-				}
-			}
+		needDC := servedAC / etaD
+		take := min(max(0, soc-floorWh), needDC)
+		soc -= take
+		unmet := needDC - take
+		if unmet <= 1 {
+			continue
 		}
-
-		if isPeak {
-			seenNeed = true
+		seenNeed = true
+		out.unmetDC += unmet
+		leftoverAC := unmet * etaD
+		out.unmetACWh += leftoverAC
+		if s.Price > 0 {
+			out.unmetCost += leftoverAC / 1000 * s.Price
+		}
+		if out.firstNeed < 0 {
+			out.firstNeed = i
 		}
 	}
-
-	unmetDC := 0.0
-	if etaD > 0 {
-		unmetDC = out.unmetACWh / etaD
-	}
-	out.coverWh = clamp(requiredEnergyWh(cfg, slots)+unmetDC, floorWh, maxWh)
 	return out
+}
+
+func cheapestPrice(prices []float64) float64 {
+	if len(prices) == 0 {
+		return 0
+	}
+	minP := prices[0]
+	for _, p := range prices[1:] {
+		if p > 0 && (minP <= 0 || p < minP) {
+			minP = p
+		}
+	}
+	return minP
+}
+
+func slotIsExpensive(price, cheapRef, etaC, etaD, cycleCost float64) bool {
+	if price <= 0 {
+		return false
+	}
+	if cheapRef <= 0 {
+		return gridChargePays(0, price, etaC, etaD, cycleCost)
+	}
+	if price <= cheapRef*1.02 {
+		return false
+	}
+	return gridChargePays(cheapRef, price, etaC, etaD, cycleCost)
 }
 
 func gridChargePays(priceNow, avoided, etaC, etaD, cycleCost float64) bool {
@@ -519,39 +551,11 @@ func laterImportP75(slots []BatterySlot) float64 {
 	return percentile(prices, 0.75)
 }
 
-// plannedLoadNeedWh is later planned charger/heater energy that stays under
-// the grid limit. Over-limit planned charging is reserved via the peak cluster.
-func plannedLoadNeedWh(cfg BatteryConfig, slots []BatterySlot) float64 {
-	var need float64
-	for _, s := range slots[1:] {
-		if s.LoadWh <= 1 {
-			continue
-		}
-		load := s.LoadWh
-		if cfg.GridThresholdW > 0 {
-			h := slotHours(s)
-			house := max(0, s.HomeWh-s.LoadWh)
-			load = min(load, max(0, cfg.GridThresholdW*h-house))
-		}
-		need += load
-	}
-	return need
-}
-
-func firstPeakIndex(cfg BatteryConfig, slots []BatterySlot) int {
-	for i, s := range slots {
-		if slotOvershootWh(cfg, s) > 0 {
-			return i
-		}
-	}
-	return -1
-}
-
 // exportExcessW is AC discharge for selling leftover energy above cover.
-// Energy reserved for later peaks and later house import is never sold. If a
-// later hour pays more, that hour is filled first and only overflow is sold
-// now. Sell is an explicit trade: feed-in minus cycle cost must beat the € of
-// keeping that slice for later self-consumption.
+// Energy reserved for later expensive self-use is never sold. If a later hour
+// pays more, that hour is filled first and only overflow is sold now. Sell is
+// an explicit trade: feed-in minus cycle cost must beat the € of keeping that
+// slice for later self-consumption.
 func exportExcessW(cfg BatteryConfig, slots []BatterySlot, socWh, targetWh float64) float64 {
 	excessWh := socWh - targetWh
 	if excessWh <= 1 {
@@ -606,7 +610,7 @@ func selfConsumptionValueEur(cfg BatteryConfig, slots []BatterySlot, excessWh fl
 			continue
 		}
 		h := slotHours(s)
-		residual := max(0, s.HomeWh-s.SolarWh)
+		residual := servedResidualAC(s)
 		cap := residual
 		if cfg.GridThresholdW > 0 {
 			cap = min(residual, cfg.GridThresholdW*h)
@@ -745,14 +749,15 @@ func applyHorizonStep(cfg BatteryConfig, s BatterySlot, plan BatteryPlan, socWh 
 
 	switch plan.Action {
 	case BatteryActionCharge:
-		socWh += float64(plan.ChargeW) * hours * etaC
+		fromGrid := float64(plan.ChargeW)
+		fromPv := 0.0
 		if net < 0 {
-			socWh += min(-net, cfg.ChargeW) * hours * etaC
+			fromPv = min(-net, max(0, cfg.ChargeW-fromGrid))
 		}
+		socWh += (fromGrid + fromPv) * hours * etaC
 	case BatteryActionDischarge:
 		socWh -= float64(plan.DischargeW) * hours / etaD
 	case BatteryActionHold:
-		// Hold blocks discharge to the house, but PV surplus may still charge.
 		if net < 0 {
 			socWh += min(-net, cfg.ChargeW) * hours * etaC
 		}

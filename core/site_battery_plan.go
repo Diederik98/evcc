@@ -364,10 +364,20 @@ func applyLoadpointPlans(loadpoints []loadpoint.API, slots []planner.BatterySlot
 			continue
 		}
 
+		loadBefore := make([]float64, len(slots))
+		for j := range slots {
+			loadBefore[j] = slots[j].LoadWh
+		}
 		wh, cur := planner.FlattenChargeDemands(slots, demands, gridThresholdW)
 		addedWh += wh
 		for _, w := range cur {
 			caps[i] += w
+		}
+		gridOnly := !lp.GetBatteryDischargeExclude()
+		if gridOnly {
+			for j := range slots {
+				slots[j].GridOnlyWh += max(0, slots[j].LoadWh-loadBefore[j])
+			}
 		}
 
 		heating := false
@@ -386,8 +396,8 @@ func applyLoadpointPlans(loadpoints []loadpoint.API, slots []planner.BatterySlot
 			}
 		}
 		for _, d := range demands {
-			for slotIdx, wh := range planner.DemandSlotWh(slots, d, gridThresholdW) {
-				addSlotLoad(slotIdx, title, wh)
+			for slotIdx, slotWh := range planner.DemandSlotWh(slots, d, gridThresholdW) {
+				addSlotLoad(slotIdx, title, slotWh)
 			}
 			start, end := planner.Start(d.Preferred), planner.End(d.Preferred)
 			mode := "flex"
