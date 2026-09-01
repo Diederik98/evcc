@@ -959,18 +959,13 @@ func TestPlanBatteryLeftoverFeedsHouseAcrossHorizon(t *testing.T) {
 	assert.NotEqual(t, BatteryActionHold, plan.Action, "full leftover at 40 ct must not hold")
 	assert.Equal(t, BatteryActionNormal, plan.Action)
 
-	var holdRun, maxHoldRun int
 	for _, h := range horizon {
-		if h.Action == BatteryActionHold {
-			holdRun++
-			if holdRun > maxHoldRun {
-				maxHoldRun = holdRun
-			}
+		if h.Action != BatteryActionHold {
 			continue
 		}
-		holdRun = 0
+		assert.LessOrEqual(t, h.Soc, h.CoverSoc+1, "hold must stay in the cover band")
+		assert.Less(t, h.Soc, 50.0, "must not hold leftover near full")
 	}
-	assert.Less(t, maxHoldRun, 16, "must not freeze the pack for hours on a 40 vs 41 ct bump")
 	assert.Less(t, horizon[len(horizon)-1].Soc, cfg.Soc-5, "leftover should feed the house")
 }
 
