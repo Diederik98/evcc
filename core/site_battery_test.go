@@ -1002,6 +1002,30 @@ func TestApplyLiveBatteryPowerLimitsPeakWinsOverChargeOnly(t *testing.T) {
 	ctrl.Finish()
 }
 
+func TestBatteryControlInterval(t *testing.T) {
+	site := NewSite()
+	assert.InDelta(t, 5, site.GetBatteryControlInterval(), 1e-9)
+	assert.Equal(t, 5*time.Second, site.batteryControlInterval())
+
+	assert.Error(t, site.SetBatteryControlInterval(5))
+
+	ctrl := gomock.NewController(t)
+	meter := api.NewMockMeter(ctrl)
+	site.batteryMeters = []config.Device[api.Meter]{config.NewStaticDevice(config.Named{}, api.Meter(meter))}
+
+	assert.NoError(t, site.SetBatteryControlInterval(5))
+	assert.InDelta(t, 5, site.GetBatteryControlInterval(), 1e-9)
+	assert.NoError(t, site.SetBatteryControlInterval(1))
+	assert.Equal(t, time.Second, site.batteryControlInterval())
+	assert.Error(t, site.SetBatteryControlInterval(0))
+	assert.Error(t, site.SetBatteryControlInterval(61))
+	assert.Equal(t, time.Second, site.batteryControlInterval())
+
+	site.BatteryControlInterval = 0
+	assert.InDelta(t, 5, site.GetBatteryControlInterval(), 1e-9)
+	assert.Equal(t, 5*time.Second, site.batteryControlInterval())
+}
+
 func TestPeakShaveRemainingAllowedW(t *testing.T) {
 	slot := 15 * time.Minute
 	limit := 10000.0

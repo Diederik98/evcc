@@ -474,6 +474,40 @@ func (site *Site) SetPeakShaveLoadShedDelay(delay float64) error {
 	return nil
 }
 
+// GetBatteryControlInterval returns the live battery power-control loop interval in seconds
+func (site *Site) GetBatteryControlInterval() float64 {
+	site.RLock()
+	defer site.RUnlock()
+	if site.BatteryControlInterval < minBatteryControlIntervalS {
+		return defaultBatteryControlIntervalS
+	}
+	return site.BatteryControlInterval
+}
+
+// SetBatteryControlInterval sets the live battery power-control loop interval in seconds
+func (site *Site) SetBatteryControlInterval(interval float64) error {
+	site.Lock()
+	defer site.Unlock()
+
+	if len(site.batteryMeters) == 0 {
+		return ErrBatteryNotConfigured
+	}
+
+	if interval < minBatteryControlIntervalS || interval > maxBatteryControlIntervalS {
+		return fmt.Errorf("battery control interval must be between %.0f and %.0f s", minBatteryControlIntervalS, maxBatteryControlIntervalS)
+	}
+
+	site.log.DEBUG.Println("set battery control interval:", interval)
+
+	if site.BatteryControlInterval != interval {
+		site.BatteryControlInterval = interval
+		settings.SetFloat(keys.BatteryControlInterval, site.BatteryControlInterval)
+		site.publish(keys.BatteryControlInterval, site.BatteryControlInterval)
+	}
+
+	return nil
+}
+
 // GetPeakShaveAverage returns whether peak shaving uses the clock-aligned 15-minute average
 func (site *Site) GetPeakShaveAverage() bool {
 	site.RLock()

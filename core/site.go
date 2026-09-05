@@ -68,6 +68,7 @@ type Site struct {
 	PeakShaveMinSoc                 float64                    `mapstructure:"peakShaveMinSoc"`                 // Peak shaving battery min SoC in %
 	PeakShaveMaintainSocChargePower float64                    `mapstructure:"peakShaveMaintainSocChargePower"` // Power limit for restoring reserve SoC in W
 	PeakShaveLoadShedDelay          float64                    `mapstructure:"peakShaveLoadShedDelay"`          // Grace period before EV load shedding in s
+	BatteryControlInterval          float64                    `mapstructure:"batteryControlInterval"`          // Live battery power-control loop interval in s
 	PeakShaveAverage                bool                       `mapstructure:"peakShaveAverage"`                // Control clock-aligned 15-minute average instead of instantaneous watts
 	BatteryCycleCost                float64                    `mapstructure:"batteryCycleCost"`                // Wear cost in currency per kWh discharged
 	BatteryTrade                    bool                       `mapstructure:"batteryTrade"`                    // After cover, fill toward max and sell when feed-in beats later self-use
@@ -341,6 +342,7 @@ func NewSite() *Site {
 		PeakShaveMinSoc:                 20,
 		PeakShaveMaintainSocChargePower: 1000,
 		PeakShaveLoadShedDelay:          30,
+		BatteryControlInterval:          defaultBatteryControlIntervalS,
 		BatteryCycleCost:                defaultBatteryCycleCost,
 	}
 
@@ -435,6 +437,9 @@ func (site *Site) restoreSettings() error {
 	}
 	if v, err := settings.Float(keys.PeakShaveLoadShedDelay); err == nil {
 		_ = site.SetPeakShaveLoadShedDelay(v)
+	}
+	if v, err := settings.Float(keys.BatteryControlInterval); err == nil {
+		_ = site.SetBatteryControlInterval(v)
 	}
 	if v, err := settings.Bool(keys.PeakShaveAverage); err == nil {
 		_ = site.SetPeakShaveAverage(v)
@@ -1198,6 +1203,7 @@ func (site *Site) prepare() {
 	site.publish(keys.PeakShaveMinSoc, site.GetPeakShaveMinSoc())
 	site.publish(keys.PeakShaveMaintainSocChargePower, site.GetPeakShaveMaintainSocChargePower())
 	site.publish(keys.PeakShaveLoadShedDelay, site.GetPeakShaveLoadShedDelay())
+	site.publish(keys.BatteryControlInterval, site.GetBatteryControlInterval())
 	site.publish(keys.PeakShaveAverage, site.GetPeakShaveAverage())
 	site.publish(keys.PeakShaveState, site.GetPeakShaveState())
 	site.publish(keys.BatteryCycleCost, site.GetBatteryCycleCost())

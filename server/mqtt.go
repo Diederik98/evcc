@@ -233,6 +233,7 @@ func (m *MQTT) listenSiteSetters(topic string, site site.API) error {
 		{"peakShaveMinSoc", floatSetter(site.SetPeakShaveMinSoc)},
 		{"peakShaveMaintainSocChargePower", floatSetter(site.SetPeakShaveMaintainSocChargePower)},
 		{"peakShaveLoadShedDelay", floatSetter(site.SetPeakShaveLoadShedDelay)},
+		{"batteryControlInterval", floatSetter(site.SetBatteryControlInterval)},
 		{"peakShaveAverage", boolSetter(site.SetPeakShaveAverage)},
 		{"batteryCycleCost", floatSetter(site.SetBatteryCycleCost)},
 		{"batteryTrade", boolSetter(site.SetBatteryTrade)},

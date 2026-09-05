@@ -114,6 +114,27 @@
 			</div>
 		</div>
 
+		<!-- Power control interval -->
+		<div class="mb-4">
+			<label for="batteryControlInterval" class="form-label fw-bold">
+				{{ $t("peakShave.controlInterval") }}
+			</label>
+			<p class="text-muted small mb-2">{{ $t("peakShave.controlIntervalHelp") }}</p>
+			<div class="input-group">
+				<input
+					id="batteryControlInterval"
+					v-model.number="localControlInterval"
+					type="number"
+					min="1"
+					max="60"
+					step="1"
+					class="form-control"
+					@change="saveControlInterval"
+				/>
+				<span class="input-group-text">s</span>
+			</div>
+		</div>
+
 		<!-- Maintain SoC Charge Power -->
 		<div class="mb-4">
 			<label for="peakShaveMaintainPower" class="form-label fw-bold">
@@ -195,6 +216,7 @@ export default defineComponent({
 		peakShaveMinSoc: { type: Number, default: 20 },
 		peakShaveMaintainSocChargePower: { type: Number, default: 1000 },
 		peakShaveLoadShedDelay: { type: Number, default: 30 },
+		batteryControlInterval: { type: Number, default: 5 },
 		peakShaveAverage: { type: Boolean, default: false },
 		peakShaveState: { type: String as PropType<PeakShaveState>, default: "idle" },
 		limitControllerAvailable: { type: Boolean, default: true },
@@ -212,6 +234,7 @@ export default defineComponent({
 			localReserveSoc: this.peakShaveReserveSoc,
 			localMaintainPower: this.peakShaveMaintainSocChargePower,
 			localLoadShedDelay: this.peakShaveLoadShedDelay,
+			localControlInterval: this.batteryControlInterval,
 			localAverage: this.peakShaveAverage,
 			localCycleCost: this.batteryCycleCost,
 			localTrade: this.batteryTrade,
@@ -260,6 +283,9 @@ export default defineComponent({
 		},
 		peakShaveLoadShedDelay(v: number) {
 			this.localLoadShedDelay = v;
+		},
+		batteryControlInterval(v: number) {
+			this.localControlInterval = v;
 		},
 		peakShaveAverage(v: boolean) {
 			this.localAverage = v;
@@ -358,6 +384,15 @@ export default defineComponent({
 			try {
 				await api.post(
 					`peakshaveloadsheddelay/${encodeURIComponent(this.localLoadShedDelay)}`
+				);
+			} catch (err) {
+				console.error(err);
+			}
+		},
+		async saveControlInterval() {
+			try {
+				await api.post(
+					`batterycontrolinterval/${encodeURIComponent(this.localControlInterval)}`
 				);
 			} catch (err) {
 				console.error(err);

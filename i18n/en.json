@@ -99,6 +99,8 @@
     "gridPowerLive": "Current grid import: {power} kW",
     "loadShedDelay": "Load shed delay",
     "loadShedDelayHelp": "Grace period in seconds before EV charging is throttled when grid import stays above the threshold. Set to 0 for immediate load shedding.",
+    "controlInterval": "Power control interval",
+    "controlIntervalHelp": "How often charge and discharge limits are rewritten from the latest grid reading. Lower is more responsive but talks to the battery more often. Default 5 seconds.",
     "average": "15-minute average",
     "averageHelp": "Limit the clock-aligned 15-minute grid average instead of instantaneous watts. Short spikes can pass if the quarter still has budget. Instantaneous control stays the default and is safer for the bill.",
     "noLimitController": "Peak shaving requires a battery that supports charge and discharge power limits. Configure chargelimit and dischargelimit on your battery meter.",

@@ -142,6 +142,7 @@ export interface State {
   peakShaveMinSoc?: number;
   peakShaveMaintainSocChargePower?: number;
   peakShaveLoadShedDelay?: number;
+  batteryControlInterval?: number;
   peakShaveAverage?: boolean;
   peakShaveState?: PeakShaveState;
   batteryCycleCost?: number;

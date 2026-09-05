@@ -121,6 +121,10 @@ type API interface {
 	GetPeakShaveLoadShedDelay() float64
 	// SetPeakShaveLoadShedDelay sets the load shed grace period in seconds
 	SetPeakShaveLoadShedDelay(float64) error
+	// GetBatteryControlInterval returns the live battery power-control loop interval in seconds
+	GetBatteryControlInterval() float64
+	// SetBatteryControlInterval sets the live battery power-control loop interval in seconds
+	SetBatteryControlInterval(float64) error
 	// GetPeakShaveAverage returns whether peak shaving uses the 15-minute average
 	GetPeakShaveAverage() bool
 	// SetPeakShaveAverage sets whether peak shaving uses the 15-minute average

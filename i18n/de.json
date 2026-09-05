@@ -99,6 +99,8 @@
     "gridPowerLive": "Aktueller Netzbezug: {power} kW",
     "loadShedDelay": "Lastabwurf-Verzögerung",
     "loadShedDelayHelp": "Wartezeit in Sekunden, bevor das EV-Laden gedrosselt wird, wenn der Netzbezug über der Grenze bleibt. 0 für sofortigen Lastabwurf.",
+    "controlInterval": "Leistungsregelung",
+    "controlIntervalHelp": "Wie oft Lade- und Entladegrenzen aus dem aktuellen Netzbezug neu geschrieben werden. Kürzer reagiert schneller, spricht die Batterie aber öfter an. Standard 5 Sekunden.",
     "average": "15-Minuten-Mittelwert",
     "averageHelp": "Begrenzt den taktgebundenen 15-Minuten-Netzbezug statt der Momentanleistung. Kurze Spitzen können durchgehen, wenn im Viertel noch Budget ist. Die Momentanregelung bleibt Standard und ist für die Rechnung sicherer.",
     "noLimitController": "Die Lastspitzenkappung erfordert eine Batterie mit Lade- und Entladeleistungsgrenzen. Konfiguriere chargelimit und dischargelimit am Batteriezähler.",

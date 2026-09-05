@@ -340,8 +340,8 @@ func (site *Site) applyBatteryModeDirect(mode api.BatteryMode) error {
 		return nil
 	}
 
-	// Hold is applied from the 1s live loop while a charger is in cheap/fast
-	// charge. Marstek hold rewrites RS485 force-stop; do not send it every second.
+	// Hold is applied from the live loop while a charger is in cheap/fast
+	// charge. Marstek hold rewrites RS485 force-stop; do not send it every tick.
 	if mode == api.BatteryHold && mode == site.batteryModeApplied {
 		return nil
 	}
@@ -726,22 +726,43 @@ func (site *Site) validatePeakShaveSoc(minSoc, reserveSoc float64) error {
 	return nil
 }
 
-const batteryControlInterval = time.Second
+const (
+	defaultBatteryControlIntervalS = 5.0
+	minBatteryControlIntervalS     = 1.0
+	maxBatteryControlIntervalS     = 60.0
+)
+
+func (site *Site) batteryControlInterval() time.Duration {
+	s := site.GetBatteryControlInterval()
+	if s < minBatteryControlIntervalS {
+		s = defaultBatteryControlIntervalS
+	}
+	if s > maxBatteryControlIntervalS {
+		s = maxBatteryControlIntervalS
+	}
+	return time.Duration(s * float64(time.Second))
+}
 
 func (site *Site) runBatteryControl(stopC <-chan struct{}) {
 	if !site.batteryConfigured() {
 		return
 	}
 
-	site.log.DEBUG.Printf("battery power control every %v", batteryControlInterval)
+	interval := site.batteryControlInterval()
+	site.log.DEBUG.Printf("battery power control every %v", interval)
 
-	ticker := time.NewTicker(batteryControlInterval)
+	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 
 	for {
 		select {
 		case <-ticker.C:
 			site.updateBatteryPowerControl()
+			if next := site.batteryControlInterval(); next != interval {
+				interval = next
+				ticker.Reset(interval)
+				site.log.DEBUG.Printf("battery power control every %v", interval)
+			}
 		case <-stopC:
 			return
 		}
@@ -792,7 +813,7 @@ func (site *Site) refreshGridAndBatteryPower() error {
 }
 
 // applyLiveBatteryPowerLimits updates charge/discharge watts from the latest
-// grid reading so peaks are tracked every second instead of on the site interval.
+// grid reading so peaks are tracked on the live loop instead of the site interval.
 func (site *Site) applyLiveBatteryPowerLimits() {
 	site.Lock()
 	defer site.Unlock()
