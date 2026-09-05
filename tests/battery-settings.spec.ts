@@ -55,6 +55,22 @@ test.describe("battery settings", async () => {
     await expect(topRow).toContainText("only with enough surplus.");
   });
 
+  test("power control interval", async ({ page }) => {
+    await page.goto("/#/battery");
+
+    const input = page.getByLabel("Power control interval");
+    await expect(input).toHaveValue("5");
+    const saved = page.waitForResponse(
+      (res) => res.url().includes("/batterycontrolinterval/") && res.ok()
+    );
+    await input.fill("8");
+    await input.blur();
+    await saved;
+
+    await page.goto("/#/battery");
+    await expect(page.getByLabel("Power control interval")).toHaveValue("8");
+  });
+
   test("grid charging", async ({ page }) => {
     await page.goto("/#/battery");
 
