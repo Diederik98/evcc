@@ -2,30 +2,31 @@ package keys
 
 const (
 	// loadpoint settings
-	Name              = "name"             // loadpoint name (config identifier)
-	Title             = "title"            // loadpoint title
-	Mode              = "mode"             // charge mode
-	DefaultMode       = "defaultMode"      // default charge mode
-	Charger           = "charger"          // charger ref
-	Meter             = "meter"            // meter ref
-	Circuit           = "circuit"          // circuit ref
-	DefaultVehicle    = "vehicle"          // default vehicle ref
-	Priority          = "priority"         // priority
-	MinCurrent        = "minCurrent"       // min current
-	MaxCurrent        = "maxCurrent"       // max current
-	MinSoc            = "minSoc"           // min soc
-	MinSocNotReached  = "minSocNotReached" // min soc not reached
-	LimitSoc          = "limitSoc"         // limit soc
-	LimitEnergy       = "limitEnergy"      // limit energy
-	Soc               = "soc"
-	Thresholds        = "thresholds"
-	UI                = "ui" // display-only ui settings (json)
-	EnableThreshold   = "enableThreshold"
-	DisableThreshold  = "disableThreshold"
-	EnableDelay       = "enableDelay"
-	DisableDelay      = "disableDelay"
-	BatteryBoost      = "batteryBoost"
-	BatteryBoostLimit = "batteryBoostLimit"
+	Name                    = "name"             // loadpoint name (config identifier)
+	Title                   = "title"            // loadpoint title
+	Mode                    = "mode"             // charge mode
+	DefaultMode             = "defaultMode"      // default charge mode
+	Charger                 = "charger"          // charger ref
+	Meter                   = "meter"            // meter ref
+	Circuit                 = "circuit"          // circuit ref
+	DefaultVehicle          = "vehicle"          // default vehicle ref
+	Priority                = "priority"         // priority
+	MinCurrent              = "minCurrent"       // min current
+	MaxCurrent              = "maxCurrent"       // max current
+	MinSoc                  = "minSoc"           // min soc
+	MinSocNotReached        = "minSocNotReached" // min soc not reached
+	LimitSoc                = "limitSoc"         // limit soc
+	LimitEnergy             = "limitEnergy"      // limit energy
+	Soc                     = "soc"
+	Thresholds              = "thresholds"
+	UI                      = "ui" // display-only ui settings (json)
+	EnableThreshold         = "enableThreshold"
+	DisableThreshold        = "disableThreshold"
+	EnableDelay             = "enableDelay"
+	DisableDelay            = "disableDelay"
+	BatteryBoost            = "batteryBoost"
+	BatteryBoostLimit       = "batteryBoostLimit"
+	BatteryDischargeExclude = "batteryDischargeExclude" // allow home battery during fast/planned charging
 
 	PhasesConfigured = "phasesConfigured" // desired phase mode (0/1/3, 0 = automatic), user selection
 	PhasesActive     = "phasesActive"     // expectedly active phases, taking vehicle into account (1/2/3)
@@ -46,9 +47,10 @@ const (
 	OfferedCurrent = "offeredCurrent" // offered current
 
 	// smart charging
-	SmartCostActive    = "smartCostActive"    // smart cost active
-	SmartCostLimit     = "smartCostLimit"     // smart cost limit, fast charge when costs are below
-	SmartCostNextStart = "smartCostNextStart" // smart cost next start, time of next fast charging
+	SmartCostActive      = "smartCostActive"      // smart cost active
+	SmartCostLimit       = "smartCostLimit"       // smart cost limit, fast charge when costs are below
+	SmartCostLimitEnergy = "smartCostLimitEnergy" // limit is source energy price, not all-in Value
+	SmartCostNextStart   = "smartCostNextStart"   // smart cost next start, time of next fast charging
 
 	SmartFeedInPriorityActive    = "smartFeedInPriorityActive"    // smart feed-in priority active
 	SmartFeedInPriorityLimit     = "smartFeedInPriorityLimit"     // smart feed-in priority limit, pause self-consumption when feed-in rates are above
@@ -92,6 +94,10 @@ const (
 
 	// repeating plans
 	RepeatingPlans = "repeatingPlans" // key to access all repeating plans in db
+	HeatingComfort = "heatingComfort" // heating comfort floor and assumed power
+	HeatingBoosts  = "heatingBoosts"  // learned heating boost episodes
+	HeatingPattern = "heatingPattern" // learned heating extra-power pattern
+	HeatingStatus  = "heatingStatus"  // published heating boost/comfort status
 
 	// remote control
 	RemoteDisabled       = "remoteDisabled"       // remote disabled

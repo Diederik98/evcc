@@ -107,8 +107,10 @@ func (site *Site) peakShaveGridHeadroom() float64 {
 }
 
 // idleGridPower is the grid import if the battery were neither charging nor discharging.
+// Battery meter sign is positive when discharging. Adding it undoes the battery's
+// effect on the grid meter: charging must not look like extra house load.
 func (site *Site) idleGridPower() float64 {
-	return site.gridPower - site.battery.Power
+	return site.gridPower + site.battery.Power
 }
 
 func (site *Site) peakShaveLimitW() float64 {
@@ -318,38 +320,46 @@ func (site *Site) applyBatteryMode(mode api.BatteryMode) error {
 
 func (site *Site) applyBatteryModeDirect(mode api.BatteryMode) error {
 	fromToCharge := mode == api.BatteryCharge || mode == api.BatteryUnknown && site.batteryMode == api.BatteryCharge
-
-	for _, dev := range site.batteryMeters {
-		meter := dev.Instance()
-
-		batCtrl, ok := api.Cap[api.BatteryController](meter)
-		if !ok {
-			continue
-		}
-
-		// validate max soc
-		if fromToCharge && mode != api.BatteryHold {
+	if fromToCharge && mode != api.BatteryHold {
+		for _, dev := range site.batteryMeters {
+			if _, ok := api.Cap[api.BatteryController](dev.Instance()); !ok {
+				continue
+			}
 			ok, err := site.batteryMaxSocReached(dev)
 			if err != nil && !errors.Is(err, api.ErrNotAvailable) {
 				return err
 			}
-
-			// put battery into hold mode when soc limit reached
 			if ok {
-				// TODO do this only once
 				mode = api.BatteryHold
-			}
-		}
-
-		if mode != api.BatteryUnknown {
-			if err := batCtrl.SetBatteryMode(mode); err == nil {
-				site.log.DEBUG.Printf("set battery %s mode: %s", deviceTitleOrName(dev), mode)
-			} else if !errors.Is(err, api.ErrNotAvailable) {
-				return err
+				break
 			}
 		}
 	}
 
+	if mode == api.BatteryUnknown {
+		return nil
+	}
+
+	// Hold is applied from the live loop while a charger is in cheap/fast
+	// charge. Marstek hold rewrites RS485 force-stop; do not send it every tick.
+	if mode == api.BatteryHold && mode == site.batteryModeApplied {
+		return nil
+	}
+
+	for _, dev := range site.batteryMeters {
+		batCtrl, ok := api.Cap[api.BatteryController](dev.Instance())
+		if !ok {
+			continue
+		}
+
+		if err := batCtrl.SetBatteryMode(mode); err == nil {
+			site.log.DEBUG.Printf("set battery %s mode: %s", deviceTitleOrName(dev), mode)
+		} else if !errors.Is(err, api.ErrNotAvailable) {
+			return err
+		}
+	}
+
+	site.batteryModeApplied = mode
 	return nil
 }
 
@@ -364,12 +374,12 @@ func (site *Site) tariffRates(usage api.TariffUsage) (api.Rates, error) {
 
 func (site *Site) smartCostActive(lp loadpoint.API, rate api.Rate) bool {
 	limit := lp.GetSmartCostLimit()
-	return limit != nil && !rate.IsZero() && rate.Value <= *limit
+	return limit != nil && !rate.IsZero() && rate.Cost(loadpointSmartCostEnergy(lp)) <= *limit
 }
 
 func (site *Site) batteryGridChargeActive(rate api.Rate) bool {
 	limit := site.GetBatteryGridChargeLimit()
-	return limit != nil && !rate.IsZero() && rate.Value <= *limit
+	return limit != nil && !rate.IsZero() && rate.Cost(site.GetBatteryGridChargeLimitEnergy()) <= *limit
 }
 
 func (site *Site) dischargeControlActive(rate api.Rate) bool {
@@ -385,6 +395,9 @@ func (site *Site) dischargeControlActive(rate api.Rate) bool {
 	}
 
 	for _, lp := range site.Loadpoints() {
+		if lp.GetBatteryDischargeExclude() {
+			continue
+		}
 		smartCostActive := site.smartCostActive(lp, rate)
 		if lp.GetStatus() == api.StatusC && (smartCostActive || lp.IsFastChargingActive()) {
 			return true
@@ -399,6 +412,9 @@ func (site *Site) fastChargeLocksDischarge() bool {
 		return false
 	}
 	for _, lp := range site.Loadpoints() {
+		if lp.GetBatteryDischargeExclude() {
+			continue
+		}
 		if lp.GetStatus() == api.StatusC && lp.IsFastChargingActive() {
 			return true
 		}
@@ -442,6 +458,10 @@ const (
 	PeakShaveShedding = "shedding"
 	PeakShaveRecovery = "recovery"
 	PeakShaveLockout  = "lockout"
+
+	// Finish a started recovery fill in this band. Do not start recovery in-band
+	// unless the planner already says charge is required before the next peak.
+	peakShaveRecoveryHysteresis = 2.0
 )
 
 func (site *Site) setBatteryLimitLimits(chargeLimit, dischargeLimit int) {
@@ -468,6 +488,14 @@ func (site *Site) setBatteryLimitLimits(chargeLimit, dischargeLimit int) {
 	site.lastBatteryChargeW = chargeLimit
 	site.lastBatteryDischargeW = dischargeLimit
 	site.batteryLimitSet = true
+
+	// Charge/discharge limits on Marstek also write force charge/discharge.
+	// Forget the last batterymode write so a later Hold is not skipped.
+	if chargeLimit > 0 {
+		site.batteryModeApplied = api.BatteryCharge
+	} else if dischargeLimit > 0 {
+		site.batteryModeApplied = api.BatteryUnknown
+	}
 }
 
 func (site *Site) resetBatteryLimitLimits() {
@@ -507,6 +535,11 @@ func (site *Site) peakShaveLoadShedDue(now time.Time) bool {
 // ManageGridLimits executes the state machine for active peak shaving and recovery
 func (site *Site) ManageGridLimits(batteryGridChargeActive bool) {
 	plan, planned := site.evaluateBatteryPlan()
+	if planned {
+		site.publishBatteryPlan(plan)
+	} else {
+		site.publishIdleBatteryPlan()
+	}
 
 	if !site.peakShaveEnabled() {
 		site.Lock()
@@ -524,7 +557,7 @@ func (site *Site) ManageGridLimits(batteryGridChargeActive bool) {
 			site.batteryPlanChargeW = 0
 			site.batteryPlanDischargeW = 0
 			site.publishIdleBatteryPlan()
-			if wasLimited {
+			if wasLimited && !site.batteryChargeOnlyLocked() {
 				site.resetBatteryLimitLimits()
 				site.peakShaveBatteryLimited = false
 			}
@@ -578,9 +611,15 @@ func (site *Site) ManageGridLimits(batteryGridChargeActive bool) {
 		}
 	} else {
 		site.peakShaveOverloadSince = time.Time{}
-		if soc < reserveSoc {
+		needCharge := planned && plan.Action == planner.BatteryActionCharge
+		switch {
+		case soc >= reserveSoc:
+			newState = PeakShaveIdle
+		case needCharge && (soc <= reserveSoc-peakShaveRecoveryHysteresis || oldState == PeakShaveRecovery):
 			newState = PeakShaveRecovery
-		} else {
+		case oldState == PeakShaveRecovery && soc > reserveSoc-peakShaveRecoveryHysteresis:
+			newState = PeakShaveRecovery
+		default:
 			newState = PeakShaveIdle
 		}
 	}
@@ -605,17 +644,21 @@ func (site *Site) ManageGridLimits(batteryGridChargeActive bool) {
 		site.batteryPlanHold = false
 		site.batteryPlanChargeW = 0
 		site.batteryPlanDischargeW = 0
-		site.log.DEBUG.Printf("critical peak shaving: gridPower (%.0fW) > threshold (%.0fW), targetDischarge: %.0fW, soc: %.0f%%", site.gridPower, gridThresholdW, targetDischarge, soc)
+		site.log.DEBUG.Printf("critical peak shaving: gridPower (%.0fW) > threshold (%.0fW), soc: %.0f%% at reserve, holding", site.gridPower, gridThresholdW, soc)
 		site.clearPeakShaveLoadShedding()
-		site.setBatteryLimitLimits(0, int(targetDischarge))
+		site.setBatteryLimitLimits(0, 0)
 		site.peakShaveBatteryLimited = true
 
 	case PeakShaveShedding:
 		site.batteryPlanHold = false
 		site.batteryPlanChargeW = 0
 		site.batteryPlanDischargeW = 0
-		site.log.DEBUG.Printf("peak shaving load shedding: gridPower (%.0fW) > threshold (%.0fW), targetDischarge: %.0fW, soc: %.0f%%", site.gridPower, gridThresholdW, targetDischarge, soc)
-		site.setBatteryLimitLimits(0, int(targetDischarge))
+		discharge := 0
+		if soc > reserveSoc {
+			discharge = int(targetDischarge)
+		}
+		site.log.DEBUG.Printf("peak shaving load shedding: gridPower (%.0fW) > threshold (%.0fW), targetDischarge: %dW, soc: %.0f%%", site.gridPower, gridThresholdW, discharge, soc)
+		site.setBatteryLimitLimits(0, discharge)
 		site.applyPeakShaveLoadShedding()
 		site.peakShaveBatteryLimited = true
 
@@ -683,22 +726,43 @@ func (site *Site) validatePeakShaveSoc(minSoc, reserveSoc float64) error {
 	return nil
 }
 
-const batteryControlInterval = time.Second
+const (
+	defaultBatteryControlIntervalS = 5.0
+	minBatteryControlIntervalS     = 1.0
+	maxBatteryControlIntervalS     = 60.0
+)
+
+func (site *Site) batteryControlInterval() time.Duration {
+	s := site.GetBatteryControlInterval()
+	if s < minBatteryControlIntervalS {
+		s = defaultBatteryControlIntervalS
+	}
+	if s > maxBatteryControlIntervalS {
+		s = maxBatteryControlIntervalS
+	}
+	return time.Duration(s * float64(time.Second))
+}
 
 func (site *Site) runBatteryControl(stopC <-chan struct{}) {
 	if !site.batteryConfigured() {
 		return
 	}
 
-	site.log.DEBUG.Printf("battery power control every %v", batteryControlInterval)
+	interval := site.batteryControlInterval()
+	site.log.DEBUG.Printf("battery power control every %v", interval)
 
-	ticker := time.NewTicker(batteryControlInterval)
+	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 
 	for {
 		select {
 		case <-ticker.C:
 			site.updateBatteryPowerControl()
+			if next := site.batteryControlInterval(); next != interval {
+				interval = next
+				ticker.Reset(interval)
+				site.log.DEBUG.Printf("battery power control every %v", interval)
+			}
 		case <-stopC:
 			return
 		}
@@ -749,7 +813,7 @@ func (site *Site) refreshGridAndBatteryPower() error {
 }
 
 // applyLiveBatteryPowerLimits updates charge/discharge watts from the latest
-// grid reading so peaks are tracked every second instead of on the site interval.
+// grid reading so peaks are tracked on the live loop instead of the site interval.
 func (site *Site) applyLiveBatteryPowerLimits() {
 	site.Lock()
 	defer site.Unlock()
@@ -767,12 +831,19 @@ func (site *Site) applyLiveBatteryPowerLimits() {
 	}
 	soc := site.battery.Soc
 	minSoc := site.peakShaveEffectiveMinSoc()
+	reserveSoc := site.PeakShaveReserveSoc
 	headroom := site.peakShaveGridHeadroom()
 
 	switch {
 	case overshoot > 0 && soc <= minSoc:
 		site.setBatteryLimitLimits(0, 0)
 		site.peakShaveBatteryLimited = true
+		site.batteryPlanChargeW = 0
+
+	case overshoot > 0 && reserveSoc > 0 && soc <= reserveSoc:
+		site.setBatteryLimitLimits(0, 0)
+		site.peakShaveBatteryLimited = true
+		site.batteryPlanHold = false
 		site.batteryPlanChargeW = 0
 
 	case overshoot > 0:

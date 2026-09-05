@@ -114,6 +114,41 @@ func (t *embed) totalPrice(price float64, ts time.Time) float64 {
 	return (price + charges) * (1 + t.Tax)
 }
 
+// rate builds a slot with source energy price and all-in Value (charges, tax, formula).
+func (t *embed) rate(start, end time.Time, energy float64) api.Rate {
+	value := energy
+	if t != nil {
+		value = t.totalPrice(energy, start)
+	}
+	return api.Rate{
+		Start:  start,
+		End:    end,
+		Energy: api.NewEnergy(energy),
+		Value:  value,
+	}
+}
+
+// PriceCharges returns configured grid charges (before tax).
+func (t *embed) PriceCharges() float64 {
+	if t == nil {
+		return 0
+	}
+	return t.Charges
+}
+
+// PriceTax returns configured VAT/tax as a fraction (0.06 = 6%).
+func (t *embed) PriceTax() float64 {
+	if t == nil {
+		return 0
+	}
+	return t.Tax
+}
+
+// HasFormula reports whether a custom total-price formula is configured.
+func (t *embed) HasFormula() bool {
+	return t != nil && t.Formula != ""
+}
+
 var _ api.FeatureDescriber = (*embed)(nil)
 
 func (t *embed) Features() []api.Feature {

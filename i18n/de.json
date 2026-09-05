@@ -99,12 +99,14 @@
     "gridPowerLive": "Aktueller Netzbezug: {power} kW",
     "loadShedDelay": "Lastabwurf-Verzögerung",
     "loadShedDelayHelp": "Wartezeit in Sekunden, bevor das EV-Laden gedrosselt wird, wenn der Netzbezug über der Grenze bleibt. 0 für sofortigen Lastabwurf.",
+    "controlInterval": "Leistungsregelung",
+    "controlIntervalHelp": "Wie oft Lade- und Entladegrenzen aus dem aktuellen Netzbezug neu geschrieben werden. Kürzer reagiert schneller, spricht die Batterie aber öfter an. Standard 5 Sekunden.",
     "average": "15-Minuten-Mittelwert",
     "averageHelp": "Begrenzt den taktgebundenen 15-Minuten-Netzbezug statt der Momentanleistung. Kurze Spitzen können durchgehen, wenn im Viertel noch Budget ist. Die Momentanregelung bleibt Standard und ist für die Rechnung sicherer.",
     "noLimitController": "Die Lastspitzenkappung erfordert eine Batterie mit Lade- und Entladeleistungsgrenzen. Konfiguriere chargelimit und dischargelimit am Batteriezähler.",
     "socInvalid": "Der Reserve-SoC darf nicht unter dem Mindest-SoC der Batterie liegen.",
     "reserveSoc": "Reserve-SoC",
-    "reserveSocHelp": "Ziel-Ladestand der Batterie als Puffer. Wiederaufladung beginnt, wenn der SoC darunter fällt. Muss mindestens dem Mindest-SoC der Batterie in der Gerätekonfiguration entsprechen.",
+    "reserveSocHelp": "Ziel-Ladestand der Batterie als Puffer. Die Lastspitzenkappung entlädt bis zu diesem Stand, nicht bis leer. Wiederaufladung beginnt, wenn der SoC darunter fällt. Muss mindestens dem Mindest-SoC der Batterie in der Gerätekonfiguration entsprechen.",
     "reserveSocLabel": "Reserve",
     "minSocFromBattery": "Min. (Batterie): {soc} %",
     "minSocTooltip": "Mindest-SoC: {soc} %. In der Batteriegerätekonfiguration festgelegt.",
@@ -115,13 +117,122 @@
     "maintainSocChargePower": "Wiederherstellungsladeleistung",
     "maintainSocChargePowerHelp": "Ladeleistungsgrenze zum Wiederherstellen des Reserve-SoC nach der Lastspitzenkappung.",
     "cycleCost": "Zykluskosten",
-    "cycleCostHelp": "Verschleißkosten je entladener kWh. Netzladung nur, wenn die preisliche Spreizung inkl. Steuern Verluste und diese Kosten deckt. 0 ignoriert den Verschleiß.",
+    "cycleCostHelp": "Verschleißkosten je entladener kWh. Netzladung für späteren Hausverbrauch nur, wenn die Spreizung inkl. Steuern Verluste und diese Kosten deckt. 0 ignoriert den Verschleiß.",
     "cycleCostUnit": "€/kWh",
+    "trade": "Restenergie handeln",
+    "tradeHelp": "Aus: nur laden, was das Haus (abzüglich prognostizierter Solar) später braucht, wenn die Spreizung das trägt. Ein: zusätzlich Richtung voll laden und verkaufen, wenn die Einspeisung späteren Eigenverbrauch schlägt. Lastspitzenkappung hat Vorrang.",
     "plan": {
       "title": "Batterieplanung",
-      "targetSoc": "Ziel-SoC für kommende Lastspitzen: {soc} %",
+      "targetSoc": "Ziel-SoC für späteren Verbrauch: {soc} %",
       "loadpoints": "Enthält {energy} geplante Ladung",
       "loadCap": "Geplante Ladung begrenzt auf {power}",
+      "forecast": "Prognose",
+      "forecastHours": "Nächste {hours} Stunden",
+      "openDetails": "So ist dieser Plan entstanden",
+      "pageTitle": "Batterieplan im Detail",
+      "pageIntro": "Der Planer blickt voraus und entscheidet, ob die Batterie aus dem Netz laden, halten, fürs Haus entladen oder dem Solarüberschuss folgen soll. Er nutzt Hausverbrauch, Solar, Preise, die Netzgrenze und geplante EV- oder Wärmepumpenblöcke. Die Deckung ist die Energie für spätere teure Stunden und die Spitzenreserve. Restenergie handeln kann darüber nachladen oder verkaufen. Aktive Lastspitzenkappung kann das aktuelle Viertel trotzdem überschreiben.",
+      "backToBattery": "Zurück zu den Batterieeinstellungen",
+      "howTitle": "So ist dieser Plan entstanden",
+      "inputsTitle": "Eingaben",
+      "pricesTitle": "Preise, Netzentgelte und Steuern",
+      "pricesHelp": "Der Planer verwendet die tarifierten Preise inklusive Aufschlag und Steuer. Trage kWh-Netzentgelte und Verbrauchsteuern unter charges ein, die Mehrwertsteuer unter tax, beim Netzbezugstarif. Der Kapazitätstarif wird je kW-Spitze abgerechnet, nicht je kWh, und gehört nicht in charges. Einspeisung ist meist nur der Einspeisepreis: Haushalte zahlen typischerweise kein Netznutzungsentgelt und keine MwSt. auf die Gutschrift.",
+      "loadsTitle": "Blöcke von Ladepunkt und Wärmepumpe",
+      "horizonTitle": "Plan",
+      "replan": "Plan neu berechnen",
+      "replanHelp": "Neu berechnen aus aktuellem SoC, Preisen, Solar und Ladeplänen.",
+      "legendIntro": "Balken sind Leistung. Linien sind SoC, Deckung und Preis. Der farbige Streifen ist die Batterieaktion in diesem Viertel.",
+      "help": {
+        "house": "Hausverbrauch ohne geplante EV- oder Wärmepumpenblöcke.",
+        "solar": "Prognostizierte Solarproduktion.",
+        "soc": "Prognostizierter Batterieladestand.",
+        "charging": "Geplante EV- oder Wärmepumpenleistung in diesem Viertel.",
+        "cover": "SoC, den der Planer für spätere teure Stunden und die Spitzenreserve vorhalten will. Günstige Stunden können darauf laden. Teure Stunden dürfen ihn verbrauchen. Darüber darf Restenergie genutzt oder verkauft werden.",
+        "price": "Netzpreis inklusive Steuern.",
+        "charge": "Lädt die Batterie in diesem Viertel aus dem Netz.",
+        "hold": "Nicht entladen. Diese Stunde ist günstig, Energie für spätere teure Stunden sparen.",
+        "discharge": "Versorgt das Haus aus der Batterie.",
+        "normal": "Folgt dem Solarüberschuss: laden aus PV-Rest, entladen fürs Haus.",
+        "export": "Verkauft Restenergie, weil Einspeisung späteren Eigenverbrauch schlägt.",
+        "measured": "Aufgezeichnete Werte der letzten 24 Stunden, keine Prognose."
+      },
+      "batteryStrip": "Batterie",
+      "chargerStrip": "Ladepunkte",
+      "chargerAction": {
+        "charging": "Geplante Ladung",
+        "idle": "Keine Ladung"
+      },
+      "logTitle": "Was sich geändert hat",
+      "estimated": "Geschätzt",
+      "loadFallback": "Ladepunkt",
+      "colTime": "Zeit",
+      "colAction": "Entscheidung",
+      "loadSummary": "{energy} bei {power}, {start}–{end}{span} ({pattern})",
+      "loadSummaryDeadline": " · Fertig bis {deadline}",
+      "loadSpanDays": " · über mehrere Tage",
+      "measured": "Gemessen",
+      "measuredHelp": "Aufgezeichnete Haushaltsdaten",
+      "measuredHouse": "Haus (gemessen)",
+      "measuredSolar": "Solar (gemessen)",
+      "measuredSoc": "SoC (gemessen)",
+      "inputSoc": "Batterie-SoC jetzt: {soc} %",
+      "inputReserve": "Min. {min} %, Reserve {reserve} %, Ziel für späteren Verbrauch {target} %",
+      "inputLimit": "Netzgrenze: {power}",
+      "inputPeak": "Prognostizierte Überschreitung ohne Batterie: {energy}",
+      "inputLive": "Aktueller Restbezug: {power}",
+      "fact": {
+        "home": {
+          "weekday": "Der Hausverbrauch nutzt das Wochentagsprofil in 15-Minuten-Schritten.",
+          "fallback": "Noch kein Haushaltsprofil. Es gilt die aktuelle Haushaltsleistung als flache Prognose."
+        },
+        "prices": {
+          "yes": "Dynamische Strompreise sind enthalten.",
+          "no": "Keine Strompreise in diesem Fenster. Last und Solar gelten trotzdem."
+        },
+        "solar": {
+          "yes": "Solarprognose ist enthalten.",
+          "no": "Keine Solarprognose in diesem Fenster."
+        },
+        "limit": "Die Netzbezugsgrenze liegt bei {kw} kW.",
+        "peak": "Prognostizierte Spitzenenergie {kwh} kWh. Ziel-SoC {soc} %.",
+        "action": {
+          "normal": "Dieses Viertel folgt dem Solarüberschuss.",
+          "charge": "Dieses Viertel lädt aus dem Netz ({reason}).",
+          "hold": "Dieses Viertel hält den Speicher ({reason}).",
+          "discharge": "Dieses Viertel entlädt ({reason})."
+        },
+        "battery": {
+          "coverPeak": "Die Batterie deckt eine prognostizierte Spitze. Wärme oder Laden über der Grenze kommt zuerst aus dem Speicher.",
+          "cover": "Die Deckung für spätere teure Stunden und die Spitzenreserve beträgt {kwh} kWh ({soc} %).",
+          "solarRoom": "Prognostizierter Solarüberschuss von {kwh} kWh bleibt frei, damit Nachmittagsüberschuss nicht abgeregelt wird.",
+          "tradeOn": "Handel ist an: Restenergie über der Deckung darf nachgeladen oder verkauft werden, wenn die Spreizung das trägt.",
+          "tradeOff": "Handel ist aus: beim Deckungsziel stoppen. Kein Extra-Laden, kein Verkauf.",
+          "holdForLater": "Diese Stunde ist günstig. Gespeicherte Energie bleibt für spätere teure Stunden, statt günstige Lasten zu versorgen.",
+          "cheapCycle": "Die preisliche Spreizung deckt Verluste und Zykluskosten.",
+          "reserveFloor": "Die Spitzenentladung stoppt beim Reserve-SoC ({soc} %). Der Plan leert die Batterie nicht."
+        },
+        "load": {
+          "charger": "Ladepunkt {title}: {kwh} kWh bei {w} W ({pattern}).",
+          "heat": "Wärmepumpe {title}: {kwh} kWh extra bei {w} W ({pattern}). Nicht gemessene Extra-Leistung wird aus dem Hausverbrauch geschätzt."
+        }
+      },
+      "log": {
+        "created": "Plan erstellt",
+        "replan": "Plan aktualisiert",
+        "peak": "Spitzenabdeckung geändert",
+        "load": "Überlagerung von Ladepunkt oder Wärmepumpe geändert"
+      },
+      "now": "Jetzt",
+      "noPrices": "Keine Strompreise in diesem Fenster. Last- und Solarprognose gelten trotzdem.",
+      "noForecast": "Noch kein Plan. Dafür braucht es ein Haushaltsprofil oder Preise.",
+      "liveOverride": "Aktive Lastspitzenkappung kann das aktuelle Viertel überschreiben.",
+      "house": "Haus",
+      "solar": "Solar",
+      "charging": "Geplante Ladung",
+      "threshold": "Grenze",
+      "price": "Preis",
+      "soc": "Batterie-SoC",
+      "cover": "Deckung",
+      "overLimit": "Über der Netzgrenze, wenn die Batterie untätig bleibt",
       "action": {
         "normal": "Folgt dem Solarüberschuss",
         "charge": "Lädt aus dem Netz",
@@ -131,11 +242,11 @@
       "reason": {
         "idle": "Keine Aktion nötig",
         "peak": "Deckt eine vorhergesagte Lastspitze",
-        "charge": "Lädt genug Energie für spätere Lastspitzen",
-        "cheap": "Der Preis inkl. Steuern ist niedrig genug zum Zyklieren",
-        "hold": "Spart Energie für teure oder laststarke Stunden",
+        "charge": "Lädt genug Energie für späteren Verbrauch",
+        "cheap": "Der Preis inkl. Steuern ist niedrig genug für späteren Netzbezug",
+        "hold": "Spart Energie für spätere teure Stunden",
         "recovery": "Stellt den Reserve-SoC wieder her",
-        "export": "Verkauft überschüssige Energie bei teurer Einspeisung"
+        "export": "Verkauft Restenergie, weil Einspeisung späteren Eigenverbrauch schlägt"
       }
     },
     "batteryTabTitle": "Batterieschutz",
@@ -1161,6 +1272,7 @@
       "range": "Bereich"
     },
     "priceZoom": "vergrößern",
+    "showEnergyPrice": "ohne Abgaben und Steuern",
     "showLine": "Linie anzeigen",
     "solar": {
       "dayAfterTomorrow": "Übermorgen",
@@ -1169,10 +1281,12 @@
       "today": "Heute",
       "tomorrow": "Morgen"
     },
-    "orientationSuggest": "Produktion bei klarem Himmel legt Azimut {azimuth}° und Neigung {decline}° nahe ({days} klare Tage)",
-    "orientationSuggestDiff": "Konfiguriert: Azimut {configuredAzimuth}° / Neigung {configuredDecline}°. Bei klarem Himmel: {azimuth}° / {decline}° ({days} klare Tage)",
+    "orientationSuggest": "Produktion bei klarem Himmel legt Azimut {azimuth}° und Neigung {decline}° nahe ({days} klare Tage). 0° = Süden, negativ = östlich von Süden, positiv = westlich von Süden",
+    "orientationSuggestDiff": "Konfiguriert: Azimut {configuredAzimuth}° / Neigung {configuredDecline}°. Aus deiner Produktion bei klarem Himmel: {azimuth}° / {decline}° ({days} klare Tage). 0° = Süden, −90° = Osten, +90° = Westen. Gemischte Ost/Süd-Module: Kompromisswert nutzen oder zweite Solarprognose für die andere Ausrichtung anlegen",
     "orientationSuggestLink": "Solarprognose prüfen",
+    "orientationSuggestApply": "Empfohlene Einstellung zur gemessenen Produktion: Azimut {azimuth}°, Neigung {decline}°",
     "solarAdjust": "Solarprognose anhand der realen Produktionsdaten anpassen{percent}.",
+    "solarAdjustHelp": "Vergleicht die heutige gemessene PV-Energie mit der Prognose. +135% heißt etwa 2,35× so viel Produktion wie prognostiziert. Der Batterieplan nutzt diesen Faktor automatisch; dieser Schalter ändert nur die Prognose-Grafik.",
     "solarAdjustMedium": "an reale Produktionsdaten anpassen",
     "solarAdjustShort": "anpassen",
     "type": {
@@ -1290,6 +1404,39 @@
     "password": "Administrator Passwort",
     "reset": "Passwort zurücksetzen?",
     "title": "Authentifizierung"
+  },
+  "heating": {
+    "estimated": "Geschätzte Extra-Leistung",
+    "estimatedHelp": "Kein Wärmepumpenzähler. Extra-Watt werden aus dem Haushaltsrest abgeleitet, solange der Boost an ist.",
+    "currentTemp": "Speicher {temp}",
+    "reason": {
+      "calendar": "Kalender-Boost",
+      "comfort": "Komfortgrenze",
+      "now": "Sofort",
+      "stop": "Gestoppt"
+    },
+    "comfort": {
+      "title": "Komfort und angenommene Leistung",
+      "help": "Funktioniert mit einem eigenen Ein/Aus-Boost, auch über eine Daikin-API. Aus bedeutet: die Wärmepumpe läuft nach eigener Kennlinie. Die Komfortgrenze startet einen Boost, wenn die Speichertemperatur unter die Grenze fällt.",
+      "minTemp": "Komfortgrenze",
+      "hysteresis": "Hysterese",
+      "stopTemp": "Stopptemperatur",
+      "minOnTime": "Mindestlaufzeit",
+      "minOnNone": "Keine",
+      "assumedPower": "Angenommene Extra-Leistung",
+      "maxAssumedPower": "Obergrenze für die Schätzung"
+    },
+    "pattern": {
+      "title": "Gelerntes Extra-Wärme-Muster",
+      "band": "Von {from} bis {to}: etwa {minutes} min/K, Extra im ersten Slot {peak}, {n} Boosts"
+    },
+    "boosts": {
+      "title": "Letzte Boosts",
+      "start": "Wann",
+      "temps": "Start → Ende",
+      "energy": "Extra-Energie",
+      "quality": "Qualität"
+    }
   },
   "main": {
     "chargingPlan": {
@@ -1431,6 +1578,8 @@
         "stateHold": "Batterie gesperrt",
         "stateReady": "Batterie Boost bereit"
       },
+      "batteryDischargeExclude": "Hausbatterie bei Schnell- und Planladung erlauben",
+      "batteryDischargeExcludeHelp": "Setzt die siteweite Einstellung für diesen Ladepunkt außer Kraft. Sinnvoll für kurze Wärmepumpen-Läufe, während das Auto weiter vom Netz geladen wird.",
       "batteryUsage": "Hausbatterie",
       "currents": "Ladestrom",
       "default": "default",
@@ -1763,7 +1912,9 @@
     "priceLimit": "Preisgrenze",
     "resetAction": "Grenze löschen",
     "resetWarning": "Es ist kein dynamischer Netzpreis und keine CO₂-Quelle konfiguriert. Dennoch ist eine Grenze von {limit} eingerichtet. Konfiguration aufräumen?",
-    "saved": "Gepeichert."
+    "saved": "Gepeichert.",
+    "showEnergyPrice": "Energiepreis, ohne Abgaben und Steuern",
+    "showEnergyPriceHelp": "An: Energiepreis der Quelle. Aus: inklusive Abgaben, Steuern und Formel. Die Grenze gilt in der angezeigten Einheit. Günstige Stunden bleiben gleich."
   },
   "smartFeedInPriority": {
     "activeHoursLabel": "Pausierte Zeit",

@@ -96,6 +96,10 @@ export interface State {
   ext?: Meter[];
   tariffs?: ConfigStatus<unknown, unknown>;
   tariffGrid?: number;
+  tariffGridEnergy?: number;
+  tariffCharges?: number;
+  tariffTax?: number;
+  tariffFormula?: boolean;
   tariffFeedIn?: number;
   tariffCo2?: number;
   tariffSolar?: number;
@@ -116,6 +120,7 @@ export interface State {
   bufferStartSoc?: number;
   batteryDischargeControl?: boolean;
   batteryGridChargeLimit?: number | null;
+  batteryGridChargeLimitEnergy?: boolean;
   smartCostAvailable?: boolean;
   smartCostType?: SMART_COST_TYPE;
   historyUpdated?: string; // ISO timestamp, bumped each 15min metrics persist
@@ -137,9 +142,11 @@ export interface State {
   peakShaveMinSoc?: number;
   peakShaveMaintainSocChargePower?: number;
   peakShaveLoadShedDelay?: number;
+  batteryControlInterval?: number;
   peakShaveAverage?: boolean;
   peakShaveState?: PeakShaveState;
   batteryCycleCost?: number;
+  batteryTrade?: boolean;
   batteryPlan?: BatteryPlanStatus;
 }
 
@@ -151,6 +158,82 @@ export type PeakShaveState =
   | "recovery"
   | "lockout";
 
+export interface BatteryPlanSlotLoad {
+  title?: string;
+  loadW?: number;
+}
+
+export interface BatteryPlanSlot {
+  start: string;
+  end: string;
+  action?: string;
+  reason?: string;
+  chargeW?: number;
+  dischargeW?: number;
+  homeW?: number;
+  solarW?: number;
+  loadW?: number;
+  loads?: BatteryPlanSlotLoad[];
+  residualW?: number;
+  price?: number;
+  energy?: number;
+  hasPrice?: boolean;
+  feedIn?: number;
+  hasFeedIn?: boolean;
+  soc?: number;
+  coverSoc?: number;
+  peak?: boolean;
+  measured?: boolean;
+}
+
+export interface BatteryPlanFact {
+  code: string;
+  params?: Record<string, unknown>;
+}
+
+export interface BatteryPlanLoad {
+  title?: string;
+  heating?: boolean;
+  estimated?: boolean;
+  energyWh?: number;
+  powerW?: number;
+  start?: string;
+  end?: string;
+  deadline?: string;
+  mode?: string;
+  pattern?: string;
+}
+
+export interface BatteryPlanLogEntry {
+  time: string;
+  code: string;
+  detail?: string;
+}
+
+export interface BatteryPlanExplain {
+  generated?: string;
+  homeSource?: string;
+  hasPrices?: boolean;
+  hasSolar?: boolean;
+  gridThresholdW?: number;
+  liveResidualW?: number;
+  capacityWh?: number;
+  soc?: number;
+  minSoc?: number;
+  reserveSoc?: number;
+  maxSoc?: number;
+  targetSoc?: number;
+  peakWh?: number;
+  coverWh?: number;
+  solarRoomWh?: number;
+  cycleCost?: number;
+  trade?: boolean;
+  chargeW?: number;
+  dischargeW?: number;
+  facts?: BatteryPlanFact[];
+  loads?: BatteryPlanLoad[];
+}
+
 export interface BatteryPlanStatus {
   action?: string;
   reason?: string;
@@ -158,9 +241,60 @@ export interface BatteryPlanStatus {
   dischargeW?: number;
   targetSoc?: number;
   peakWh?: number;
+  coverWh?: number;
+  solarRoomWh?: number;
   dischargeFloor?: number;
   loadWh?: number;
   loadW?: number;
+  slots?: BatteryPlanSlot[];
+  explain?: BatteryPlanExplain;
+  log?: BatteryPlanLogEntry[];
+}
+
+export interface HeatingComfort {
+  minTemp?: number;
+  hysteresis?: number;
+  minOnTime?: number;
+  assumedPowerW?: number;
+  maxAssumedPowerW?: number;
+  stopTemp?: number;
+}
+
+export interface HeatingBoost {
+  start?: string;
+  end?: string;
+  startTemp?: number;
+  endTemp?: number;
+  energyWh?: number;
+  peakW?: number;
+  extraW?: number[];
+  quality?: string;
+  reason?: string;
+  estimated?: boolean;
+}
+
+export interface HeatingBand {
+  minStartTemp?: number;
+  maxStartTemp?: number;
+  minutesPerK?: number;
+  whPerK?: number;
+  peakW?: number;
+  shape?: number[];
+  samples?: number;
+}
+
+export interface HeatingPattern {
+  bands?: HeatingBand[];
+}
+
+export interface HeatingStatus {
+  comfort?: HeatingComfort;
+  boosts?: HeatingBoost[];
+  pattern?: HeatingPattern;
+  active?: boolean;
+  estimated?: boolean;
+  reason?: string;
+  startTemp?: number;
 }
 
 export interface ConfigStatus<C, S> {
@@ -392,6 +526,7 @@ export interface Loadpoint {
   sessionSolarPercentage: number;
   smartCostActive: boolean;
   smartCostLimit: number | null;
+  smartCostLimitEnergy?: boolean;
   smartCostNextStart: string | null;
   smartFeedInPriorityActive: boolean;
   smartFeedInPriorityLimit: number | null;
@@ -407,6 +542,10 @@ export interface Loadpoint {
   vehicleTitle: string;
   vehicleWelcomeActive: boolean;
   batteryBoostLimit: number;
+  batteryDischargeExclude?: boolean;
+  repeatingPlans?: RepeatingPlan[] | null;
+  heatingComfort?: HeatingComfort;
+  heatingStatus?: HeatingStatus;
   ui?: LoadpointUi;
 }
 

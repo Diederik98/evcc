@@ -766,11 +766,12 @@ func applySmartCostLimit(lp loadpoint.API, demand []float32, grid api.Rates, min
 		return demand
 	}
 
+	energy := loadpointSmartCostEnergy(lp)
 	maxLen := min(minLen, len(grid))
 
 	// Check if any slots meet the cost limit
 	if hasAffordableSlots := slices.ContainsFunc(grid[:maxLen], func(r api.Rate) bool {
-		return r.Value <= *costLimit
+		return r.Cost(energy) <= *costLimit
 	}); !hasAffordableSlots {
 		return demand
 	}
@@ -782,7 +783,7 @@ func applySmartCostLimit(lp loadpoint.API, demand []float32, grid api.Rates, min
 	}
 
 	for i := range maxLen {
-		if grid[i].Value <= *costLimit {
+		if grid[i].Cost(energy) <= *costLimit {
 			demand[i] = float32(maxPower / slotsPerHour)
 		}
 		// else: keep existing demand (either 0 or minPower from ModeMinPV)
@@ -797,17 +798,18 @@ func (site *Site) applyBatteryGridChargeLimit(cMax float32, grid api.Rates, minL
 		return nil
 	}
 
+	energy := site.GetBatteryGridChargeLimitEnergy()
 	maxLen := min(minLen, len(grid))
 
 	if hasAffordableSlots := slices.ContainsFunc(grid[:maxLen], func(r api.Rate) bool {
-		return r.Value <= *limit
+		return r.Cost(energy) <= *limit
 	}); !hasAffordableSlots {
 		return nil
 	}
 
 	demand := make([]float32, minLen)
 	for i := range maxLen {
-		if grid[i].Value <= *limit {
+		if grid[i].Cost(energy) <= *limit {
 			demand[i] = float32(float64(cMax) / slotsPerHour)
 		}
 	}

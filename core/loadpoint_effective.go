@@ -83,7 +83,7 @@ func (lp *Loadpoint) nextVehiclePlan() (time.Time, int, int) {
 				continue
 			}
 
-			planTime, err := util.GetNextOccurrence(rp.Weekdays, rp.Time, rp.Tz)
+			planTime, err := util.GetNextOccurrenceFrom(lp.clock.Now(), rp.Weekdays, rp.Time, rp.Tz)
 			if err != nil {
 				lp.log.DEBUG.Printf("invalid repeating plan: weekdays=%v, time=%s, tz=%s, error=%v", rp.Weekdays, rp.Time, rp.Tz, err)
 				continue
@@ -114,10 +114,8 @@ func (lp *Loadpoint) getPlanId() int {
 		_, _, id := lp.nextVehiclePlan()
 		return id
 	}
-	if lp.planEnergy > 0 {
-		return 1
-	}
-	return 0
+	_, _, id, _ := lp.nextEnergyPlan()
+	return id
 }
 
 // EffectivePlanId returns the id for the current plan
@@ -136,7 +134,7 @@ func (lp *Loadpoint) EffectivePlanTime() time.Time {
 		return ts
 	}
 
-	ts, _ := lp.getPlanEnergy()
+	ts, _, _, _ := lp.nextEnergyPlan()
 	return ts
 }
 

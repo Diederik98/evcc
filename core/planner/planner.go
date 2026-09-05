@@ -32,6 +32,13 @@ func New(log *util.Logger, tariff api.Tariff, opt ...func(t *Planner)) *Planner 
 	return p
 }
 
+// WithClock overrides the planner clock (mainly for tests).
+func WithClock(c clock.Clock) func(*Planner) {
+	return func(p *Planner) {
+		p.clock = c
+	}
+}
+
 // plan creates a lowest-cost plan or required duration.
 // It MUST already be established that:
 // - rates are sorted in ascending order by cost and descending order by start time (prefer late slots)

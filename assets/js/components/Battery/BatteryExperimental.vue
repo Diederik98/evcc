@@ -28,7 +28,11 @@
 				:battery="state.battery"
 			/>
 
-			<Card v-if="gridChargeVisible" class="mb-4" :title="$t('batterySettings.gridChargeTab')">
+			<Card
+				v-if="gridChargeVisible"
+				class="mb-4"
+				:title="$t('batterySettings.gridChargeTab')"
+			>
 				<SmartCostLimit v-bind="smartCostLimitProps" />
 			</Card>
 
@@ -38,11 +42,18 @@
 					:peak-shave-min-soc="state.peakShaveMinSoc"
 					:peak-shave-maintain-soc-charge-power="state.peakShaveMaintainSocChargePower"
 					:peak-shave-load-shed-delay="state.peakShaveLoadShedDelay"
+					:battery-control-interval="state.batteryControlInterval ?? 5"
 					:peak-shave-average="state.peakShaveAverage ?? false"
 					:peak-shave-state="state.peakShaveState ?? 'idle'"
 					:limit-controller-available="peakShaveLimitControllerAvailable"
 					:battery-cycle-cost="state.batteryCycleCost ?? 0.05"
+					:battery-trade="state.batteryTrade ?? false"
 					:battery-plan="state.batteryPlan"
+					:grid-threshold="state.gridThreshold"
+					:currency="state.currency"
+					:tariff-charges="state.tariffCharges || 0"
+					:tariff-tax="state.tariffTax || 0"
+					:tariff-formula="!!state.tariffFormula"
 				/>
 			</Card>
 		</template>
@@ -152,6 +163,10 @@ export default defineComponent({
 				currency: this.state.currency || CURRENCY.EUR,
 				tariff: this.gridChargeTariff,
 				possible: this.gridChargePossible,
+				tariffCharges: this.state.tariffCharges || 0,
+				tariffTax: this.state.tariffTax || 0,
+				tariffFormula: !!this.state.tariffFormula,
+				smartCostLimitEnergy: !!this.state.batteryGridChargeLimitEnergy,
 			};
 		},
 	},

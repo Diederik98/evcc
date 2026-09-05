@@ -70,11 +70,7 @@ func (t *SmartEnergy) run(done chan error) {
 				continue
 			}
 
-			ar := api.Rate{
-				Start: r.Date.Local(),
-				End:   r.Date.Add(time.Hour).Local(),
-				Value: t.totalPrice(r.Value/100, r.Date),
-			}
+			ar := t.rate(r.Date.Local(), r.Date.Add(time.Hour).Local(), r.Value/100)
 			data = append(data, ar)
 		}
 

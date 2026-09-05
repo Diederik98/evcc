@@ -47,6 +47,26 @@
 				</button>
 			</div>
 		</div>
+		<div v-if="showEnergyToggle" class="row mb-3" style="max-width: 1000px">
+			<div class="col-sm-8 offset-sm-4 pe-0">
+				<div class="form-check form-switch mb-0" data-testid="energy-price-toggle">
+					<input
+						:id="formId + 'EnergyPrice'"
+						class="form-check-input"
+						type="checkbox"
+						role="switch"
+						:checked="energyPriceDisplay"
+						@change="$emit('toggle-energy-price')"
+					/>
+					<label class="form-check-label" :for="formId + 'EnergyPrice'">
+						{{ $t("smartCost.showEnergyPrice") }}
+					</label>
+				</div>
+				<div class="form-text text-muted">
+					{{ $t("smartCost.showEnergyPriceHelp") }}
+				</div>
+			</div>
+		</div>
 		<div class="justify-content-between mb-2 d-flex justify-content-between">
 			<div class="text-start" data-testid="active-hours">
 				<div class="label">
@@ -61,7 +81,7 @@
 					<span v-if="activeSlot">{{ activeSlotName }}</span>
 					<span v-else>{{ currentPriceLabel }}</span>
 				</div>
-				<div v-if="activeSlot" class="value text-primary">
+				<div v-if="activeSlot" class="value" :class="activeSlot.charging ? highlightColor : 'value-inactive'">
 					{{ activeSlotCost }}
 				</div>
 				<div v-else-if="activeSlots.length" class="value text-primary">
@@ -130,8 +150,10 @@ export default defineComponent({
 			type: Function as PropType<(value: number | undefined) => boolean>,
 			required: true,
 		},
+		showEnergyToggle: Boolean,
+		energyPriceDisplay: Boolean,
 	},
-	emits: ["save-limit", "delete-limit", "apply-to-all"],
+	emits: ["save-limit", "delete-limit", "apply-to-all", "toggle-energy-price"],
 	data() {
 		return {
 			selectedLimit: null as number | null,
@@ -151,6 +173,12 @@ export default defineComponent({
 			}
 			return [];
 		},
+		effectiveLimit(): number | null {
+			if (this.active && this.selectedLimit !== null) {
+				return this.selectedLimit;
+			}
+			return this.currentLimit;
+		},
 		limitOptions(): SelectOption<number>[] {
 			const { max } = this.optionsCostRange;
 
@@ -163,7 +191,7 @@ export default defineComponent({
 			}
 			// add special entry if currently selected value is not in the scale
 			const selected = this.selectedLimit;
-			if (selected && !values.includes(selected)) {
+			if (selected != null && !values.includes(selected)) {
 				values.push(selected);
 			}
 			values.sort((a, b) => a - b);
@@ -207,10 +235,10 @@ export default defineComponent({
 			return { min, max };
 		},
 		slots(): Slot[] {
-			return this.slotsForLimit(this.currentLimit);
+			return this.slotsForLimit(this.effectiveLimit);
 		},
 		chartSlots(): Slot[] {
-			return this.slotsForLimit(this.currentLimit ?? this.selectedLimit);
+			return this.slotsForLimit(this.effectiveLimit);
 		},
 		totalSlots() {
 			return this.slots.filter((s) => s.value !== undefined);
@@ -269,6 +297,9 @@ export default defineComponent({
 	},
 	watch: {
 		currentLimit() {
+			this.initLimit();
+		},
+		energyPriceDisplay() {
 			this.initLimit();
 		},
 	},

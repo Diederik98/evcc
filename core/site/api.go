@@ -17,6 +17,7 @@ type API interface {
 	Loadpoints() []loadpoint.API
 	Vehicles() Vehicles
 	Optimize() error
+	ReplanBattery() error
 
 	// Meta
 	GetTitle() string
@@ -55,6 +56,10 @@ type API interface {
 	GetBatteryGridChargeLimit() *float64
 	// SetBatteryGridChargeLimit sets the grid charge limit
 	SetBatteryGridChargeLimit(limit *float64) error
+	// GetBatteryGridChargeLimitEnergy reports whether the grid charge limit is a source energy price
+	GetBatteryGridChargeLimitEnergy() bool
+	// SetBatteryGridChargeLimitEnergy sets whether the grid charge limit is a source energy price
+	SetBatteryGridChargeLimitEnergy(energy bool)
 
 	// GetOptimizerChargingStrategy gets the optimizer grid charging strategy
 	GetOptimizerChargingStrategy() string
@@ -116,6 +121,10 @@ type API interface {
 	GetPeakShaveLoadShedDelay() float64
 	// SetPeakShaveLoadShedDelay sets the load shed grace period in seconds
 	SetPeakShaveLoadShedDelay(float64) error
+	// GetBatteryControlInterval returns the live battery power-control loop interval in seconds
+	GetBatteryControlInterval() float64
+	// SetBatteryControlInterval sets the live battery power-control loop interval in seconds
+	SetBatteryControlInterval(float64) error
 	// GetPeakShaveAverage returns whether peak shaving uses the 15-minute average
 	GetPeakShaveAverage() bool
 	// SetPeakShaveAverage sets whether peak shaving uses the 15-minute average
@@ -126,4 +135,8 @@ type API interface {
 	GetBatteryCycleCost() float64
 	// SetBatteryCycleCost sets wear cost per kWh discharged
 	SetBatteryCycleCost(float64) error
+	// GetBatteryTrade returns whether leftover above cover may be filled or sold
+	GetBatteryTrade() bool
+	// SetBatteryTrade sets whether leftover above cover may be filled or sold
+	SetBatteryTrade(bool) error
 }

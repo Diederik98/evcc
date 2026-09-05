@@ -53,9 +53,10 @@ func (t *SlotWrapper) Rates() (api.Rates, error) {
 			}
 
 			res = append(res, api.Rate{
-				Start: start,
-				End:   end,
-				Value: val,
+				Start:  start,
+				End:    end,
+				Value:  val,
+				Energy: api.CloneEnergy(r.Energy),
 			})
 		}
 	}

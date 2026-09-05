@@ -4,7 +4,16 @@ import (
 	"time"
 
 	"github.com/evcc-io/evcc/api"
+	"github.com/evcc-io/evcc/core/loadpoint"
 )
+
+func loadpointSmartCostEnergy(lp loadpoint.API) bool {
+	type getter interface {
+		GetSmartCostLimitEnergy() bool
+	}
+	g, ok := lp.(getter)
+	return ok && g.GetSmartCostLimitEnergy()
+}
 
 // checkSmartLimit checks if current rate meets smart limit and returns next start time if not active.
 // checkBelow: true for rate <= limit, false for rate >= limit
@@ -25,10 +34,11 @@ func (lp *Loadpoint) smartLimitActive(limit *float64, rates api.Rates, checkBelo
 		return false
 	}
 
+	cost := rate.Cost(lp.GetSmartCostLimitEnergy() && checkBelow)
 	if checkBelow {
-		return rate.Value <= *limit
+		return cost <= *limit
 	}
-	return rate.Value >= *limit
+	return cost >= *limit
 }
 
 // smartLimitNextStart returns the next start time when the smart limit condition will be met
@@ -37,9 +47,11 @@ func (lp *Loadpoint) smartLimitNextStart(limit *float64, rates api.Rates, checkB
 		return time.Time{}
 	}
 
+	energy := lp.GetSmartCostLimitEnergy() && checkBelow
 	now := time.Now()
 	for _, slot := range rates {
-		if slot.Start.After(now) && (checkBelow && slot.Value <= *limit || !checkBelow && slot.Value >= *limit) {
+		cost := slot.Cost(energy)
+		if slot.Start.After(now) && (checkBelow && cost <= *limit || !checkBelow && cost >= *limit) {
 			return slot.Start
 		}
 	}

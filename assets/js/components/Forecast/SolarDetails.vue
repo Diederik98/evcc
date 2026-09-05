@@ -103,7 +103,7 @@ export default defineComponent({
 			if (o.configuredAzimuth == null || o.configuredDecline == null) {
 				return this.$t("forecast.orientationSuggest", params);
 			}
-			return "";
+			return this.$t("forecast.orientationSuggestApply", params);
 		},
 	},
 });

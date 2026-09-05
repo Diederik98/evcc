@@ -19,6 +19,10 @@
 				:multiple-loadpoints="multipleLoadpoints"
 				:possible="smartCostAvailable"
 				:tariff="forecast?.planner"
+				:tariff-charges="tariffCharges"
+				:tariff-tax="tariffTax"
+				:tariff-formula="tariffFormula"
+				:smart-cost-limit-energy="!!loadpoint?.smartCostLimitEnergy"
 				class="mt-2 mb-4"
 			/>
 			<SmartFeedInPriority
@@ -37,6 +41,22 @@
 				class="mt-2"
 				@batteryboostlimit-updated="setBatteryBoostLimit"
 			/>
+			<div v-if="batteryDischargeControlAvailable" class="form-check form-switch mt-4 mb-4">
+				<input
+					:id="formId('batteryDischargeExclude')"
+					class="form-check-input"
+					type="checkbox"
+					role="switch"
+					:checked="loadpoint?.batteryDischargeExclude ?? false"
+					@change="setBatteryDischargeExclude"
+				/>
+				<label class="form-check-label" :for="formId('batteryDischargeExclude')">
+					{{ $t("main.loadpointSettings.batteryDischargeExclude") }}
+				</label>
+				<div class="form-text text-muted">
+					{{ $t("main.loadpointSettings.batteryDischargeExcludeHelp") }}
+				</div>
+			</div>
 			<h6>
 				{{ $t("main.loadpointSettings.currents") }}
 			</h6>
@@ -167,10 +187,14 @@ export default defineComponent({
 	props: {
 		loadpoints: { type: Array as PropType<UiLoadpoint[]>, default: () => [] },
 		batteryConfigured: Boolean,
+		batteryDischargeControl: Boolean,
 		smartCostType: String as PropType<SMART_COST_TYPE>,
 		smartCostAvailable: Boolean,
 		smartFeedInPriorityAvailable: Boolean,
 		tariffGrid: Number,
+		tariffCharges: { type: Number, default: 0 },
+		tariffTax: { type: Number, default: 0 },
+		tariffFormula: Boolean,
 		currency: String as PropType<CURRENCY>,
 		multipleLoadpoints: Boolean,
 		forecast: Object as PropType<Forecast>,
@@ -244,6 +268,9 @@ export default defineComponent({
 		batteryBoostAvailable() {
 			return this.batteryConfigured;
 		},
+		batteryDischargeControlAvailable() {
+			return this.batteryConfigured && this.batteryDischargeControl;
+		},
 	},
 	watch: {
 		maxCurrent(value) {
@@ -285,6 +312,10 @@ export default defineComponent({
 		},
 		setBatteryBoostLimit(limit: number) {
 			api.post(this.apiPath("batteryboostlimit") + "/" + limit);
+		},
+		setBatteryDischargeExclude(event: Event) {
+			const checked = (event.target as HTMLInputElement).checked;
+			api.post(this.apiPath("batterydischargeexclude") + "/" + checked);
 		},
 		currentOption(current: number, isDefault: boolean, phases?: number) {
 			const kw = this.fmtPhasePower(current, phases);

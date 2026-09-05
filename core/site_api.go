@@ -39,6 +39,22 @@ func filterConfigurable(ref []string) []string {
 	})
 }
 
+// ReplanBattery rebuilds the battery plan from current SoC, prices, solar, and charger schedules.
+func (site *Site) ReplanBattery() error {
+	if !site.batteryConfigured() {
+		return ErrBatteryNotConfigured
+	}
+
+	site.batteryPlanFingerprint = ""
+	plan, planned := site.evaluateBatteryPlan()
+	if planned {
+		site.publishBatteryPlan(plan)
+	} else {
+		site.publishIdleBatteryPlan()
+	}
+	return nil
+}
+
 // Optimize updates the optimizer
 func (site *Site) Optimize() error {
 	if !sponsor.IsAuthorized() || !optimizerEnabled() {
@@ -458,6 +474,40 @@ func (site *Site) SetPeakShaveLoadShedDelay(delay float64) error {
 	return nil
 }
 
+// GetBatteryControlInterval returns the live battery power-control loop interval in seconds
+func (site *Site) GetBatteryControlInterval() float64 {
+	site.RLock()
+	defer site.RUnlock()
+	if site.BatteryControlInterval < minBatteryControlIntervalS {
+		return defaultBatteryControlIntervalS
+	}
+	return site.BatteryControlInterval
+}
+
+// SetBatteryControlInterval sets the live battery power-control loop interval in seconds
+func (site *Site) SetBatteryControlInterval(interval float64) error {
+	site.Lock()
+	defer site.Unlock()
+
+	if len(site.batteryMeters) == 0 {
+		return ErrBatteryNotConfigured
+	}
+
+	if interval < minBatteryControlIntervalS || interval > maxBatteryControlIntervalS {
+		return fmt.Errorf("battery control interval must be between %.0f and %.0f s", minBatteryControlIntervalS, maxBatteryControlIntervalS)
+	}
+
+	site.log.DEBUG.Println("set battery control interval:", interval)
+
+	if site.BatteryControlInterval != interval {
+		site.BatteryControlInterval = interval
+		settings.SetFloat(keys.BatteryControlInterval, site.BatteryControlInterval)
+		site.publish(keys.BatteryControlInterval, site.BatteryControlInterval)
+	}
+
+	return nil
+}
+
 // GetPeakShaveAverage returns whether peak shaving uses the clock-aligned 15-minute average
 func (site *Site) GetPeakShaveAverage() bool {
 	site.RLock()
@@ -517,6 +567,29 @@ func (site *Site) SetBatteryCycleCost(cost float64) error {
 		site.BatteryCycleCost = cost
 		settings.SetFloat(keys.BatteryCycleCost, site.BatteryCycleCost)
 		site.publish(keys.BatteryCycleCost, site.BatteryCycleCost)
+	}
+
+	return nil
+}
+
+// GetBatteryTrade returns whether leftover above cover may be filled or sold
+func (site *Site) GetBatteryTrade() bool {
+	site.RLock()
+	defer site.RUnlock()
+	return site.BatteryTrade
+}
+
+// SetBatteryTrade sets whether leftover above cover may be filled or sold
+func (site *Site) SetBatteryTrade(trade bool) error {
+	site.Lock()
+	defer site.Unlock()
+
+	site.log.DEBUG.Println("set battery trade:", trade)
+
+	if site.BatteryTrade != trade {
+		site.BatteryTrade = trade
+		settings.SetBool(keys.BatteryTrade, site.BatteryTrade)
+		site.publish(keys.BatteryTrade, site.BatteryTrade)
 	}
 
 	return nil
@@ -608,6 +681,11 @@ func (site *Site) SetBatteryGridChargeLimit(val *float64) error {
 		if val == nil {
 			settings.SetString(keys.BatteryGridChargeLimit, "")
 			site.publish(keys.BatteryGridChargeLimit, nil)
+			if site.batteryGridChargeLimitEnergy {
+				site.batteryGridChargeLimitEnergy = false
+				settings.SetBool(keys.BatteryGridChargeLimitEnergy, false)
+				site.publish(keys.BatteryGridChargeLimitEnergy, false)
+			}
 		} else {
 			settings.SetFloat(keys.BatteryGridChargeLimit, *val)
 			site.publish(keys.BatteryGridChargeLimit, *val)
@@ -615,6 +693,25 @@ func (site *Site) SetBatteryGridChargeLimit(val *float64) error {
 	}
 
 	return nil
+}
+
+func (site *Site) GetBatteryGridChargeLimitEnergy() bool {
+	site.RLock()
+	defer site.RUnlock()
+	return site.batteryGridChargeLimitEnergy
+}
+
+func (site *Site) SetBatteryGridChargeLimitEnergy(val bool) {
+	site.Lock()
+	defer site.Unlock()
+
+	if site.batteryGridChargeLimitEnergy == val {
+		return
+	}
+
+	site.batteryGridChargeLimitEnergy = val
+	settings.SetBool(keys.BatteryGridChargeLimitEnergy, val)
+	site.publish(keys.BatteryGridChargeLimitEnergy, val)
 }
 
 // GetOptimizerChargingStrategy returns the optimizer grid charging strategy,

@@ -111,14 +111,16 @@ func (t *Tibber) run(done chan error) {
 func (t *Tibber) rates(pi []tibber.Price) api.Rates {
 	data := make(api.Rates, 0, len(pi))
 	for _, r := range pi {
+		energy := r.Energy
 		price := r.Total
 		if t.Charges != 0 || t.Tax != 0 || t.Formula != "" {
-			price = t.totalPrice(r.Energy, r.StartsAt)
+			price = t.totalPrice(energy, r.StartsAt)
 		}
 		ar := api.Rate{
-			Start: r.StartsAt.Local(),
-			End:   r.StartsAt.Add(SlotDuration).Local(),
-			Value: price,
+			Start:  r.StartsAt.Local(),
+			End:    r.StartsAt.Add(SlotDuration).Local(),
+			Value:  price,
+			Energy: api.NewEnergy(energy),
 		}
 		data = append(data, ar)
 	}

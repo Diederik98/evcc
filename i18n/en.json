@@ -99,12 +99,14 @@
     "gridPowerLive": "Current grid import: {power} kW",
     "loadShedDelay": "Load shed delay",
     "loadShedDelayHelp": "Grace period in seconds before EV charging is throttled when grid import stays above the threshold. Set to 0 for immediate load shedding.",
+    "controlInterval": "Power control interval",
+    "controlIntervalHelp": "How often charge and discharge limits are rewritten from the latest grid reading. Lower is more responsive but talks to the battery more often. Default 5 seconds.",
     "average": "15-minute average",
     "averageHelp": "Limit the clock-aligned 15-minute grid average instead of instantaneous watts. Short spikes can pass if the quarter still has budget. Instantaneous control stays the default and is safer for the bill.",
     "noLimitController": "Peak shaving requires a battery that supports charge and discharge power limits. Configure chargelimit and dischargelimit on your battery meter.",
     "socInvalid": "Reserve SoC must not be below the battery minimum SoC.",
     "reserveSoc": "Reserve SoC",
-    "reserveSocHelp": "Target battery level to maintain as a buffer. Recovery charging starts when SoC drops below this. Must be at or above the battery minimum SoC from device configuration.",
+    "reserveSocHelp": "Target battery level to keep as a buffer. Peak shaving discharges down to this level, not to empty. Recovery charging starts when SoC drops below this. Must be at or above the battery minimum SoC from device configuration.",
     "reserveSocLabel": "Reserve",
     "minSocFromBattery": "Min (battery): {soc}%",
     "minSocTooltip": "Minimum SoC: {soc}%. Set in battery device configuration.",
@@ -115,13 +117,122 @@
     "maintainSocChargePower": "Recovery charge power",
     "maintainSocChargePowerHelp": "Power limit used to restore the battery to the reserve SoC level after peak shaving.",
     "cycleCost": "Cycle cost",
-    "cycleCostHelp": "Wear cost per kWh discharged. Grid charging only happens when the tax-inclusive price spread covers losses and this cost. Set 0 to ignore wear.",
+    "cycleCostHelp": "Wear cost per kWh discharged. Grid charging for later house use happens when the tax-inclusive spread covers losses and this cost. Set 0 to ignore wear.",
     "cycleCostUnit": "€/kWh",
+    "trade": "Trade leftover",
+    "tradeHelp": "Off: charge only what the house (minus predicted solar) will need later, when the spread pays. On: also fill toward full and sell when feed-in beats later self-use. Peak shaving still wins.",
     "plan": {
       "title": "Battery plan",
-      "targetSoc": "Target SoC for upcoming peaks: {soc}%",
+      "targetSoc": "Target SoC for later use: {soc}%",
       "loadpoints": "Includes {energy} planned charging",
       "loadCap": "Planned charging limited to {power}",
+      "forecast": "Forecast",
+      "forecastHours": "Next {hours} hours",
+      "openDetails": "How this plan was made",
+      "pageTitle": "Battery plan details",
+      "pageIntro": "The planner looks ahead and chooses whether the battery should charge from the grid, hold, discharge for the house, or follow solar surplus. It uses house load, solar, prices, the grid limit, and planned EV or heat-pump blocks. Cover is energy kept for later expensive hours and the peak reserve. Trade leftover can fill or sell above that. Live peak shaving can still override the current quarter.",
+      "backToBattery": "Back to battery settings",
+      "howTitle": "How this plan was made",
+      "inputsTitle": "Inputs",
+      "pricesTitle": "Prices, grid fees, and tax",
+      "pricesHelp": "The planner uses the tariff prices as configured, including charges and tax. Add per-kWh grid fees and excise to charges, and VAT to tax, on the grid tariff. The capacity tariff is billed per peak kW, not per kWh, so it does not belong in charges. Feed-in is usually the injection price only: residential customers typically have no grid usage fee and no VAT on the credit.",
+      "loadsTitle": "Charger and heat-pump blocks",
+      "horizonTitle": "Plan",
+      "replan": "Rebuild plan",
+      "replanHelp": "Recalculate from current SoC, prices, solar, and charger schedules.",
+      "legendIntro": "Bars are power. Lines are SoC, cover, and price. The coloured strip is the battery action for that quarter.",
+      "help": {
+        "house": "Household consumption without planned EV or heat-pump blocks.",
+        "solar": "Predicted solar production.",
+        "soc": "Predicted battery state of charge.",
+        "charging": "Planned EV or heat-pump power in that quarter.",
+        "cover": "SoC the planner wants for later expensive hours and peak reserve. Cheap hours may charge toward this line. Expensive hours can consume it. Leftover above it may be used or sold.",
+        "price": "Tax-inclusive grid price.",
+        "charge": "Charge the battery from the grid this quarter.",
+        "hold": "Do not discharge. This hour is cheap, so save energy for later expensive hours.",
+        "discharge": "Supply the house from the battery.",
+        "normal": "Follow solar surplus: charge from leftover PV, discharge for the house.",
+        "export": "Sell leftover energy because feed-in pays more than later self-use.",
+        "measured": "Recorded values from the last 24 hours, not a forecast."
+      },
+      "batteryStrip": "Battery",
+      "chargerStrip": "Chargers",
+      "chargerAction": {
+        "charging": "Planned charging",
+        "idle": "No charging"
+      },
+      "logTitle": "What changed",
+      "estimated": "Estimated",
+      "loadFallback": "Loadpoint",
+      "colTime": "Time",
+      "colAction": "Decision",
+      "loadSummary": "{energy} at {power}, {start}–{end}{span} ({pattern})",
+      "loadSummaryDeadline": " · finish by {deadline}",
+      "loadSpanDays": " · spans multiple days",
+      "measured": "Measured",
+      "measuredHelp": "Recorded household data",
+      "measuredHouse": "House (measured)",
+      "measuredSolar": "Solar (measured)",
+      "measuredSoc": "SoC (measured)",
+      "inputSoc": "Battery SoC now: {soc}%",
+      "inputReserve": "Min {min}%, reserve {reserve}%, target for later use {target}%",
+      "inputLimit": "Grid limit: {power}",
+      "inputPeak": "Predicted overshoot if the battery stays idle: {energy}",
+      "inputLive": "Live residual import: {power}",
+      "fact": {
+        "home": {
+          "weekday": "House load uses the weekday 15-minute profile.",
+          "fallback": "No house profile yet. Using current household power as a flat forecast."
+        },
+        "prices": {
+          "yes": "Dynamic grid prices are included.",
+          "no": "No grid prices in this window. Peak and solar still apply."
+        },
+        "solar": {
+          "yes": "Solar forecast is included.",
+          "no": "No solar forecast in this window."
+        },
+        "limit": "Grid import limit is {kw} kW.",
+        "peak": "Predicted peak energy {kwh} kWh. Target SoC {soc}%.",
+        "action": {
+          "normal": "This quarter follows solar surplus.",
+          "charge": "This quarter charges from the grid ({reason}).",
+          "hold": "This quarter holds charge ({reason}).",
+          "discharge": "This quarter discharges ({reason})."
+        },
+        "battery": {
+          "coverPeak": "Battery covers a predicted peak. Heat or charging that would exceed the limit is supplied from the battery first.",
+          "cover": "Cover for later expensive hours and peak reserve is {kwh} kWh ({soc}%).",
+          "solarRoom": "Predicted solar leftover {kwh} kWh is left empty so afternoon surplus is not clipped.",
+          "tradeOn": "Trade is on: leftover above cover may be filled or sold when the spread pays.",
+          "tradeOff": "Trade is off: stop at cover. No extra fill, no sell.",
+          "holdForLater": "This hour is cheap. Stored energy is kept for later expensive hours instead of feeding cheap loads.",
+          "cheapCycle": "Tax-inclusive price spread covers losses and cycle cost.",
+          "reserveFloor": "Peak discharge stops at the reserve SoC ({soc}%). The plan does not empty the battery."
+        },
+        "load": {
+          "charger": "Charger {title}: {kwh} kWh at {w} W ({pattern}).",
+          "heat": "Heat pump {title}: {kwh} kWh extra at {w} W ({pattern}). Not metered extra is estimated from house load."
+        }
+      },
+      "log": {
+        "created": "Plan created",
+        "replan": "Plan updated",
+        "peak": "Peak coverage changed",
+        "load": "Charger or heat-pump overlay changed"
+      },
+      "now": "Now",
+      "noPrices": "No grid prices in this window. Peak and solar forecasts still apply.",
+      "noForecast": "No plan yet. A house profile or prices are needed.",
+      "liveOverride": "Live peak shaving can override the current quarter.",
+      "house": "House",
+      "solar": "Solar",
+      "charging": "Planned charging",
+      "threshold": "Limit",
+      "price": "Price",
+      "soc": "Battery SoC",
+      "cover": "Cover",
+      "overLimit": "Above the grid limit if the battery stays idle",
       "action": {
         "normal": "Following solar surplus",
         "charge": "Charging from grid",
@@ -131,11 +242,11 @@
       "reason": {
         "idle": "No action required",
         "peak": "Covering a predicted peak",
-        "charge": "Charging enough energy to cover later peaks",
-        "cheap": "Tax-inclusive price is low enough to cycle",
-        "hold": "Saving energy for later expensive or peak hours",
+        "charge": "Charging enough energy to cover later use",
+        "cheap": "Tax-inclusive price is low enough to cover later import",
+        "hold": "Saving energy for later expensive hours",
         "recovery": "Restoring reserve SoC",
-        "export": "Selling leftover energy while feed-in is expensive"
+        "export": "Selling leftover energy because feed-in beats later self-use"
       }
     },
     "batteryTabTitle": "Battery protection",
@@ -1161,6 +1272,7 @@
       "range": "Range"
     },
     "priceZoom": "zoom in",
+    "showEnergyPrice": "without charges or tax",
     "showLine": "show line",
     "solar": {
       "dayAfterTomorrow": "Day after tomorrow",
@@ -1169,10 +1281,12 @@
       "today": "Today",
       "tomorrow": "Tomorrow"
     },
-    "orientationSuggest": "Clear-sky production suggests azimuth {azimuth}° and tilt {decline}° ({days} clear days)",
-    "orientationSuggestDiff": "Configured azimuth {configuredAzimuth}° / tilt {configuredDecline}°. Clear-sky production suggests {azimuth}° / {decline}° ({days} clear days)",
+    "orientationSuggest": "Clear-sky production suggests azimuth {azimuth}° and tilt {decline}° ({days} clear days). 0° = south, negative = east of south, positive = west of south",
+    "orientationSuggestDiff": "Configured azimuth {configuredAzimuth}° / tilt {configuredDecline}°. Clear-sky fit of your production suggests {azimuth}° / {decline}° ({days} clear days). 0° = south, −90° = east, +90° = west. Mixed east/south arrays: use the suggested compromise, or add a second solar forecast for the other orientation",
     "orientationSuggestLink": "Review solar forecast",
+    "orientationSuggestApply": "Suggested settings to match measured production: azimuth {azimuth}°, tilt {decline}°",
     "solarAdjust": "Adjust solar forecast based on real production data{percent}.",
+    "solarAdjustHelp": "Compares today's measured PV energy to the forecast so far. +135% means production is about 2.35× the forecast. The battery plan uses this scale automatically; this toggle only changes the Forecast chart.",
     "solarAdjustMedium": "real data adjust",
     "solarAdjustShort": "adjust",
     "type": {
@@ -1290,6 +1404,39 @@
     "password": "Administrator Password",
     "reset": "Reset password?",
     "title": "Authentication"
+  },
+  "heating": {
+    "estimated": "Estimated extra",
+    "estimatedHelp": "No heat-pump meter. Extra watts are inferred from household residual while the boost is on.",
+    "currentTemp": "Tank {temp}",
+    "reason": {
+      "calendar": "Calendar boost",
+      "comfort": "Comfort floor",
+      "now": "Now",
+      "stop": "Stopped"
+    },
+    "comfort": {
+      "title": "Comfort and assumed power",
+      "help": "Works with a custom on/off boost (including a Daikin API). Disabled means the heat pump runs its own curve. The floor starts a boost if tank temperature drops below the limit.",
+      "minTemp": "Comfort floor",
+      "hysteresis": "Hysteresis",
+      "stopTemp": "Stop temperature",
+      "minOnTime": "Minimum on-time",
+      "minOnNone": "None",
+      "assumedPower": "Assumed extra power",
+      "maxAssumedPower": "Inference cap"
+    },
+    "pattern": {
+      "title": "Learned extra-heat pattern",
+      "band": "From {from} to {to}: about {minutes} min/K, first-slot extra {peak}, {n} boosts"
+    },
+    "boosts": {
+      "title": "Recent boosts",
+      "start": "When",
+      "temps": "Start → end",
+      "energy": "Extra energy",
+      "quality": "Quality"
+    }
   },
   "main": {
     "chargingPlan": {
@@ -1431,6 +1578,8 @@
         "stateHold": "Battery locked",
         "stateReady": "Battery boost ready"
       },
+      "batteryDischargeExclude": "Allow home battery during fast and planned charging",
+      "batteryDischargeExcludeHelp": "Overrides the site-wide setting for this loadpoint. Useful for short heat-pump runs while keeping the car charger on grid-only charging.",
       "batteryUsage": "Home Battery",
       "currents": "Charging Current",
       "default": "default",
@@ -1763,7 +1912,9 @@
     "priceLimit": "Price limit",
     "resetAction": "Remove limit",
     "resetWarning": "There is no dynamic grid price or CO₂-source configured. However, there is still a limit of {limit}. Clean up your configuration?",
-    "saved": "Saved."
+    "saved": "Saved.",
+    "showEnergyPrice": "Energy price, without charges or tax",
+    "showEnergyPriceHelp": "On: source energy price. Off: including charges, tax, and formula. The limit is set in the unit you see. Cheap hours stay the same."
   },
   "smartFeedInPriority": {
     "activeHoursLabel": "Paused time",

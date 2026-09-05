@@ -24,15 +24,21 @@ type DynamicConfig struct {
 	MinCurrent               float64   `json:"minCurrent"`
 	MaxCurrent               float64   `json:"maxCurrent"`
 	SmartCostLimit           *float64  `json:"smartCostLimit"`
+	SmartCostLimitEnergy     *bool     `json:"smartCostLimitEnergy,omitempty"`
 	SmartFeedInPriorityLimit *float64  `json:"smartFeedInPriorityLimit"`
 	PlanEnergy               float64   `json:"planEnergy"`
 	PlanTime                 time.Time `json:"planTime"`
 	PlanPrecondition_        int64     `json:"planPrecondition" mapstructure:"planPrecondition"` // TODO deprecated, keep for compatibility
 	BatteryBoostLimit        int       `json:"batteryBoostLimit"`
+	BatteryDischargeExclude  bool      `json:"batteryDischargeExclude,omitempty"`
 	LimitEnergy              float64   `json:"limitEnergy"`
 	LimitSoc                 int       `json:"limitSoc"`
 
-	PlanStrategy api.PlanStrategy `json:"planStrategy"`
+	PlanStrategy   api.PlanStrategy    `json:"planStrategy"`
+	RepeatingPlans []api.RepeatingPlan `json:"repeatingPlans,omitempty"`
+	HeatingComfort HeatingComfort      `json:"heatingComfort,omitempty"`
+	HeatingBoosts  []HeatingBoost      `json:"heatingBoosts,omitempty"`
+	HeatingPattern HeatingPattern      `json:"heatingPattern,omitempty"`
 
 	Thresholds ThresholdsConfig `json:"thresholds"`
 	Soc        SocConfig        `json:"soc"`
@@ -60,6 +66,7 @@ func SplitConfig(payload map[string]any) (DynamicConfig, map[string]any, error) 
 	// TODO: proper handling of id/name
 	delete(cc.Other, "id")
 	delete(cc.Other, "name")
+	delete(cc.Other, "smartCostLimitEnergy")
 
 	return cc.DynamicConfig, cc.Other, nil
 }
@@ -68,17 +75,35 @@ func (payload DynamicConfig) Apply(lp API) error {
 	lp.SetTitle(payload.Title)
 	lp.SetPriority(payload.Priority)
 	lp.SetSmartCostLimit(payload.SmartCostLimit)
+	if payload.SmartCostLimitEnergy != nil {
+		if e, ok := lp.(interface{ SetSmartCostLimitEnergy(bool) }); ok {
+			e.SetSmartCostLimitEnergy(*payload.SmartCostLimitEnergy)
+		}
+	}
 	lp.SetSmartFeedInPriorityLimit(payload.SmartFeedInPriorityLimit)
 	lp.SetThresholds(payload.Thresholds)
 	lp.SetPlanEnergy(payload.PlanTime, payload.PlanEnergy)
 	lp.SetPlanStrategy(payload.PlanStrategy)
 	lp.SetBatteryBoostLimit(payload.BatteryBoostLimit)
+	lp.SetBatteryDischargeExclude(payload.BatteryDischargeExclude)
 	lp.SetLimitEnergy(payload.LimitEnergy)
 	lp.SetLimitSoc(payload.LimitSoc)
 
 	// TODO mode warning
 	lp.SetSocConfig(payload.Soc)
 	lp.SetUI(payload.UI)
+
+	if err := lp.SetRepeatingPlans(payload.RepeatingPlans); err != nil {
+		return err
+	}
+	if err := lp.SetHeatingComfort(payload.HeatingComfort); err != nil {
+		return err
+	}
+	if payload.HeatingBoosts != nil || len(payload.HeatingPattern.Bands) > 0 {
+		if err := lp.SetHeatingHistory(payload.HeatingBoosts, payload.HeatingPattern); err != nil {
+			return err
+		}
+	}
 
 	mode, err := api.ChargeModeString(payload.DefaultMode)
 	if err == nil {

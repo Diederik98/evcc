@@ -27,6 +27,10 @@ const (
 	TariffCo2Loadpoints   = "tariffCo2Loadpoints"
 	TariffFeedIn          = "tariffFeedIn"
 	TariffGrid            = "tariffGrid"
+	TariffGridEnergy      = "tariffGridEnergy"
+	TariffCharges         = "tariffCharges"
+	TariffTax             = "tariffTax"
+	TariffFormula         = "tariffFormula"
 	TariffPriceHome       = "tariffPriceHome"
 	TariffPriceLoadpoints = "tariffPriceLoadpoints"
 	TariffSolar           = "tariffSolar"
@@ -43,6 +47,7 @@ const (
 	// battery settings
 	BatteryDischargeControl         = "batteryDischargeControl"
 	BatteryGridChargeLimit          = "batteryGridChargeLimit"
+	BatteryGridChargeLimitEnergy    = "batteryGridChargeLimitEnergy"
 	BatteryGridChargeActive         = "batteryGridChargeActive"
 	BufferSoc                       = "bufferSoc"
 	BufferStartSoc                  = "bufferStartSoc"
@@ -51,9 +56,11 @@ const (
 	PeakShaveMinSoc                 = "peakShaveMinSoc"
 	PeakShaveMaintainSocChargePower = "peakShaveMaintainSocChargePower"
 	PeakShaveLoadShedDelay          = "peakShaveLoadShedDelay"
+	BatteryControlInterval          = "batteryControlInterval"
 	PeakShaveAverage                = "peakShaveAverage"
 	PeakShaveState                  = "peakShaveState"
 	BatteryCycleCost                = "batteryCycleCost"
+	BatteryTrade                    = "batteryTrade"
 	BatteryPlan                     = "batteryPlan"
 
 	// optimizer

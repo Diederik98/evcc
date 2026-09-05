@@ -120,9 +120,11 @@ type Loadpoint struct {
 	limitSoc                 int      // Session limit for soc
 	limitEnergy              float64  // Session limit for energy
 	smartCostLimit           *float64 // always charge if consumption cost is below this value
+	smartCostLimitEnergy     bool     // compare against Rate.Energy instead of all-in Value
 	smartFeedInPriorityLimit *float64 // prevent charging if feed-in cost is above this value
 	batteryBoost             int      // battery boost state
 	batteryBoostLimit        int      // battery boost soc limit (0-100, 100=disabled)
+	batteryDischargeExclude  bool     // exempt from site discharge control (battery may feed this loadpoint)
 
 	mode                api.ChargeMode
 	enabled             bool      // Charger enabled state
@@ -150,15 +152,34 @@ type Loadpoint struct {
 	socEstimator   *soc.Estimator
 
 	// charge planning
-	planner          *planner.Planner
-	planTime         time.Time        // time goal
-	planStrategy     api.PlanStrategy // plan strategy (precondition, continuous)
-	planEnergy       float64          // Plan charge energy in kWh (dumb vehicles)
-	planEnergyOffset float64          // already charged energy in kWh when plan was set
-	planSlotEnd      time.Time        // current plan slot end time
-	planActive       bool             // charge plan exists and has a currently active slot
-	planOverrunSent  bool             // notification has been sent already
-	planLocked       PlanLock         // locked plan
+	planner                *planner.Planner
+	planTime               time.Time        // time goal
+	planStrategy           api.PlanStrategy // plan strategy (precondition, continuous)
+	planEnergy             float64          // Plan charge energy in kWh (dumb vehicles)
+	planEnergyOffset       float64          // already charged energy in kWh when plan was set
+	planSlotEnd            time.Time        // current plan slot end time
+	planActive             bool             // charge plan exists and has a currently active slot
+	planOverrunSent        bool             // notification has been sent already
+	planLocked             PlanLock         // locked plan
+	repeatingPlans         []api.RepeatingPlan
+	repeatingPlanEnd       time.Time // deadline of the repeating occurrence bound to planEnergyOffset
+	repeatingPlanOffsetSet bool      // true after this occurrence started charging
+
+	heatingComfort        loadpoint.HeatingComfort
+	heatingBoosts         []loadpoint.HeatingBoost
+	heatingPattern        loadpoint.HeatingPattern
+	heatingBoostActive    bool
+	heatingBoostStart     time.Time
+	heatingBoostStartTemp float64
+	heatingBoostBaselineW float64
+	heatingBoostEnergyWh  float64
+	heatingBoostExtra     []float64
+	heatingBoostSlotStart time.Time
+	heatingBoostSlotWh    float64
+	heatingBoostSample    time.Time
+	heatingBoostReason    string
+	heatingComfortSince   time.Time
+	heatingLastHouseholdW float64
 
 	// cached state
 	status         api.ChargeStatus // Charger status
@@ -368,11 +389,17 @@ func (lp *Loadpoint) restoreSettings() {
 	if v, err := lp.settings.Float(keys.SmartCostLimit); err == nil {
 		lp.SetSmartCostLimit(&v)
 	}
+	if v, err := lp.settings.Bool(keys.SmartCostLimitEnergy); err == nil {
+		lp.SetSmartCostLimitEnergy(v)
+	}
 	if v, err := lp.settings.Float(keys.SmartFeedInPriorityLimit); err == nil {
 		lp.SetSmartFeedInPriorityLimit(&v)
 	}
 	if v, err := lp.settings.Int(keys.BatteryBoostLimit); err == nil {
 		lp.SetBatteryBoostLimit(int(v))
+	}
+	if v, err := lp.settings.Bool(keys.BatteryDischargeExclude); err == nil {
+		lp.SetBatteryDischargeExclude(v)
 	}
 
 	var thresholds loadpoint.ThresholdsConfig
@@ -401,6 +428,8 @@ func (lp *Loadpoint) restoreSettings() {
 	if err := lp.settings.Json(keys.PlanStrategy, &planStrategy); err == nil {
 		lp.setPlanStrategy(planStrategy)
 	}
+
+	lp.restoreHeating()
 }
 
 // requestUpdate requests site to update this loadpoint
@@ -518,8 +547,7 @@ func (lp *Loadpoint) evChargeStartHandler() {
 		if session.Created.IsZero() {
 			session.Created = lp.clock.Now()
 		}
-		// capture start soc once available (may not be present at session start)
-		if soc := lp.vehicleSoc; session.SocStart == nil && soc > 0 && !lp.chargerHasFeature(api.Heating) {
+		if soc := lp.vehicleSoc; session.SocStart == nil && soc > 0 {
 			session.SocStart = &soc
 		}
 	})
@@ -718,6 +746,7 @@ func (lp *Loadpoint) Prepare(site site.API, uiChan chan<- util.Param, pushChan c
 	lp.publish(keys.ChargerSinglePhase, lp.getChargerPhysicalPhases() == 1)
 	lp.publish(keys.PhasesActive, lp.ActivePhases())
 	lp.publish(keys.SmartCostLimit, lp.smartCostLimit)
+	lp.publish(keys.SmartCostLimitEnergy, lp.smartCostLimitEnergy)
 	lp.publish(keys.SmartFeedInPriorityLimit, lp.smartFeedInPriorityLimit)
 	lp.publishTimer(phaseTimer, 0, timerInactive)
 	lp.publishTimer(pvTimer, 0, timerInactive)
@@ -750,6 +779,8 @@ func (lp *Loadpoint) Prepare(site site.API, uiChan chan<- util.Param, pushChan c
 	lp.publish(keys.PlanTime, lp.planTime)
 	lp.publish(keys.PlanEnergy, lp.planEnergy)
 	lp.publish(keys.PlanStrategy, lp.planStrategy)
+	lp.publish(keys.RepeatingPlans, lp.repeatingPlans)
+	lp.publishHeatingStatus()
 	lp.publish(keys.LimitSoc, lp.limitSoc)
 	lp.publish(keys.LimitEnergy, lp.limitEnergy)
 
@@ -759,6 +790,7 @@ func (lp *Loadpoint) Prepare(site site.API, uiChan chan<- util.Param, pushChan c
 	// battery boost
 	lp.publish(keys.BatteryBoost, lp.batteryBoost != boostDisabled)
 	lp.publish(keys.BatteryBoostLimit, lp.batteryBoostLimit)
+	lp.publish(keys.BatteryDischargeExclude, lp.batteryDischargeExclude)
 
 	// read initial charger state to prevent immediately disabling charger
 	if enabled, err := lp.charger.Enabled(); err == nil {
@@ -802,6 +834,17 @@ func (lp *Loadpoint) syncCharger() error {
 		defer func() {
 			lp.setAndPublishEnabled(enabled)
 		}()
+	}
+
+	// heat pumps often lag or ignore a single disable; retry instead of treating running-while-disabled as a logic error
+	if lp.chargerHasFeature(api.Heating) && !lp.enabled && (enabled || lp.charging()) {
+		lp.log.WARN.Println("heater still on after disable, retrying")
+		if err := lp.charger.Enable(false); err != nil {
+			enabled = false
+			return fmt.Errorf("charger disable: %w", err)
+		}
+		enabled = false
+		return nil
 	}
 
 	// #1: check charger logic, fix charger state if necessary (for chargers that start charging while being disabled)
@@ -1043,9 +1086,6 @@ func (lp *Loadpoint) socBasedPlanning() bool {
 
 // repeatingPlanning returns true if the current plan is a repeating plan
 func (lp *Loadpoint) repeatingPlanning() bool {
-	if !lp.socBasedPlanning() {
-		return false
-	}
 	return lp.getPlanId() > 1
 }
 
@@ -1073,6 +1113,10 @@ func (lp *Loadpoint) LimitEnergyReached() bool {
 func (lp *Loadpoint) LimitSocReached() bool {
 	lp.RLock()
 	defer lp.RUnlock()
+	if lp.chargerHasFeature(api.Heating) {
+		stop := lp.heatingStopTempLocked()
+		return stop > 0 && lp.vehicleSoc >= stop
+	}
 	limit := lp.effectiveLimitSoc()
 	return limit > 0 && limit < 100 && lp.vehicleSoc >= float64(limit)
 }
@@ -2115,12 +2159,11 @@ func (lp *Loadpoint) Update(sitePower, batteryBoostPower float64, consumption, f
 	// update and publish min soc not reached state
 	minSocNotReached := lp.minSocNotReached()
 	lp.publish(keys.MinSocNotReached, minSocNotReached)
+	comfortActive := lp.heatingComfortHeating()
 
 	// execute loading strategy
 	switch {
 	case !lp.connected():
-		// always disable charger if not connected
-		// https://github.com/evcc-io/evcc/issues/105
 		err = lp.setLimit(0)
 
 	case lp.scalePhasesRequired():
@@ -2140,7 +2183,7 @@ func (lp *Loadpoint) Update(sitePower, batteryBoostPower float64, consumption, f
 		err = lp.setLimit(current)
 
 	// minimum or target charging
-	case minSocNotReached || plannerActive:
+	case minSocNotReached || plannerActive || comfortActive:
 		err = lp.fastCharging()
 		lp.resetPhaseTimer()
 		lp.elapsePVTimer() // let PV mode disable immediately afterwards

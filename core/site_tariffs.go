@@ -79,9 +79,21 @@ func (site *Site) publishTariffs(greenShareHome float64, greenShareLoadpoints fl
 	site.publish(keys.GreenShareHome, greenShareHome)
 	site.publish(keys.GreenShareLoadpoints, greenShareLoadpoints)
 
-	if v, err := tariff.Now(site.GetTariff(api.TariffUsageGrid)); err == nil {
-		site.publish(keys.TariffGrid, v)
+	if v, err := tariff.At(site.GetTariff(api.TariffUsageGrid), time.Now()); err == nil {
+		site.publish(keys.TariffGrid, v.Value)
+		if v.Energy != nil {
+			site.publish(keys.TariffGridEnergy, *v.Energy)
+		} else {
+			site.publish(keys.TariffGridEnergy, nil)
+		}
 	}
+	charges, tax, formula := tariff.PriceBreakdown(site.GetTariff(api.TariffUsageGrid))
+	if charges == 0 && tax == 0 && !formula {
+		charges, tax, formula = tariff.PriceBreakdown(site.GetTariff(api.TariffUsagePlanner))
+	}
+	site.publish(keys.TariffCharges, charges)
+	site.publish(keys.TariffTax, tax)
+	site.publish(keys.TariffFormula, formula)
 	if v, err := tariff.Now(site.GetTariff(api.TariffUsageFeedIn)); err == nil {
 		site.publish(keys.TariffFeedIn, v)
 	}

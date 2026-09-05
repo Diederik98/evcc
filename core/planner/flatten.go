@@ -47,6 +47,7 @@ func FlattenChargeDemands(slots []BatterySlot, demands []ChargeDemand, gridThres
 		alloc = flattenDemand(slots, d, gridThresholdW)
 		for j, wh := range alloc {
 			slots[j].HomeWh += wh
+			slots[j].LoadWh += wh
 			addedWh += wh
 		}
 		if hours0 > 0 {
@@ -55,6 +56,25 @@ func FlattenChargeDemands(slots []BatterySlot, demands []ChargeDemand, gridThres
 	}
 
 	return addedWh, currentW
+}
+
+// DemandSlotWh returns planned energy per slot for one demand (Wh).
+func DemandSlotWh(slots []BatterySlot, d ChargeDemand, gridThresholdW float64) []float64 {
+	if d.RequiredWh <= 0 || d.MaxW <= 0 || len(slots) == 0 {
+		return nil
+	}
+	if d.Continuous || gridThresholdW <= 0 || d.Deadline.IsZero() {
+		alloc := make([]float64, len(slots))
+		for i, s := range slots {
+			for _, r := range d.Preferred {
+				if h := overlapHours(s.Start, s.End, r.Start, r.End); h > 0 {
+					alloc[i] += d.MaxW * h
+				}
+			}
+		}
+		return alloc
+	}
+	return flattenDemand(slots, d, gridThresholdW)
 }
 
 func flattenDemand(slots []BatterySlot, d ChargeDemand, gridThresholdW float64) []float64 {
@@ -152,6 +172,7 @@ func applyChargePlan(slots []BatterySlot, plan api.Rates, powerW float64) float6
 			}
 			wh := powerW * h
 			slots[i].HomeWh += wh
+			slots[i].LoadWh += wh
 			added += wh
 		}
 	}

@@ -22,6 +22,10 @@
 					:smartCostAvailable="smartCostAvailable"
 					:smartFeedInPriorityAvailable="smartFeedInPriorityAvailable"
 					:tariffGrid="tariffGrid"
+					:tariffGridEnergy="tariffGridEnergy"
+					:tariffCharges="tariffCharges"
+					:tariffTax="tariffTax"
+					:tariffFormula="tariffFormula"
 					:tariffCo2="tariffCo2"
 					:tariffFeedIn="tariffFeedIn"
 					:currency="currency"
@@ -77,10 +81,15 @@
 				:multipleLoadpoints="multipleLoadpoints"
 				:currency="currency"
 				:tariffGrid="tariffGrid"
+				:tariffGridEnergy="tariffGridEnergy"
+				:tariffCharges="tariffCharges"
+				:tariffTax="tariffTax"
+				:tariffFormula="tariffFormula"
 				:smartFeedInPriorityAvailable="smartFeedInPriorityAvailable"
 				:smartCostAvailable="smartCostAvailable"
 				:smartCostType="smartCostType"
 				:battery-configured="batteryConfigured"
+				:battery-discharge-control="batteryDischargeControl"
 				:forecast="forecast"
 			/>
 		</div>
@@ -116,6 +125,10 @@ export default defineComponent({
 		smartCostAvailable: Boolean,
 		smartFeedInPriorityAvailable: Boolean,
 		tariffGrid: Number,
+		tariffGridEnergy: Number,
+		tariffCharges: { type: Number, default: 0 },
+		tariffTax: { type: Number, default: 0 },
+		tariffFormula: Boolean,
 		tariffCo2: Number,
 		tariffFeedIn: Number,
 		currency: String as PropType<CURRENCY>,
@@ -123,6 +136,7 @@ export default defineComponent({
 		gridConfigured: Boolean,
 		pvConfigured: Boolean,
 		batteryConfigured: Boolean,
+		batteryDischargeControl: Boolean,
 		batterySoc: Number,
 		batteryMode: String as PropType<BATTERY_MODE>,
 		forecast: Object as PropType<Forecast>,

@@ -1,10 +1,6 @@
 <template>
 	<div class="peak-shave-settings">
-		<div
-			v-if="!limitControllerAvailable"
-			class="alert alert-warning mb-4"
-			role="alert"
-		>
+		<div v-if="!limitControllerAvailable" class="alert alert-warning mb-4" role="alert">
 			{{ $t("peakShave.noLimitController") }}
 		</div>
 
@@ -30,6 +26,21 @@
 				{{ $t("peakShave.plan.loadCap", { power: planLoadPower }) }}
 			</p>
 		</div>
+
+		<BatteryPlanForecast
+			:slots="batteryPlan?.slots || []"
+			:grid-threshold="gridThreshold"
+			:currency="currency"
+			:peak-shave-state="peakShaveState"
+			:has-prices-hint="batteryPlan?.explain?.hasPrices"
+			:plan-loads="batteryPlan?.explain?.loads || []"
+			:tariff-charges="tariffCharges"
+			:tariff-tax="tariffTax"
+			:tariff-formula="tariffFormula"
+		/>
+		<p class="mb-4">
+			<router-link to="/battery/plan">{{ $t("peakShave.plan.openDetails") }}</router-link>
+		</p>
 
 		<!-- 15-minute average -->
 		<div class="form-check form-switch mb-4">
@@ -67,6 +78,22 @@
 			</div>
 		</div>
 
+		<!-- Trade leftover -->
+		<div class="form-check form-switch mb-4">
+			<input
+				id="batteryTrade"
+				class="form-check-input"
+				type="checkbox"
+				role="switch"
+				:checked="localTrade"
+				@change="saveTrade"
+			/>
+			<label class="form-check-label" for="batteryTrade">
+				<span class="fw-bold">{{ $t("peakShave.trade") }}</span>
+				<p class="text-muted small mb-0">{{ $t("peakShave.tradeHelp") }}</p>
+			</label>
+		</div>
+
 		<!-- Load shed delay -->
 		<div class="mb-4">
 			<label for="peakShaveLoadShedDelay" class="form-label fw-bold">
@@ -82,6 +109,27 @@
 					step="5"
 					class="form-control"
 					@change="saveLoadShedDelay"
+				/>
+				<span class="input-group-text">s</span>
+			</div>
+		</div>
+
+		<!-- Power control interval -->
+		<div class="mb-4">
+			<label for="batteryControlInterval" class="form-label fw-bold">
+				{{ $t("peakShave.controlInterval") }}
+			</label>
+			<p class="text-muted small mb-2">{{ $t("peakShave.controlIntervalHelp") }}</p>
+			<div class="input-group">
+				<input
+					id="batteryControlInterval"
+					v-model.number="localControlInterval"
+					type="number"
+					min="1"
+					max="60"
+					step="1"
+					class="form-control"
+					@change="saveControlInterval"
 				/>
 				<span class="input-group-text">s</span>
 			</div>
@@ -156,29 +204,40 @@
 import { defineComponent, type PropType } from "vue";
 import api from "@/api";
 import formatter, { POWER_UNIT } from "@/mixins/formatter";
-import type { PeakShaveState, BatteryPlanStatus } from "@/types/evcc";
+import { CURRENCY, type PeakShaveState, type BatteryPlanStatus } from "@/types/evcc";
+import BatteryPlanForecast from "./BatteryPlanForecast.vue";
 
 export default defineComponent({
 	name: "BatteryPeakShaveSettings",
+	components: { BatteryPlanForecast },
 	mixins: [formatter],
 	props: {
 		peakShaveReserveSoc: { type: Number, default: 40 },
 		peakShaveMinSoc: { type: Number, default: 20 },
 		peakShaveMaintainSocChargePower: { type: Number, default: 1000 },
 		peakShaveLoadShedDelay: { type: Number, default: 30 },
+		batteryControlInterval: { type: Number, default: 5 },
 		peakShaveAverage: { type: Boolean, default: false },
 		peakShaveState: { type: String as PropType<PeakShaveState>, default: "idle" },
 		limitControllerAvailable: { type: Boolean, default: true },
 		batteryCycleCost: { type: Number, default: 0.05 },
+		batteryTrade: { type: Boolean, default: false },
 		batteryPlan: { type: Object as PropType<BatteryPlanStatus | null>, default: null },
+		gridThreshold: { type: Number, default: 0 },
+		currency: { type: String as PropType<CURRENCY>, default: CURRENCY.EUR },
+		tariffCharges: { type: Number, default: 0 },
+		tariffTax: { type: Number, default: 0 },
+		tariffFormula: Boolean,
 	},
 	data() {
 		return {
 			localReserveSoc: this.peakShaveReserveSoc,
 			localMaintainPower: this.peakShaveMaintainSocChargePower,
 			localLoadShedDelay: this.peakShaveLoadShedDelay,
+			localControlInterval: this.batteryControlInterval,
 			localAverage: this.peakShaveAverage,
 			localCycleCost: this.batteryCycleCost,
+			localTrade: this.batteryTrade,
 			dragging: false,
 		};
 	},
@@ -225,11 +284,17 @@ export default defineComponent({
 		peakShaveLoadShedDelay(v: number) {
 			this.localLoadShedDelay = v;
 		},
+		batteryControlInterval(v: number) {
+			this.localControlInterval = v;
+		},
 		peakShaveAverage(v: boolean) {
 			this.localAverage = v;
 		},
 		batteryCycleCost(v: number) {
 			this.localCycleCost = v;
+		},
+		batteryTrade(v: boolean) {
+			this.localTrade = v;
 		},
 	},
 	beforeUnmount() {
@@ -324,6 +389,15 @@ export default defineComponent({
 				console.error(err);
 			}
 		},
+		async saveControlInterval() {
+			try {
+				await api.post(
+					`batterycontrolinterval/${encodeURIComponent(this.localControlInterval)}`
+				);
+			} catch (err) {
+				console.error(err);
+			}
+		},
 		async saveAverage(event: Event) {
 			const checked = (event.target as HTMLInputElement).checked;
 			this.localAverage = checked;
@@ -339,6 +413,16 @@ export default defineComponent({
 				await api.post(`batterycyclecost/${encodeURIComponent(this.localCycleCost)}`);
 			} catch (err) {
 				console.error(err);
+			}
+		},
+		async saveTrade(event: Event) {
+			const checked = (event.target as HTMLInputElement).checked;
+			this.localTrade = checked;
+			try {
+				await api.post(`batterytrade/${encodeURIComponent(String(checked))}`);
+			} catch (err) {
+				console.error(err);
+				this.localTrade = this.batteryTrade;
 			}
 		},
 	},

@@ -246,11 +246,7 @@ func (t *Pun) getData(day time.Time) (api.Rates, error) {
 		}
 
 		ts := time.Date(date.Year(), date.Month(), date.Day(), hour-1, 0, 0, 0, romeLocation)
-		ar := api.Rate{
-			Start: ts,
-			End:   ts.Add(time.Hour),
-			Value: t.totalPrice(price/1e3, ts),
-		}
+		ar := t.rate(ts, ts.Add(time.Hour), price/1e3)
 		data = append(data, ar)
 	}
 

@@ -100,11 +100,11 @@ func (t *Tariff) run(forecastG func() (string, error), done chan error, interval
 				return backoff.Permanent(err)
 			}
 			for i, r := range data {
-				data[i] = api.Rate{
-					Value: t.totalPrice(r.Value, r.Start),
-					Start: r.Start.Local(),
-					End:   r.End.Local(),
+				energy := r.Value
+				if r.Energy != nil {
+					energy = *r.Energy
 				}
+				data[i] = t.rate(r.Start.Local(), r.End.Local(), energy)
 			}
 			return nil
 		}, bo()); err != nil {
@@ -146,11 +146,7 @@ func (t *Tariff) priceRates() (api.Rates, error) {
 
 	for i := range res {
 		slot := start.Add(time.Duration(i) * SlotDuration)
-		res[i] = api.Rate{
-			Start: slot,
-			End:   slot.Add(SlotDuration),
-			Value: t.totalPrice(price, slot),
-		}
+		res[i] = t.rate(slot, slot.Add(SlotDuration), price)
 	}
 
 	return res, nil

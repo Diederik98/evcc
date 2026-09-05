@@ -63,6 +63,9 @@
 							</label>
 						</div>
 					</div>
+					<p v-if="showSolarAdjust" class="text-muted small mb-2">
+						{{ $t("forecast.solarAdjustHelp") }}
+					</p>
 					<div class="chart-edge">
 						<SolarChart
 							:solar="solar"
@@ -81,25 +84,43 @@
 					class="mb-5"
 					:style="isGridStatic ? { order: 1 } : undefined"
 				>
-					<div class="d-flex align-items-baseline my-4">
+					<div class="d-flex align-items-baseline my-4 gap-3">
 						<h3 class="fw-normal mb-0">{{ $t("forecast.type.price") }}</h3>
-						<div class="form-check form-switch ms-auto mb-0 text-nowrap">
-							<input
-								id="priceZoom"
-								:checked="priceZoom"
-								class="form-check-input"
-								type="checkbox"
-								role="switch"
-								@change="togglePriceZoom"
-							/>
-							<label class="form-check-label text-muted" for="priceZoom">
-								{{ $t("forecast.priceZoom") }}
-							</label>
+						<div class="ms-auto d-flex flex-wrap justify-content-end gap-3">
+							<div
+								v-if="energyToggleVisible"
+								class="form-check form-switch mb-0 text-nowrap"
+							>
+								<input
+									id="showEnergyPrice"
+									:checked="showEnergyPrice"
+									class="form-check-input"
+									type="checkbox"
+									role="switch"
+									@change="toggleEnergyPrice"
+								/>
+								<label class="form-check-label text-muted" for="showEnergyPrice">
+									{{ $t("forecast.showEnergyPrice") }}
+								</label>
+							</div>
+							<div class="form-check form-switch mb-0 text-nowrap">
+								<input
+									id="priceZoom"
+									:checked="priceZoom"
+									class="form-check-input"
+									type="checkbox"
+									role="switch"
+									@change="togglePriceZoom"
+								/>
+								<label class="form-check-label text-muted" for="priceZoom">
+									{{ $t("forecast.priceZoom") }}
+								</label>
+							</div>
 						</div>
 					</div>
 					<div class="chart-edge">
 						<PriceChart
-							:grid="forecast.grid"
+							:grid="gridSlots"
 							:feedin="showFeedin ? forecast.feedin : undefined"
 							:currency="currency"
 							:zoom="priceZoom"
@@ -110,7 +131,7 @@
 						/>
 					</div>
 					<GridDetails
-						:grid="forecast.grid"
+						:grid="gridSlots"
 						:feedin="forecast.feedin"
 						:currency="currency"
 						:show-feedin="showFeedin"
@@ -152,6 +173,7 @@ import formatter from "@/mixins/formatter";
 import settings from "@/settings";
 import store from "../store";
 import { adjustedSolar, ForecastType, isStaticTariff } from "@/utils/forecast";
+import { isEnergyPriceDisplay, mapSlotPrices } from "@/utils/tariffPrice";
 
 const MIN_HOURS = 76;
 const MAX_HOURS = 96;
@@ -231,6 +253,15 @@ export default defineComponent({
 		priceZoom() {
 			return settings.priceZoom;
 		},
+		showEnergyPrice() {
+			return isEnergyPriceDisplay();
+		},
+		energyToggleVisible() {
+			return !!this.forecast.grid;
+		},
+		gridSlots() {
+			return mapSlotPrices(this.forecast.grid);
+		},
 		showFeedin() {
 			return !settings.hideFeedin;
 		},
@@ -268,6 +299,9 @@ export default defineComponent({
 		},
 		togglePriceZoom() {
 			settings.priceZoom = !settings.priceZoom;
+		},
+		toggleEnergyPrice() {
+			settings.showEnergyPrice = !settings.showEnergyPrice;
 		},
 		toggleFeedin() {
 			settings.hideFeedin = !settings.hideFeedin;

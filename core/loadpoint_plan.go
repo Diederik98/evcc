@@ -44,6 +44,14 @@ func (lp *Loadpoint) lockPlanGoal(planTime time.Time, soc int, id int) {
 
 // setPlanActive updates plan active flag
 func (lp *Loadpoint) setPlanActive(active bool) {
+	if active && !lp.planActive && lp.repeatingPlanning() {
+		end, _, _, _ := lp.nextEnergyPlan()
+		if !lp.repeatingPlanOffsetSet || !end.Equal(lp.repeatingPlanEnd) {
+			lp.planEnergyOffset = lp.getChargedEnergy() / 1e3
+			lp.repeatingPlanOffsetSet = true
+			lp.repeatingPlanEnd = end
+		}
+	}
 	if !active {
 		lp.planOverrunSent = false
 		lp.planSlotEnd = time.Time{}
@@ -87,8 +95,22 @@ func (lp *Loadpoint) getPlanRequiredDuration(goal, maxPower float64) time.Durati
 		return lp.socEstimator.RemainingChargeDuration(goal, maxPower)
 	}
 
-	energy := lp.remainingPlanEnergy(goal)
+	energy := lp.energyPlanGoalWh(goal) / 1e3
 	return time.Duration(energy * 1e3 / maxPower * float64(time.Hour))
+}
+
+// energyPlanGoalWh is the remaining energy goal in Wh for the active plan.
+// Repeating plans use the full configured kWh until that occurrence starts,
+// then subtract energy delivered during the slot. Static plans subtract energy
+// already delivered since the plan was set.
+func (lp *Loadpoint) energyPlanGoalWh(planEnergyKWh float64) float64 {
+	if lp.getPlanId() > 1 {
+		end, _, _, _ := lp.nextEnergyPlan()
+		if !lp.repeatingPlanOffsetSet || !end.Equal(lp.repeatingPlanEnd) {
+			return planEnergyKWh * 1e3
+		}
+	}
+	return lp.remainingPlanEnergy(planEnergyKWh) * 1e3
 }
 
 // GetPlanGoal returns the plan goal in %, true or kWh, false
@@ -101,8 +123,8 @@ func (lp *Loadpoint) GetPlanGoal() (float64, bool) {
 		return float64(soc), true
 	}
 
-	_, limit := lp.getPlanEnergy()
-	return limit, false
+	_, energy, _, _ := lp.nextEnergyPlan()
+	return energy, false
 }
 
 // GetPlan creates a charging plan for given time and duration
@@ -220,6 +242,14 @@ func (lp *Loadpoint) plannerActive() (active bool) {
 		// remember last active plan's slot end time
 		lp.planSlotEnd = activeSlot.End
 	} else if lp.planActive {
+		if lp.chargerHasFeature(api.Heating) {
+			if left := lp.heatingMinOnRemaining(); left > 0 {
+				lp.log.DEBUG.Printf("plan: heating min on-time remaining %v", left.Round(time.Second))
+				return true
+			}
+			return false
+		}
+
 		// planner was active (any slot, not necessarily previous slot) and charge goal has not yet been met
 		switch {
 		case lp.clock.Now().After(planTime) && !planTime.IsZero():

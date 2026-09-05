@@ -61,7 +61,8 @@ import { DEFAULT_LOCALE } from "@/i18n.ts";
 import formatter from "@/mixins/formatter";
 import minuteTicker from "@/mixins/minuteTicker";
 import { defineComponent, type PropType } from "vue";
-import { SMART_COST_TYPE, type CURRENCY, type VehicleStatus, type Timeout } from "@/types/evcc";
+import { SMART_COST_TYPE, type CURRENCY, type Forecast, type VehicleStatus, type Timeout } from "@/types/evcc";
+import { displayGridPrice, displayStoredLimit } from "@/utils/tariffPrice";
 
 import ClimaterIcon from "../MaterialIcon/Climater.vue";
 import DynamicPriceIcon from "../MaterialIcon/DynamicPrice.vue";
@@ -119,6 +120,7 @@ export default defineComponent({
 		smartCostActive: Boolean,
 		smartCostDisabled: Boolean,
 		smartCostLimit: { type: Number, default: null },
+		smartCostLimitEnergy: Boolean,
 		smartCostNextStart: String,
 		smartCostType: String,
 		smartFeedInPriorityActive: Boolean,
@@ -127,7 +129,12 @@ export default defineComponent({
 		smartFeedInPriorityNextStart: String,
 		tariffCo2: { type: Number, default: 0 },
 		tariffGrid: { type: Number, default: 0 },
+		tariffGridEnergy: { type: Number },
+		tariffCharges: { type: Number, default: 0 },
+		tariffTax: { type: Number, default: 0 },
+		tariffFormula: Boolean,
 		tariffFeedIn: { type: Number, default: 0 },
+		forecast: Object as PropType<Forecast>,
 		vehicleClimaterActive: Boolean,
 		vehicleWelcomeActive: Boolean,
 		vehicleLimitSoc: { type: Number, default: 0 },
@@ -171,21 +178,38 @@ export default defineComponent({
 		},
 		smartCostNowVisible() {
 			if (this.smartCostPrice) {
-				return this.tariffGrid <= this.smartCostLimit;
+				const limit = this.displaySmartCostLimit;
+				return limit != null && this.displayTariffGrid <= limit;
 			}
 			return this.tariffCo2 <= this.smartCostLimit;
 		},
 		smartCostNow() {
 			if (this.smartCostPrice) {
-				return this.fmtPricePerKWh(this.tariffGrid, this.currency, true);
+				return this.fmtPricePerKWh(this.displayTariffGrid, this.currency, true);
 			}
 			return this.fmtCo2Short(this.tariffCo2);
 		},
 		smartCostLimitFmt() {
 			if (this.smartCostPrice) {
-				return this.fmtPricePerKWh(this.smartCostLimit, this.currency, true);
+				return this.fmtPricePerKWh(this.displaySmartCostLimit, this.currency, true);
 			}
 			return this.fmtCo2Short(this.smartCostLimit);
+		},
+		priceSlots() {
+			return this.forecast?.planner || this.forecast?.grid;
+		},
+		displayTariffGrid() {
+			return displayGridPrice(this.tariffGrid, this.tariffGridEnergy);
+		},
+		displaySmartCostLimit() {
+			if (!this.smartCostPrice || this.smartCostLimit == null) {
+				return this.smartCostLimit;
+			}
+			return displayStoredLimit(
+				this.smartCostLimit,
+				this.smartCostLimitEnergy,
+				this.priceSlots
+			);
 		},
 		feedInNow() {
 			return this.fmtPricePerKWh(this.tariffFeedIn, this.currency, true);

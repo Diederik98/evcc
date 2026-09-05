@@ -233,8 +233,10 @@ func (m *MQTT) listenSiteSetters(topic string, site site.API) error {
 		{"peakShaveMinSoc", floatSetter(site.SetPeakShaveMinSoc)},
 		{"peakShaveMaintainSocChargePower", floatSetter(site.SetPeakShaveMaintainSocChargePower)},
 		{"peakShaveLoadShedDelay", floatSetter(site.SetPeakShaveLoadShedDelay)},
+		{"batteryControlInterval", floatSetter(site.SetBatteryControlInterval)},
 		{"peakShaveAverage", boolSetter(site.SetPeakShaveAverage)},
 		{"batteryCycleCost", floatSetter(site.SetBatteryCycleCost)},
+		{"batteryTrade", boolSetter(site.SetBatteryTrade)},
 		{"batteryMode", ptrSetter(api.BatteryModeString, func(m *api.BatteryMode) error {
 			if m == nil {
 				m = new(api.BatteryUnknown)
@@ -267,6 +269,7 @@ func (m *MQTT) listenLoadpointSetters(topic string, site site.API, lp loadpoint.
 		{"smartFeedInPriorityLimit", floatPtrSetter(pass(lp.SetSmartFeedInPriorityLimit))},
 		{"batteryBoost", boolSetter(lp.SetBatteryBoost)},
 		{"batteryBoostLimit", intSetter(pass(lp.SetBatteryBoostLimit))},
+		{"batteryDischargeExclude", boolSetter(pass(lp.SetBatteryDischargeExclude))},
 		{"planStrategy", planStrategySetter(lp.SetPlanStrategy)},
 		{"planEnergy", planGoalSetter(lp.SetPlanEnergy)},
 		{"vehicle", func(payload string) error {

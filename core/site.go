@@ -68,8 +68,10 @@ type Site struct {
 	PeakShaveMinSoc                 float64                    `mapstructure:"peakShaveMinSoc"`                 // Peak shaving battery min SoC in %
 	PeakShaveMaintainSocChargePower float64                    `mapstructure:"peakShaveMaintainSocChargePower"` // Power limit for restoring reserve SoC in W
 	PeakShaveLoadShedDelay          float64                    `mapstructure:"peakShaveLoadShedDelay"`          // Grace period before EV load shedding in s
+	BatteryControlInterval          float64                    `mapstructure:"batteryControlInterval"`          // Live battery power-control loop interval in s
 	PeakShaveAverage                bool                       `mapstructure:"peakShaveAverage"`                // Control clock-aligned 15-minute average instead of instantaneous watts
 	BatteryCycleCost                float64                    `mapstructure:"batteryCycleCost"`                // Wear cost in currency per kWh discharged
+	BatteryTrade                    bool                       `mapstructure:"batteryTrade"`                    // After cover, fill toward max and sell when feed-in beats later self-use
 	circuit                         api.Circuit                // Circuit
 	hems                            api.HEMS                   // HEMS (set by configureHEMS at boot)
 	gridMeter                       api.Meter                  // Grid usage meter
@@ -80,11 +82,12 @@ type Site struct {
 	consumerMeters                  []config.Device[api.Meter] // Consumer meters
 
 	// battery settings
-	prioritySoc             float64  // prefer battery up to this Soc
-	bufferSoc               float64  // continue charging on battery above this Soc
-	bufferStartSoc          float64  // start charging on battery above this Soc
-	batteryDischargeControl bool     // prevent battery discharge for fast and planned charging
-	batteryGridChargeLimit  *float64 // grid charging limit
+	prioritySoc                  float64  // prefer battery up to this Soc
+	bufferSoc                    float64  // continue charging on battery above this Soc
+	bufferStartSoc               float64  // start charging on battery above this Soc
+	batteryDischargeControl      bool     // prevent battery discharge for fast and planned charging
+	batteryGridChargeLimit       *float64 // grid charging limit
+	batteryGridChargeLimitEnergy bool     // limit is source energy price, not all-in Value
 
 	// optimizer settings
 	optimizerChargingStrategy string // optimizer grid charging strategy
@@ -98,32 +101,39 @@ type Site struct {
 	collectors map[string]*metrics.Collector // keyed by meter ref
 
 	// cached state
-	gridPower                float64            // Grid power
-	gridPowerValid           bool               // Grid meter last read succeeded
-	pvPower                  float64            // PV power
-	excessDCPower            float64            // PV excess DC charge power (hybrid only)
-	auxPower                 float64            // Aux power
-	battery                  types.BatteryState // Battery cached and published state
-	batteryMode              api.BatteryMode    // Battery mode (runtime only, not persisted)
-	batteryModeExternal      api.BatteryMode    // Battery mode (external, runtime only, not persisted)
-	batteryModeExternalTimer time.Time          // Battery mode timer for external control
-	peakShaveState           string             // Peak shaving state machine state
-	peakShaveOverloadSince   time.Time          // Overload start time for load shed delay
-	peakShaveBatteryLimited  bool               // Battery limit controller writes active
-	batteryPlanHold          bool               // Planner requested hold for later peaks or expensive hours
-	batteryDischargeLocked   bool               // Discharge control: do not feed the charger from the battery
-	batteryPlanChargeW       int                // Last planned grid-charge setpoint, capped live on the fast loop
-	lastBatteryChargeW       int                // Last written charge limit
-	lastBatteryDischargeW    int                // Last written discharge limit
-	batteryLimitSet          bool               // Whether a limit has been written this session
-	batteryPlanDischargeW    int                // Planned export discharge, kept on the fast loop
-	batteryPlanLoadWh        float64            // Planned charger/heater energy included in the current battery plan
-	batteryPlanLoadCaps      []float64          // Flattened charger/heater watts for the current slot, per loadpoint
-	peakShaveQuarterStart    time.Time          // Clock-aligned quarter used for average peak control
-	peakShaveQuarterWh       float64            // Imported grid energy in the current quarter
-	peakShaveQuarterAt       time.Time          // Last sample time for quarter energy
-	solarOrientation         *solarOrientation  // Cached clear-sky orientation suggestion
-	solarOrientationAt       time.Time          // Last orientation fit
+	gridPower                float64                      // Grid power
+	gridPowerValid           bool                         // Grid meter last read succeeded
+	pvPower                  float64                      // PV power
+	excessDCPower            float64                      // PV excess DC charge power (hybrid only)
+	auxPower                 float64                      // Aux power
+	battery                  types.BatteryState           // Battery cached and published state
+	batteryMode              api.BatteryMode              // Battery mode (runtime only, not persisted)
+	batteryModeApplied       api.BatteryMode              // Last mode written to the battery controller
+	batteryModeExternal      api.BatteryMode              // Battery mode (external, runtime only, not persisted)
+	batteryModeExternalTimer time.Time                    // Battery mode timer for external control
+	peakShaveState           string                       // Peak shaving state machine state
+	peakShaveOverloadSince   time.Time                    // Overload start time for load shed delay
+	peakShaveBatteryLimited  bool                         // Battery limit controller writes active
+	batteryPlanHold          bool                         // Planner requested hold for later peaks or expensive hours
+	batteryDischargeLocked   bool                         // Discharge control: do not feed the charger from the battery
+	batteryPlanChargeW       int                          // Last planned grid-charge setpoint, capped live on the fast loop
+	lastBatteryChargeW       int                          // Last written charge limit
+	lastBatteryDischargeW    int                          // Last written discharge limit
+	batteryLimitSet          bool                         // Whether a limit has been written this session
+	batteryPlanDischargeW    int                          // Planned export discharge, kept on the fast loop
+	batteryPlanLoadWh        float64                      // Planned charger/heater energy included in the current battery plan
+	batteryPlanLoadCaps      []float64                    // Flattened charger/heater watts for the current slot, per loadpoint
+	batteryPlanForecast      []planner.BatteryHorizonSlot // Simulated 24h battery plan for the UI
+	batteryPlanLog           []batteryPlanLogEntry
+	batteryPlanFingerprint   string
+	batteryPlanHomeSource    string
+	batteryPlanLoads         []batteryPlanLoadStatus
+	batteryPlanSlotLoads     [][]batteryPlanSlotLoad // per-slot charger breakdown for UI
+	peakShaveQuarterStart    time.Time               // Clock-aligned quarter used for average peak control
+	peakShaveQuarterWh       float64                 // Imported grid energy in the current quarter
+	peakShaveQuarterAt       time.Time               // Last sample time for quarter energy
+	solarOrientation         *solarOrientation       // Cached clear-sky orientation suggestion
+	solarOrientationAt       time.Time               // Last orientation fit
 }
 
 // MetersConfig contains the site's meter configuration
@@ -332,6 +342,7 @@ func NewSite() *Site {
 		PeakShaveMinSoc:                 20,
 		PeakShaveMaintainSocChargePower: 1000,
 		PeakShaveLoadShedDelay:          30,
+		BatteryControlInterval:          defaultBatteryControlIntervalS,
 		BatteryCycleCost:                defaultBatteryCycleCost,
 	}
 
@@ -401,6 +412,9 @@ func (site *Site) restoreSettings() error {
 			return err
 		}
 	}
+	if v, err := settings.Bool(keys.BatteryGridChargeLimitEnergy); err == nil {
+		site.SetBatteryGridChargeLimitEnergy(v)
+	}
 	if v, err := settings.String(keys.OptimizerChargingStrategy); err == nil && v != "" {
 		if err := site.SetOptimizerChargingStrategy(v); err != nil {
 			site.log.WARN.Printf("optimizer charging strategy: %v", err)
@@ -424,11 +438,17 @@ func (site *Site) restoreSettings() error {
 	if v, err := settings.Float(keys.PeakShaveLoadShedDelay); err == nil {
 		_ = site.SetPeakShaveLoadShedDelay(v)
 	}
+	if v, err := settings.Float(keys.BatteryControlInterval); err == nil {
+		_ = site.SetBatteryControlInterval(v)
+	}
 	if v, err := settings.Bool(keys.PeakShaveAverage); err == nil {
 		_ = site.SetPeakShaveAverage(v)
 	}
 	if v, err := settings.Float(keys.BatteryCycleCost); err == nil {
 		_ = site.SetBatteryCycleCost(v)
+	}
+	if v, err := settings.Bool(keys.BatteryTrade); err == nil {
+		_ = site.SetBatteryTrade(v)
 	}
 
 	// drop legacy accumulator-based forecast settings (now stored via metrics collector)
@@ -1122,6 +1142,11 @@ func (site *Site) update(lp updater) {
 			)
 		}
 
+		homeNow := site.householdPower()
+		for _, hlp := range site.loadpoints {
+			hlp.UpdateHeatingBoost(homeNow)
+		}
+
 		site.publishTariffs(greenShareHome, greenShareLoadpoints)
 
 		if telemetry.Enabled() && totalChargePower > standbyPower {
@@ -1178,9 +1203,11 @@ func (site *Site) prepare() {
 	site.publish(keys.PeakShaveMinSoc, site.GetPeakShaveMinSoc())
 	site.publish(keys.PeakShaveMaintainSocChargePower, site.GetPeakShaveMaintainSocChargePower())
 	site.publish(keys.PeakShaveLoadShedDelay, site.GetPeakShaveLoadShedDelay())
+	site.publish(keys.BatteryControlInterval, site.GetBatteryControlInterval())
 	site.publish(keys.PeakShaveAverage, site.GetPeakShaveAverage())
 	site.publish(keys.PeakShaveState, site.GetPeakShaveState())
 	site.publish(keys.BatteryCycleCost, site.GetBatteryCycleCost())
+	site.publish(keys.BatteryTrade, site.GetBatteryTrade())
 	site.publishIdleBatteryPlan()
 	site.publish(keys.ResidualPower, site.GetResidualPower())
 	site.publish(keys.SmartCostAvailable, site.isDynamicTariff(api.TariffUsagePlanner))
